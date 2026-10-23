@@ -2,37 +2,46 @@
 
 **Zettel knipsen. Termin steht.**
 
-Du fotografierst einen Elternbrief, ein Plakat, eine Einladung oder einen Chat-Screenshot. Terminus findet Datum, Uhrzeit, Ort, Mitbringliste und Kosten und macht daraus Kalendertermine. Die Termine kannst du per WhatsApp oder E-Mail an andere schicken (Oma, Partner, Tagesmutter). Wer den Link öffnet, übernimmt den Termin mit einem Tipp in den eigenen Kalender, auch ohne Terminus.
+Du fotografierst einen Elternbrief, ein Plakat, eine Einladung oder einen Chat-Screenshot, oder teilst ihn direkt aus WhatsApp an Terminus. Die App findet Datum, Uhrzeit, Ort, Mitbringliste und Kosten und trägt die Termine in deinen Kalender ein. Mit einem Tipp schickst du sie an andere (Oma, Partner, Tagesmutter). Wer den Link öffnet, übernimmt den Termin in den eigenen Kalender, auch ohne Terminus.
 
+- **Android-App** als Hauptprodukt, **Web-Version** für iPhone und PC
 - **Open Source** (EUPL-1.2, die Open-Source-Lizenz der EU)
 - **Kostenlos**, ohne Konto, ohne Werbung, ohne Tracker
-- **Unabhängig von US-Konzernen**: KI über Mistral (Paris) oder ein eigenes Modell. Es gibt auch einen Modus ganz ohne KI, in dem nichts das Gerät verlässt.
-- Keine Google Fonts und keine CDNs. Alles wird vom eigenen Server ausgeliefert.
+- **Unabhängig von US-Konzernen**: KI über Mistral (Paris) oder ein eigenes Modell. Es gibt auch einen Modus ganz ohne KI, in dem nichts das Gerät verlässt. Keine Google-Dienste, keine Google Fonts, keine CDNs.
 
 ## Funktionen
 
-| | |
-|---|---|
-| Foto, Bild, Screenshot, eingefügter Text, Strg+V, Drag & Drop | Eingabe |
-| Viele Termine aus einem Dokument (Terminplan, Ferienliste) | Erkennung |
-| Mehrtägige Termine, Kalenderwoche, Prüfung von Wochentag und Datum | Erkennung |
-| `.ics`-Datei (Apple, Outlook, Thunderbird, Android), Google-Kalender-Link | Export |
-| Erinnerung und Standarddauer einstellbar | Export |
-| WhatsApp, E-Mail, Teilen-Menü des Handys (mit `.ics`-Anhang), gespeicherte Personen | Teilen |
-| Termin-Link: Der Termin steckt im `#`-Teil der Adresse und wird nie an einen Server geschickt | Teilen |
-| Installierbar als App (PWA), offline nutzbar, unter Android im Teilen-Menü | App |
+| Bereich | Android-App | Web-Version |
+|---|---|---|
+| Eingabe | Kamera, Galerie, **Teilen-Menü** (Bilder und Text, z. B. aus WhatsApp) | Kamera, Bild, Text, Strg+V, Drag & Drop |
+| Erkennung | viele Termine pro Dokument, mehrtägige Termine, Kalenderwoche, Prüfung von Wochentag und Datum | gleich |
+| Kalender | einzelner Termin: Kalender-App öffnet sich ausgefüllt. Mehrere: **direkt eingetragen**, Kalender wählbar | `.ics`-Datei oder Google-Kalender-Link |
+| Teilen | Android-Teilen-Menü, WhatsApp, E-Mail, gespeicherte Personen | WhatsApp, E-Mail, Teilen-Menü des Browsers |
+| Termin-Link | zeigt auf die Web-Version, der Termin steckt im `#`-Teil der Adresse und erreicht nie einen Server | gleich |
 
 ## Drei Arten der Erkennung
 
 | Modus | Datenschutz | Qualität | Kosten |
 |---|---|---|---|
-| **Ohne KI**: Tesseract-Texterkennung im Browser plus deutsche Datumsregeln | Foto bleibt auf dem Gerät | gut bei gedruckten, geraden Zetteln | 0 € |
+| **Ohne KI**: Tesseract-Texterkennung auf dem Gerät plus deutsche Datumsregeln | Foto bleibt auf dem Gerät | gut bei gedruckten, geraden Zetteln | 0 € |
 | **Terminus-Server**: der Betreiber stellt die KI bereit (Mistral oder eigenes Modell) | Foto geht an den Server und an Mistral, wird nicht gespeichert | sehr gut, auch Handschrift und Chats | Bruchteile eines Cents pro Foto |
 | **Eigener Schlüssel / eigenes Modell**: in den Einstellungen | je nach Anbieter | sehr gut | je nach Anbieter |
 
-## Starten
+## Android-App installieren (Test-Version)
 
-Voraussetzung: Node.js 18 oder neuer. Es gibt keine Abhängigkeiten, `npm install` ist nicht nötig.
+1. Unter [Actions](https://github.com/baum97/terminus/actions/workflows/android.yml) den neuesten grünen Lauf öffnen und unten `terminus-apk` herunterladen (ZIP mit `terminus.apk`). Bei Versionen mit Tag (`v0.2.0` …) liegt die APK direkt unter [Releases](https://github.com/baum97/terminus/releases).
+2. Die APK auf dem Handy öffnen und „Installation aus unbekannten Quellen“ für den Browser bzw. Dateimanager erlauben.
+3. Neue Test-Versionen lassen sich einfach darüber installieren.
+
+## Web-Version
+
+Die Web-Version wird bei jeder Änderung in `www/` automatisch auf GitHub Pages veröffentlicht: https://baum97.github.io/terminus/
+
+Einmalig nötig: im Repo unter **Settings → Pages → Build and deployment → Source** „GitHub Actions“ auswählen.
+
+## Server mit KI
+
+Voraussetzung: Node.js 18 oder neuer, keine weiteren Abhängigkeiten.
 
 ```bash
 # Nur Erkennung auf dem Gerät
@@ -45,48 +54,51 @@ MISTRAL_API_KEY=dein-schluessel npm start
 LLM_URL=http://localhost:11434/v1/chat/completions LLM_MODEL=mistral-small3.2 npm start
 ```
 
-Danach http://localhost:8080 öffnen. Weitere Einstellungen: `PORT` und `DAILY_LIMIT` (Fotos pro IP und Tag, Standard 30).
+Danach http://localhost:8080 öffnen. Weitere Einstellungen: `PORT`, `DAILY_LIMIT` (Fotos pro IP und Tag, Standard 30) und `CORS_ORIGINS` (Standard: die Android-App).
 
-**Ohne Server**: Der Ordner funktioniert auch als reine statische Seite, z. B. auf Codeberg Pages (Berlin) oder einem Webspace. Dann gibt es den Modus ohne KI sowie KI mit eigenem Schlüssel.
+Damit auch die Android-App den Server nutzt, die Adresse in `www/js/config.js` bei `serverUrl` eintragen. Für den Betrieb eignet sich ein kleiner Server bei einem deutschen Anbieter (Hetzner, netcup) mit Caddy als Reverse Proxy für HTTPS.
 
-**Auf dem Handy testen**: Kamera, Teilen und Installation brauchen HTTPS. Am einfachsten: auf einem kleinen Server mit Caddy als Reverse Proxy betreiben, z. B. bei Hetzner oder netcup. Caddy holt das Zertifikat automatisch.
-
-## Tests
+## Selbst bauen
 
 ```bash
+npm install
 npm test
+npm run android:build   # braucht Android SDK und Java 21
+# APK: android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 ## Aufbau
 
 ```
-index.html, css/app.css   Oberfläche
-js/app.js                 Ablauf und Ansichten
-js/parse.js               Erkennung ohne KI (deutsche Datums-, Zeit-, Orts- und Mitbring-Regeln)
-js/llm.js                 KI-Anbindung (OpenAI-kompatibel: Mistral, Ollama, vLLM, …)
-js/ocr.js                 Texterkennung auf dem Gerät (Tesseract, liegt in vendor/)
-js/ics.js                 Kalenderdatei und Google-Link
-js/share.js               Termin-Links, WhatsApp, E-Mail
-js/store.js               Speicher auf dem Gerät (localStorage)
-sw.js, manifest           Offline, Installation, Android-Teilen
-proxy/server.mjs          Server: liefert die App aus und reicht KI-Anfragen weiter
+www/                      Web-App, wird auch in die Android-App gepackt
+  js/app.js               Ablauf und Ansichten
+  js/parse.js             Erkennung ohne KI (deutsche Datums-, Zeit-, Orts- und Mitbring-Regeln)
+  js/llm.js               KI-Anbindung (OpenAI-kompatibel: Mistral, Ollama, vLLM, …)
+  js/ocr.js               Texterkennung auf dem Gerät (Tesseract, liegt in www/vendor/)
+  js/ics.js               Kalenderdatei und Google-Link
+  js/share.js             Termin-Links, WhatsApp, E-Mail
+  js/native.js            Brücke zur Android-App
+  js/config.js            öffentliche Adressen (Web-Version, Server)
+android/                  Android-Projekt (Capacitor)
+  …/TerminusPlugin.java   Teilen-Menü, Kalender, Teilen nach außen
+proxy/server.mjs          Server: liefert die Web-App aus und reicht KI-Anfragen weiter
+.github/workflows/        APK bauen, Web-Version veröffentlichen
 ```
 
-## Bekannte Grenzen des Prototyps
+## Bekannte Grenzen
 
-- **iPhone**: Eine Web-App kann nicht im iOS-Teilen-Menü erscheinen. Bis es eine native App gibt: Screenshot machen und in Terminus „Bild oder Screenshot“ wählen.
-- **WhatsApp** ohne Business-API: Die App öffnet WhatsApp mit fertiger Nachricht, absenden muss man selbst.
-- **E-Mail** öffnet das Mailprogramm. Echte Kalendereinladungen per Mail brauchen einen Mailversand auf dem Server (nächster Schritt).
+- Die APK ist mit einem öffentlichen Test-Schlüssel signiert. Für Play Store und F-Droid braucht es einen eigenen, geheimen Schlüssel.
+- **iPhone**: Die Web-Version kann nicht im iOS-Teilen-Menü erscheinen. Dort Screenshot machen und in Terminus „Bild oder Screenshot“ wählen.
+- **WhatsApp** öffnet sich mit fertiger Nachricht, absenden muss man selbst.
 - Die Erkennung ohne KI kann keine Handschrift lesen und versteht keine relativen Angaben wie „nächsten Freitag“.
 
-## Ideen für die nächsten Schritte
+## Nächste Schritte
 
-1. Mailversand mit echter Einladung (`METHOD:REQUEST`) über einen EU-Mailanbieter
-2. Familiengruppen: Regeln wie „Kita-Termine immer an beide Eltern“
-3. Kalender-Abo (CalDAV/Webcal) statt Einzeldateien
-4. Native App mit Expo für das iOS-Teilen-Menü
-5. Unterstützung per Spende (Liberapay, Open Collective) oder Pro-Funktionen für Vereine und Kitas
+1. Veröffentlichung auf F-Droid und im Play Store
+2. Erinnerungen und Familiengruppen („Kita-Termine immer an beide Eltern“)
+3. Mailversand mit echter Einladung über einen EU-Mailanbieter
+4. Unterstützung per Spende (Liberapay, Open Collective) oder Pro-Funktionen für Vereine und Kitas
 
 ## Lizenz
 
-Terminus steht unter der [EUPL-1.2](LICENSE). Die Texterkennung Tesseract und tesseract.js stehen unter Apache-2.0 (siehe `vendor/tesseract/`).
+Terminus steht unter der [EUPL-1.2](LICENSE). Mitgelieferte Bibliotheken: Tesseract und tesseract.js (Apache-2.0), Capacitor (MIT), siehe `www/vendor/`.
