@@ -1,6 +1,6 @@
 // Teilen an andere Personen: Nachrichtentext, Termin-Link, WhatsApp- und Mail-Links.
 // Der Termin steckt im Link-Anker (#t=…). Der Teil hinter # wird nie an einen Server geschickt.
-import { fmtWhen } from './dates.js';
+import { fmtWhen, fmtDate } from './dates.js';
 import { normalizeEvent } from './events.js';
 
 const KEYS = { title: 't', date: 'd', endDate: 'e', start: 's', end: 'n', location: 'l', notes: 'o', bring: 'b', cost: 'c' };
@@ -66,4 +66,33 @@ export function whatsappLink(text, phone = '') {
 
 export function mailLink(text, subject, email = '') {
   return `mailto:${encodeURIComponent(email).replace(/%40/g, '@')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+}
+
+export function mailtoMany(emails, subject, body) {
+  return `mailto:${emails.join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+const firstName = (name) => String(name).trim().split(/\s+/)[0];
+
+// Einladungs-Mail an eine oder mehrere Personen, in Du-Form.
+export function inviteMail(ev, guests, { ownerName = '', link = '', withAttachment = false } = {}) {
+  const one = guests.length === 1;
+  const named = one && guests[0].name && !guests[0].name.includes('@');
+  const lines = [
+    named ? `Hallo ${firstName(guests[0].name)},` : one ? 'Hallo,' : 'Hallo zusammen,',
+    '',
+    `ich lade ${one ? 'dich' : 'euch'} zu folgendem Termin ein:`,
+    '',
+    ev.title,
+    fmtWhen(ev),
+  ];
+  if (ev.location) lines.push(`Ort: ${ev.location}`);
+  if (ev.bring?.length) lines.push(`Mitbringen: ${ev.bring.join(', ')}`);
+  if (ev.cost) lines.push(`Kosten: ${ev.cost}`);
+  if (ev.notes && ev.notes.length < 200) lines.push(ev.notes);
+  if (link) lines.push('', `Mit einem Klick in ${one ? 'deinen' : 'euren'} Kalender:`, link);
+  if (withAttachment) lines.push('', `Die Kalenderdatei hängt außerdem an. ${one ? 'Öffne' : 'Öffnet'} sie, um den Termin zu übernehmen.`);
+  lines.push('', 'Viele Grüße');
+  if (ownerName) lines.push(ownerName);
+  return { subject: `Einladung: ${ev.title} (${fmtDate(ev.date)})`, body: lines.join('\n') };
 }

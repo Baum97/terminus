@@ -214,14 +214,13 @@ export function parseText(text, today = new Date()) {
     const location = findLocation(scope);
     const bring = findBring(scope);
     const cost = findCost(scope);
-    const notes = block.filter(Boolean).join(' ').slice(0, 400);
 
     for (const d of h.dates) {
       events.push({
         title, date: d.date, endDate: d.endDate || null,
         start: d.endDate ? null : times?.start || null,
         end: d.endDate ? null : times?.end || null,
-        location, bring, cost, notes,
+        location, bring, cost,
         unsure: title === 'Termin' || (h.dates.length === 1 && weekdayMismatch(lines[h.i], d.date)),
       });
     }

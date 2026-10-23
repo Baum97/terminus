@@ -47,10 +47,20 @@
         </provider>
     </application>
 
+    <!-- Mail-Apps finden (Android 11+) -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mailto" />
+        </intent>
+    </queries>
+
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Nur für "Alle in den Kalender": Termine direkt eintragen -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+    <!-- Nur zum Einladen: E-Mail-Adressen aus dem Adressbuch vorschlagen -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
 </manifest>

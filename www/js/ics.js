@@ -48,9 +48,14 @@ export function span(ev, defaultMinutes = 60) {
   return { allDay: false, date: ev.date, start: ev.start, end: ev.end || addMinutes(ev.start, defaultMinutes) };
 }
 
-export function buildICS(events, { defaultMinutes = 60, alarmMinutes = null } = {}) {
+const cn = (name) => `"${String(name || '').replace(/["\r\n]/g, '')}"`;
+
+// Mit organizer (eigene Adresse) und Gästen wird eine echte Einladung daraus (METHOD:REQUEST):
+// Kalender wie Outlook, Thunderbird oder Gmail zeigen dann Zusagen/Absagen an.
+export function buildICS(events, { defaultMinutes = 60, alarmMinutes = null, organizer = null } = {}) {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
-  const out = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Terminus//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', ...VTIMEZONE];
+  const invite = Boolean(organizer?.email) && events.some((e) => e.guests?.length);
+  const out = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Terminus//DE', 'CALSCALE:GREGORIAN', `METHOD:${invite ? 'REQUEST' : 'PUBLISH'}`, ...VTIMEZONE];
   for (const ev of events) {
     const s = span(ev, defaultMinutes);
     out.push('BEGIN:VEVENT', `UID:${ev.id}@terminus`, `DTSTAMP:${stamp}`);
@@ -61,6 +66,10 @@ export function buildICS(events, { defaultMinutes = 60, alarmMinutes = null } = 
         `DTEND;TZID=Europe/Berlin:${compactDate(s.date)}T${compactTime(s.end)}`);
     }
     out.push(`SUMMARY:${escapeText(ev.title)}`);
+    if (invite && ev.guests?.length) {
+      out.push('SEQUENCE:0', 'STATUS:CONFIRMED', `ORGANIZER;CN=${cn(organizer.name || organizer.email)}:mailto:${organizer.email}`);
+      for (const g of ev.guests) out.push(`ATTENDEE;CN=${cn(g.name || g.email)};ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:${g.email}`);
+    }
     if (ev.location) out.push(`LOCATION:${escapeText(ev.location)}`);
     const desc = description(ev);
     if (desc) out.push(`DESCRIPTION:${escapeText(desc)}`);

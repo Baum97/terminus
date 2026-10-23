@@ -2,8 +2,9 @@ import { parseText } from './parse.js';
 import { PROVIDERS, extractWithLLM, LLMError } from './llm.js';
 import { recognize } from './ocr.js';
 import { buildICS, googleLink, icsFileName, description } from './ics.js';
-import { eventLink, decodeEvent, messageText, whatsappLink, mailLink, normalizePhone } from './share.js';
-import { normalizeEvent, newId } from './events.js';
+import { eventLink, decodeEvent, messageText, whatsappLink, mailLink, normalizePhone, inviteMail, mailtoMany } from './share.js';
+import { normalizeEvent, normalizeGuests, newId, isEmail } from './events.js';
+import { parseVCards, contactsToPeople, mergePeople, matches, initials } from './contacts.js';
 import { fromISO, isoWeek, fmtWhen, WD_SHORT, MONTHS_SHORT, toISO, pad } from './dates.js';
 import * as store from './store.js';
 import { CONFIG } from './config.js';
@@ -180,6 +181,32 @@ function fillCard(li, ev) {
   bring.textContent = parts.join(' · ');
   $('.pill', li).hidden = !ev.unsure;
   $('[data-act="google"]', li).href = googleLink(ev, state.settings.defaultMinutes);
+  const guests = $('.guests', li);
+  if (guests) {
+    guests.hidden = !ev.guests.length;
+    $('.guest-chips', guests).replaceChildren(...ev.guests.map((g) => chip(g, () => {
+      ev.guests = ev.guests.filter((x) => x.email !== g.email);
+      fillCard(li, ev);
+    })));
+  }
+}
+
+function chip(person, onRemove) {
+  const li = document.createElement('li');
+  li.className = 'chip';
+  li.title = person.email;
+  li.innerHTML = '<span class="avatar" aria-hidden="true"></span><span class="who"></span>';
+  $('.avatar', li).textContent = initials(person.name || person.email);
+  $('.who', li).textContent = person.name || person.email;
+  if (onRemove) {
+    const x = Object.assign(document.createElement('button'), { type: 'button', textContent: '✕', ariaLabel: `${person.name || person.email} entfernen` });
+    x.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onRemove();
+    });
+    li.append(x);
+  }
+  return li;
 }
 
 function cardFor(ev, { editable = true, onRemove } = {}) {
@@ -190,6 +217,7 @@ function cardFor(ev, { editable = true, onRemove } = {}) {
     $('.edit', li).remove();
     $('.pick', li).remove();
     $('.card-actions', li).remove();
+    $('.guests', li).remove();
     return li;
   }
   const pick = $('.pick input', li);
@@ -217,6 +245,8 @@ function cardFor(ev, { editable = true, onRemove } = {}) {
   li.addEventListener('click', (e) => {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'share') openShare(ev);
+    if (act === 'invite') openInvite(ev, li);
+    if (act === 'send-invite') sendInvite(ev);
     if (act === 'ics') addToCalendar([ev]);
     if (act === 'remove') onRemove?.(ev, li);
   });
@@ -396,6 +426,140 @@ async function copyShareText() {
   }
 }
 
+/* ---------- Personen einladen ---------- */
+
+const invite = { ev: null, card: null, device: [], deviceAsked: false };
+
+function openInvite(ev, card) {
+  invite.ev = ev;
+  invite.card = card;
+  $('#invite-event').textContent = `${ev.title} · ${fmtWhen(ev)}`;
+  $('#invite-search').value = '';
+  $('#invite-picker').hidden = !('contacts' in navigator && 'select' in navigator.contacts);
+  renderInvite();
+  $('#dlg-invite').showModal();
+  if (isNative && !invite.deviceAsked) loadDeviceContacts(true);
+}
+
+function invitePool() {
+  const byEmail = new Map();
+  for (const p of [...store.getPeople(), ...invite.device]) {
+    if (p.email && !byEmail.has(p.email)) byEmail.set(p.email, p);
+  }
+  return [...byEmail.values()].sort((a, b) => a.name.localeCompare(b.name, 'de'));
+}
+
+function renderInvite() {
+  const ev = invite.ev;
+  const q = $('#invite-search').value.trim();
+  $('#invite-chosen').replaceChildren(...ev.guests.map((g) => chip(g, () => toggleGuest(g, false))));
+  const pool = invitePool();
+  const hits = pool.filter((p) => matches(p, q));
+  const chosen = new Set(ev.guests.map((g) => g.email));
+  $('#invite-list').replaceChildren(...hits.slice(0, 150).map((p) => {
+    const li = document.createElement('li');
+    li.innerHTML = '<label><input type="checkbox"><span class="avatar" aria-hidden="true"></span><span class="t"><strong></strong><small></small></span></label>';
+    const box = $('input', li);
+    box.checked = chosen.has(p.email);
+    box.addEventListener('change', () => toggleGuest(p, box.checked));
+    $('.avatar', li).textContent = initials(p.name || p.email);
+    $('strong', li).textContent = p.name || p.email;
+    $('small', li).textContent = p.email;
+    return li;
+  }));
+  const typed = q.toLowerCase();
+  const addBtn = $('#invite-add-address');
+  addBtn.hidden = !isEmail(typed) || chosen.has(typed);
+  addBtn.textContent = `+ ${typed} einladen`;
+  $('#invite-empty').textContent = !pool.length
+    ? 'Noch keine Kontakte hier. Gib eine E-Mail-Adresse ein oder importiere deine Kontakte.'
+    : !hits.length ? 'Kein Treffer. Gib die vollständige E-Mail-Adresse ein.' : '';
+  $('#invite-empty').hidden = !$('#invite-empty').textContent;
+  const n = ev.guests.length;
+  $('#invite-send').textContent = n ? `Einladung per E-Mail senden (${n})` : 'Einladung per E-Mail senden';
+  $('#invite-send').disabled = !n;
+}
+
+function toggleGuest(person, on) {
+  const ev = invite.ev;
+  ev.guests = on
+    ? normalizeGuests([...ev.guests, { name: person.name, email: person.email }])
+    : ev.guests.filter((g) => g.email !== person.email);
+  if (invite.card) fillCard(invite.card, ev);
+  renderInvite();
+}
+
+function addTypedAddress() {
+  const email = $('#invite-search').value.trim().toLowerCase();
+  if (!isEmail(email)) return toast('Das ist noch keine vollständige E-Mail-Adresse.');
+  const known = invitePool().find((p) => p.email === email);
+  const person = known || { id: newId(), name: email, email, phone: '' };
+  if (!known) store.setPeople(mergePeople(store.getPeople(), [person]).people);
+  $('#invite-search').value = '';
+  toggleGuest(person, true);
+}
+
+async function loadDeviceContacts(quiet = false) {
+  invite.deviceAsked = true;
+  try {
+    const { contacts } = await Native.listContacts();
+    invite.device = contacts.map((c) => ({ id: `d:${c.email}`, name: c.name, email: c.email, phone: '' }));
+    if (!quiet) toast(`${invite.device.length} Adressen aus dem Adressbuch.`);
+    renderInvite();
+  } catch (e) {
+    if (!quiet) toast(e.message || 'Das Adressbuch konnte nicht gelesen werden.');
+  }
+}
+
+async function pickBrowserContacts() {
+  try {
+    const picked = await navigator.contacts.select(['name', 'email'], { multiple: true });
+    const people = contactsToPeople(picked.map((c) => ({ name: c.name?.[0] || '', emails: (c.email || []).map((e) => e.toLowerCase()).filter(isEmail), phone: '' })));
+    store.setPeople(mergePeople(store.getPeople(), people).people);
+    invite.ev.guests = normalizeGuests([...invite.ev.guests, ...people]);
+    if (invite.card) fillCard(invite.card, invite.ev);
+    renderInvite();
+  } catch (e) {
+    if (e.name !== 'AbortError') toast('Die Kontaktauswahl ist in diesem Browser nicht verfügbar.');
+  }
+}
+
+async function importVCard(file) {
+  if (!file) return;
+  try {
+    const contacts = parseVCards(await file.text());
+    const { people, added } = mergePeople(store.getPeople(), contactsToPeople(contacts));
+    if (!contacts.length) return toast('In der Datei wurden keine Kontakte gefunden.');
+    store.setPeople(people);
+    renderInvite();
+    toast(added ? `${added} Kontakte importiert.` : 'Alle Kontakte waren schon vorhanden.');
+  } catch {
+    toast('Die Datei konnte nicht gelesen werden. Exportiere die Kontakte als vCard (.vcf).');
+  }
+}
+
+async function sendInvite(ev) {
+  if (!ev.guests.length) return toast('Wähle zuerst mindestens eine Person aus.');
+  const { ownerName = '', ownerEmail = '' } = state.settings;
+  const link = eventLink(ev, isNative ? CONFIG.publicUrl : undefined);
+  const { subject, body } = inviteMail(ev, ev.guests, { ownerName, link, withAttachment: isNative });
+  const to = ev.guests.map((g) => g.email);
+  if (isNative) {
+    const ics = buildICS([ev], { defaultMinutes: +state.settings.defaultMinutes || 60, organizer: ownerEmail ? { name: ownerName, email: ownerEmail } : null });
+    try {
+      await Native.sendEmail({ to, subject, body, ics, fileName: icsFileName([ev]) });
+    } catch (e) {
+      return toast(e.message || 'Das Mailprogramm konnte nicht geöffnet werden.');
+    }
+  } else {
+    const a = Object.assign(document.createElement('a'), { href: mailtoMany(to, subject, body) });
+    document.body.append(a);
+    a.click();
+    a.remove();
+  }
+  toast('Dein Mailprogramm ist geöffnet. Prüfe die Nachricht und tippe auf Senden.');
+}
+
 /* ---------- Gemerkte Termine ---------- */
 
 function renderSaved() {
@@ -461,6 +625,8 @@ function openSettings() {
   syncProviderFields(true);
   $('#s-alarm').value = state.settings.alarmMinutes ?? '';
   $('#s-duration').value = String(state.settings.defaultMinutes || 60);
+  $('#s-owner-name').value = state.settings.ownerName || '';
+  $('#s-owner-email').value = state.settings.ownerEmail || '';
   if (isNative) {
     const sel = $('#s-calendar');
     if (state.settings.calendarId && !sel.querySelector(`option[value="${CSS.escape(state.settings.calendarId)}"]`)) {
@@ -495,7 +661,13 @@ function saveSettings() {
     apiKey: $('#s-key').value.trim(),
     alarmMinutes: $('#s-alarm').value === '' ? '' : +$('#s-alarm').value,
     defaultMinutes: +$('#s-duration').value,
+    ownerName: $('#s-owner-name').value.trim(),
+    ownerEmail: $('#s-owner-email').value.trim().toLowerCase(),
   };
+  if (s.ownerEmail && !isEmail(s.ownerEmail)) {
+    toast('Deine E-Mail-Adresse sieht nicht vollständig aus.');
+    return false;
+  }
   if (isNative) {
     const sel = $('#s-calendar');
     s.calendarId = sel.value;
@@ -656,6 +828,23 @@ function bind() {
   $('#share-native').addEventListener('click', shareNative);
   $('#share-copy').addEventListener('click', copyShareText);
   $('#btn-person-add').addEventListener('click', addPerson);
+
+  $('#invite-search').addEventListener('input', renderInvite);
+  $('#invite-search').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addTypedAddress();
+    }
+  });
+  $('#invite-add-address').addEventListener('click', addTypedAddress);
+  $('#invite-send').addEventListener('click', () => sendInvite(invite.ev));
+  $('#invite-device').addEventListener('click', () => loadDeviceContacts());
+  $('#invite-picker').addEventListener('click', pickBrowserContacts);
+  $('#invite-vcf').addEventListener('change', (e) => {
+    importVCard(e.target.files?.[0]);
+    e.target.value = '';
+  });
+  $('#dlg-invite').addEventListener('close', () => invite.card && fillCard(invite.card, invite.ev));
 
   $('#btn-settings').addEventListener('click', openSettings);
   $('#settings-form').addEventListener('submit', (e) => {

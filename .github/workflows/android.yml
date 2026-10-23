@@ -2,7 +2,7 @@ name: Android-App bauen
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
     tags: ['v*']
   pull_request:
   workflow_dispatch:

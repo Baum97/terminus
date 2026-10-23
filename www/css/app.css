@@ -231,3 +231,27 @@ dialog::backdrop { background: rgb(10 14 26 / 0.5); }
   .card { grid-template-columns: 1fr; }
   .leaf { display: none; }
 }
+
+/* Einladen */
+.btn.invite { color: var(--pen); }
+.btn.invite svg { width: 1.6em; height: 1.6em; stroke-width: 2.2; stroke-linecap: round; }
+.guests { display: grid; justify-items: start; gap: 8px; padding-top: 6px; }
+.guest-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.guest-chips:empty { display: none; }
+.chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; background: color-mix(in srgb, var(--pen) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--pen) 25%, var(--line)); border-radius: 99px; padding: 2px 4px 2px 2px; font-size: var(--step--1); font-weight: 600; }
+.chip .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 12rem; }
+.chip button { border: 0; background: none; color: var(--ink-soft); font: inherit; cursor: pointer; padding: 2px 6px; border-radius: 99px; min-height: 28px; }
+.chip button:hover { color: var(--warn); }
+.avatar { flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--pen); color: var(--pen-ink); font: 700 0.68rem/1 var(--font-body); letter-spacing: 0.02em; }
+.contacts { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; background: var(--line); border-radius: var(--r); overflow: hidden auto; max-height: 40dvh; }
+.contacts:empty { display: none; }
+.contacts label { display: grid; grid-template-columns: auto 26px 1fr; gap: 10px; align-items: center; background: var(--surface); padding: 9px 12px; cursor: pointer; }
+.contacts input { width: 20px; height: 20px; min-height: 0; margin: 0; accent-color: var(--pen); }
+.contacts .t { min-width: 0; display: grid; }
+.contacts .t strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contacts .t small { color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.add-address { justify-self: start; max-width: 100%; overflow-wrap: anywhere; }
+.sources { gap: 6px; }
+.dlg-actions { position: sticky; bottom: -18px; margin-inline: -18px; padding: 12px 18px; }
+.me { border: 0; padding: 0; margin: 0; }
+.me legend { font-weight: 700; margin-bottom: 8px; }

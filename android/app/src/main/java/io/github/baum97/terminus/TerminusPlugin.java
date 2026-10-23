@@ -16,6 +16,15 @@ import android.provider.CalendarContract.Calendars;
 import android.provider.CalendarContract.Events;
 import android.provider.CalendarContract.Reminders;
 import android.provider.CalendarContract;
+import android.provider.ContactsContract.CommonDataKinds.Email;
+import androidx.core.content.FileProvider;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
+import android.content.ClipData;
 import android.util.Base64;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -42,7 +51,8 @@ import org.json.JSONObject;
 @CapacitorPlugin(
     name = "Terminus",
     permissions = {
-        @Permission(alias = "calendar", strings = { Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR })
+        @Permission(alias = "calendar", strings = { Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR }),
+        @Permission(alias = "contacts", strings = { Manifest.permission.READ_CONTACTS })
     }
 )
 public class TerminusPlugin extends Plugin {
@@ -161,6 +171,89 @@ public class TerminusPlugin extends Plugin {
             call.resolve();
         } catch (ActivityNotFoundException e) {
             call.reject("Keine passende App gefunden.", "not_found");
+        }
+    }
+
+    /* ---------- Kontakte ---------- */
+
+    // Alle E-Mail-Adressen aus dem Adressbuch des Geräts. Dort landen die Kontakte aller Konten,
+    // die mit dem Handy synchronisiert werden (Google, Samsung, GMX/Web.de/Posteo über CardDAV …).
+    @PluginMethod
+    public void listContacts(PluginCall call) {
+        if (getPermissionState("contacts") != PermissionState.GRANTED) {
+            requestPermissionForAlias("contacts", call, "listContactsAfterPermission");
+            return;
+        }
+        call.resolve(contacts());
+    }
+
+    @PermissionCallback
+    private void listContactsAfterPermission(PluginCall call) {
+        if (getPermissionState("contacts") == PermissionState.GRANTED) call.resolve(contacts());
+        else call.reject("Ohne Zugriff auf die Kontakte kannst du Adressen nur von Hand eingeben.", "denied");
+    }
+
+    private JSObject contacts() {
+        JSArray list = new JSArray();
+        Set<String> seen = new HashSet<>();
+        String[] projection = { Email.DISPLAY_NAME_PRIMARY, Email.ADDRESS };
+        try (Cursor c = getContext().getContentResolver().query(Email.CONTENT_URI, projection, null, null, Email.DISPLAY_NAME_PRIMARY + " COLLATE LOCALIZED ASC")) {
+            while (c != null && c.moveToNext() && list.length() < 5000) {
+                String email = c.getString(1);
+                if (email == null) continue;
+                email = email.trim().toLowerCase();
+                if (!email.contains("@") || !seen.add(email)) continue;
+                JSObject person = new JSObject();
+                String name = c.getString(0);
+                person.put("name", name != null ? name : email);
+                person.put("email", email);
+                list.put(person);
+            }
+        }
+        JSObject result = new JSObject();
+        result.put("contacts", list);
+        return result;
+    }
+
+    /* ---------- Einladung per E-Mail ---------- */
+
+    // Öffnet das eigene Mailprogramm (GMX, Thunderbird, Gmail …) mit Empfängern, Text und Kalenderdatei.
+    @PluginMethod
+    public void sendEmail(PluginCall call) {
+        try {
+            JSArray toArr = call.getArray("to", new JSArray());
+            ArrayList<String> to = new ArrayList<>();
+            for (int i = 0; i < toArr.length(); i++) to.add(toArr.getString(i));
+
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType("text/plain");
+            send.putExtra(Intent.EXTRA_EMAIL, to.toArray(new String[0]));
+            send.putExtra(Intent.EXTRA_SUBJECT, call.getString("subject", ""));
+            send.putExtra(Intent.EXTRA_TEXT, call.getString("body", ""));
+
+            String ics = call.getString("ics");
+            if (ics != null) {
+                File dir = new File(getContext().getCacheDir(), "einladungen");
+                dir.mkdirs();
+                File file = new File(dir, call.getString("fileName", "einladung.ics"));
+                try (FileOutputStream out = new FileOutputStream(file)) {
+                    out.write(ics.getBytes(StandardCharsets.UTF_8));
+                }
+                Uri uri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", file);
+                send.putExtra(Intent.EXTRA_STREAM, uri);
+                send.setClipData(ClipData.newRawUri("", uri));
+                send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            }
+            // Nur Mail-Apps anbieten.
+            send.setSelector(new Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")));
+            Intent chooser = Intent.createChooser(send, "Einladung senden mit");
+            chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            getActivity().startActivity(chooser);
+            call.resolve();
+        } catch (ActivityNotFoundException e) {
+            call.reject("Auf dem Gerät ist keine Mail-App eingerichtet.", "not_found");
+        } catch (Exception e) {
+            call.reject("Die Einladung konnte nicht vorbereitet werden.", e);
         }
     }
 

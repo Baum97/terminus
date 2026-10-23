@@ -156,6 +156,39 @@
     </form>
   </dialog>
 
+  <!-- Personen einladen -->
+  <dialog id="dlg-invite" aria-labelledby="invite-h">
+    <form method="dialog" class="dlg" id="invite-form">
+      <div class="dlg-head">
+        <div>
+          <h2 id="invite-h">Personen einladen</h2>
+          <p class="hint" id="invite-event"></p>
+        </div>
+        <button class="btn ghost small" value="close" aria-label="Schließen">Schließen</button>
+      </div>
+      <ul class="guest-chips" id="invite-chosen" aria-label="Eingeladen"></ul>
+      <label class="field">
+        <span>Name oder E-Mail-Adresse</span>
+        <input id="invite-search" type="search" autocomplete="off" enterkeyhint="done" placeholder="z. B. Gisela oder gisela@gmx.de">
+      </label>
+      <button class="btn small add-address" type="button" id="invite-add-address" hidden></button>
+      <ul class="contacts" id="invite-list"></ul>
+      <p class="empty" id="invite-empty"></p>
+      <div class="row sources">
+        <button class="btn small native-only" type="button" id="invite-device">Adressbuch des Handys</button>
+        <button class="btn small web-only" type="button" id="invite-picker" hidden>Aus Telefonkontakten</button>
+        <label class="btn small" for="invite-vcf">Kontakte importieren (.vcf)</label>
+        <input id="invite-vcf" type="file" accept=".vcf,text/vcard,text/x-vcard" hidden>
+      </div>
+      <p class="hint">Thunderbird: Adressbuch → Exportieren → vCard. GMX und Web.de: Adressbuch → Kontakte exportieren → vCard. Auf dem Handy erscheinen Kontakte von GMX oder Posteo im Adressbuch, wenn sie per CardDAV synchronisiert werden (z. B. mit DAVx⁵).</p>
+      <div class="actionbar dlg-actions">
+        <button class="btn primary" type="button" id="invite-send">Einladung per E-Mail senden</button>
+        <button class="btn" value="done" id="invite-done">Fertig</button>
+      </div>
+      <p class="hint">Die E-Mail geht über dein eigenes Mailprogramm raus, von deiner Adresse. Du siehst sie vor dem Absenden.</p>
+    </form>
+  </dialog>
+
   <!-- Einstellungen -->
   <dialog id="dlg-settings" aria-labelledby="settings-h">
     <form method="dialog" class="dlg" id="settings-form">
@@ -171,6 +204,13 @@
         <label class="field"><span>Modell</span><input id="s-model" autocomplete="off"></label>
         <label class="field"><span>API-Schlüssel</span><input id="s-key" type="password" autocomplete="off"></label>
       </div>
+      <fieldset class="me">
+        <legend>Für Einladungen</legend>
+        <div class="grid2">
+          <label class="field"><span>Dein Name</span><input id="s-owner-name" autocomplete="name" placeholder="Anna Becker"></label>
+          <label class="field"><span>Deine E-Mail (für Zu- und Absagen)</span><input id="s-owner-email" type="email" autocomplete="email" placeholder="anna@gmx.de"></label>
+        </div>
+      </fieldset>
       <div class="grid2">
         <label class="field"><span>Erinnerung</span>
           <select id="s-alarm">
@@ -232,7 +272,12 @@
           </div>
           <button class="btn ghost small remove" type="button" data-act="remove">Termin entfernen</button>
         </details>
+        <div class="guests" hidden>
+          <ul class="guest-chips"></ul>
+          <button class="btn primary small" type="button" data-act="send-invite">Einladung senden</button>
+        </div>
         <div class="card-actions">
+          <button class="btn small icon invite" type="button" data-act="invite" aria-label="Personen einladen" title="Personen einladen"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 1.5v6M9 4.5h6"/><circle cx="12" cy="12.4" r="3.4"/><path d="M5 22c.6-3.9 3.4-6 7-6s6.4 2.1 7 6"/></svg></button>
           <button class="btn primary small" type="button" data-act="share">Teilen</button>
           <button class="btn small" type="button" data-act="ics">Kalender</button>
           <a class="btn small web-only" data-act="google" target="_blank" rel="noopener">Google</a>

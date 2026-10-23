@@ -17,7 +17,18 @@ Du fotografierst einen Elternbrief, ein Plakat, eine Einladung oder einen Chat-S
 | Erkennung | viele Termine pro Dokument, mehrtägige Termine, Kalenderwoche, Prüfung von Wochentag und Datum | gleich |
 | Kalender | einzelner Termin: Kalender-App öffnet sich ausgefüllt. Mehrere: **direkt eingetragen**, Kalender wählbar | `.ics`-Datei oder Google-Kalender-Link |
 | Teilen | Android-Teilen-Menü, WhatsApp, E-Mail, gespeicherte Personen | WhatsApp, E-Mail, Teilen-Menü des Browsers |
+| Einladen | Personen aus dem Adressbuch des Handys oder per .vcf-Import wählen, **Einladungs-Mail mit Kalendereinladung** über das eigene Mailprogramm | Personen per .vcf-Import, Kontaktauswahl (Chrome/Android) oder Adresse, Einladungs-Mail mit Link |
 | Termin-Link | zeigt auf die Web-Version, der Termin steckt im `#`-Teil der Adresse und erreicht nie einen Server | gleich |
+
+## Personen einladen
+
+Auf jeder Terminkarte öffnet der Knopf mit der Personenfigur die Auswahl. Woher die Kontakte kommen:
+
+- **Adressbuch des Handys** (App): Darin stehen die Kontakte aller synchronisierten Konten, also Google, Samsung und auch GMX, Web.de, Posteo oder mailbox.org, wenn sie per CardDAV eingebunden sind (z. B. mit der Open-Source-App DAVx⁵).
+- **vCard-Import** (App und Web): Thunderbird: Adressbuch → Exportieren → vCard. GMX/Web.de: Adressbuch → Kontakte exportieren → vCard.
+- **Adresse eintippen**: wird für das nächste Mal gemerkt.
+
+„Einladung senden“ öffnet das eigene Mailprogramm mit allen Empfängern, einem Einladungstext und dem Termin-Link. In der App hängt zusätzlich eine Kalenderdatei an. Ist in den Einstellungen die eigene E-Mail hinterlegt, ist das eine echte Kalendereinladung: Outlook, Thunderbird oder Gmail zeigen dann Zusagen und Absagen an. Die Mail geht von der eigenen Adresse raus, Terminus selbst verschickt nichts.
 
 ## Drei Arten der Erkennung
 
@@ -76,11 +87,12 @@ www/                      Web-App, wird auch in die Android-App gepackt
   js/llm.js               KI-Anbindung (OpenAI-kompatibel: Mistral, Ollama, vLLM, …)
   js/ocr.js               Texterkennung auf dem Gerät (Tesseract, liegt in www/vendor/)
   js/ics.js               Kalenderdatei und Google-Link
-  js/share.js             Termin-Links, WhatsApp, E-Mail
+  js/share.js             Termin-Links, WhatsApp, E-Mail, Einladungstext
+  js/contacts.js          vCard-Import und Kontaktliste
   js/native.js            Brücke zur Android-App
   js/config.js            öffentliche Adressen (Web-Version, Server)
 android/                  Android-Projekt (Capacitor)
-  …/TerminusPlugin.java   Teilen-Menü, Kalender, Teilen nach außen
+  …/TerminusPlugin.java   Teilen-Menü, Kalender, Adressbuch, Einladungs-Mail
 proxy/server.mjs          Server: liefert die Web-App aus und reicht KI-Anfragen weiter
 .github/workflows/        APK bauen, Web-Version veröffentlichen
 ```
@@ -95,7 +107,7 @@ proxy/server.mjs          Server: liefert die Web-App aus und reicht KI-Anfragen
 ## Nächste Schritte
 
 1. Veröffentlichung auf F-Droid und im Play Store
-2. Erinnerungen und Familiengruppen („Kita-Termine immer an beide Eltern“)
+2. Gruppen („Kita-Termine immer an beide Eltern“) und Zusagen in der App anzeigen
 3. Mailversand mit echter Einladung über einen EU-Mailanbieter
 4. Unterstützung per Spende (Liberapay, Open Collective) oder Pro-Funktionen für Vereine und Kitas
 
