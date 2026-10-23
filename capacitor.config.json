@@ -1,0 +1,9 @@
+{
+  "appId": "io.github.baum97.terminus",
+  "appName": "Terminus",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true
+  }
+}

@@ -1,0 +1,52 @@
+name: Android-App bauen
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Web-App in die Android-App kopieren
+        run: npx cap sync android
+
+      - name: APK bauen
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../terminus.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: terminus-apk
+          path: terminus.apk
+
+      - name: Release mit APK anlegen
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" terminus.apk --title "Terminus $GITHUB_REF_NAME" --notes "Test-Version zum direkten Installieren (APK)." --prerelease

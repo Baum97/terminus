@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Terminus</title>
+  <meta name="description" content="Zettel, Plakat oder Screenshot fotografieren und daraus Kalendertermine machen. Open Source, ohne Konto, ohne Tracking.">
+  <meta name="theme-color" content="#f3f5f9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0e1422" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/app.css">
+  <script src="vendor/capacitor/capacitor.js"></script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="./" aria-label="Terminus Startseite">Termin<span>us</span></a>
+    <button class="btn ghost small" id="btn-settings" type="button">Einstellungen</button>
+  </header>
+
+  <main>
+    <!-- Start: Foto, Bild oder Text -->
+    <section id="view-home" class="view">
+      <div class="intro">
+        <h1>Zettel knipsen.<br><mark>Termin steht.</mark></h1>
+        <p>Elternbrief, Plakat, Einladung oder Chat-Screenshot: Terminus findet Datum, Uhrzeit, Ort und Mitbringliste und legt daraus Kalendertermine an.</p>
+      </div>
+
+      <div class="capture">
+        <label class="btn primary big" for="in-camera">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+          Foto aufnehmen
+        </label>
+        <input id="in-camera" type="file" accept="image/*" capture="environment" hidden>
+        <label class="btn big" for="in-file">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="1"/><path d="m4 16 5-5 4 4 2-2 5 5"/></svg>
+          Bild oder Screenshot
+        </label>
+        <input id="in-file" type="file" accept="image/*" hidden>
+      </div>
+
+      <details class="paste" id="paste-box">
+        <summary>Text einfügen statt Foto</summary>
+        <label class="sr" for="in-text">Text mit Terminen</label>
+        <textarea id="in-text" rows="5" placeholder="z. B. Nachricht aus dem Eltern-Chat einfügen"></textarea>
+        <button class="btn" id="btn-text" type="button">Termine finden</button>
+      </details>
+
+      <p class="mode"><span class="dot" id="mode-dot"></span><span id="mode-line">Erkennung: …</span></p>
+
+      <section class="saved" aria-labelledby="saved-h">
+        <div class="saved-head">
+          <h2 id="saved-h">Gemerkte Termine</h2>
+          <button class="linkish" id="btn-demo" type="button">Beispiel ansehen</button>
+        </div>
+        <ul id="saved-list" class="saved-list"></ul>
+        <p id="saved-empty" class="empty">Noch nichts gemerkt. Fotografiere einen Zettel oder schau dir das Beispiel an: einen Elternbrief der Kita mit Laternenfest.</p>
+      </section>
+    </section>
+
+    <!-- Verarbeitung -->
+    <section id="view-busy" class="view" hidden>
+      <figure class="sheet"><img id="busy-img" alt="Dein Foto"><span class="scan" aria-hidden="true"></span></figure>
+      <p class="busy-status" id="busy-status" role="status">Lese den Zettel …</p>
+      <progress id="busy-progress" max="1"></progress>
+      <div class="error" id="busy-error" hidden>
+        <p id="busy-error-text"></p>
+        <div class="row">
+          <button class="btn primary" id="btn-retry" type="button">Nochmal versuchen</button>
+          <button class="btn" id="btn-local" type="button">Ohne KI auslesen</button>
+          <button class="btn ghost" id="btn-error-settings" type="button">Einstellungen</button>
+        </div>
+      </div>
+      <button class="btn ghost" id="btn-cancel" type="button">Abbrechen</button>
+    </section>
+
+    <!-- Ergebnis prüfen -->
+    <section id="view-review" class="view" hidden>
+      <div class="review-head">
+        <div>
+          <p class="eyebrow" id="review-source">Erkannt aus deinem Foto</p>
+          <h2 id="review-title">Termine gefunden</h2>
+        </div>
+        <button class="btn ghost small" id="btn-back" type="button">Neuer Zettel</button>
+      </div>
+      <p class="hint" id="review-hint">Prüfe die Angaben kurz. Antippen zum Bearbeiten.</p>
+      <ol class="cards" id="cards"></ol>
+      <button class="btn ghost add" id="btn-add" type="button">+ Termin von Hand ergänzen</button>
+      <details class="raw" id="raw-box" hidden>
+        <summary>Erkannter Text</summary>
+        <pre id="raw-text"></pre>
+      </details>
+      <div class="actionbar">
+        <button class="btn primary" id="btn-ics-all" type="button">In den Kalender</button>
+        <button class="btn" id="btn-save" type="button">Merken</button>
+      </div>
+    </section>
+
+    <!-- Empfänger eines geteilten Termins -->
+    <section id="view-received" class="view" hidden>
+      <p class="eyebrow">Dir wurde ein Termin geschickt</p>
+      <ol class="cards" id="received-card"></ol>
+      <div class="row">
+        <button class="btn primary" id="btn-recv-ics" type="button">In meinen Kalender</button>
+        <a class="btn web-only" id="btn-recv-google" target="_blank" rel="noopener">Google Kalender</a>
+      </div>
+      <p class="hint">Auf dem iPhone und mit Outlook öffnet „In meinen Kalender“ eine Kalenderdatei, die du mit einem Tipp übernimmst.</p>
+      <div class="pitch">
+        <p><strong>Terminus</strong> macht aus Fotos von Zetteln, Plakaten und Einladungen Kalendertermine. Kostenlos, Open Source, ohne Konto.</p>
+        <a class="btn" href="./">Selbst ausprobieren</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p>Open Source unter EUPL-1.2 · Kein Konto, keine Werbung, keine Tracker · Termine und Kontakte bleiben auf diesem Gerät</p>
+  </footer>
+
+  <!-- Teilen -->
+  <dialog id="dlg-share" aria-labelledby="share-h">
+    <form method="dialog" class="dlg">
+      <div class="dlg-head">
+        <h2 id="share-h">Termin teilen</h2>
+        <button class="btn ghost small" value="close" aria-label="Schließen">Schließen</button>
+      </div>
+      <label class="field">
+        <span>Nachricht</span>
+        <textarea id="share-text" rows="6"></textarea>
+      </label>
+      <div class="share-people">
+        <h3>An Personen</h3>
+        <ul id="people-list" class="people"></ul>
+        <p class="empty" id="people-empty">Lege Personen an, die oft dieselben Termine brauchen, z. B. Oma, Papa oder die Tagesmutter.</p>
+        <details class="add-person" id="add-person">
+          <summary>+ Person anlegen</summary>
+          <div class="grid2">
+            <label class="field"><span>Name</span><input id="p-name" autocomplete="off" placeholder="Oma Gisela"></label>
+            <label class="field"><span>Handy (WhatsApp)</span><input id="p-phone" type="tel" inputmode="tel" placeholder="0171 2345678"></label>
+            <label class="field wide"><span>E-Mail</span><input id="p-mail" type="email" placeholder="gisela@example.de"></label>
+          </div>
+          <button class="btn" type="button" id="btn-person-add">Person speichern</button>
+        </details>
+      </div>
+      <div class="share-any">
+        <h3>Oder direkt</h3>
+        <div class="row">
+          <button class="btn" type="button" id="share-native" hidden>Teilen …</button>
+          <a class="btn" id="share-wa" target="_blank" rel="noopener">WhatsApp</a>
+          <a class="btn" id="share-mail">E-Mail</a>
+          <button class="btn" type="button" id="share-copy">Text kopieren</button>
+        </div>
+        <p class="hint">Der Link im Text enthält den Termin selbst. Wer ihn öffnet, kann ihn mit einem Tipp in den eigenen Kalender übernehmen, auch ohne Terminus.</p>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Einstellungen -->
+  <dialog id="dlg-settings" aria-labelledby="settings-h">
+    <form method="dialog" class="dlg" id="settings-form">
+      <div class="dlg-head">
+        <h2 id="settings-h">Einstellungen</h2>
+        <button class="btn ghost small" value="close" aria-label="Schließen">Schließen</button>
+      </div>
+      <fieldset class="providers" id="providers">
+        <legend>Wer liest deine Zettel?</legend>
+      </fieldset>
+      <div class="grid2" id="llm-fields">
+        <label class="field wide"><span>Adresse der Schnittstelle</span><input id="s-endpoint" type="url" autocomplete="off"></label>
+        <label class="field"><span>Modell</span><input id="s-model" autocomplete="off"></label>
+        <label class="field"><span>API-Schlüssel</span><input id="s-key" type="password" autocomplete="off"></label>
+      </div>
+      <div class="grid2">
+        <label class="field"><span>Erinnerung</span>
+          <select id="s-alarm">
+            <option value="">keine</option>
+            <option value="15">15 Minuten vorher</option>
+            <option value="60">1 Stunde vorher</option>
+            <option value="1440">1 Tag vorher</option>
+          </select>
+        </label>
+        <label class="field"><span>Dauer ohne Endzeit</span>
+          <select id="s-duration">
+            <option value="30">30 Minuten</option>
+            <option value="60">1 Stunde</option>
+            <option value="120">2 Stunden</option>
+          </select>
+        </label>
+      </div>
+      <div class="field native-only">
+        <span>Kalender für „Alle in den Kalender“</span>
+        <div class="row">
+          <select id="s-calendar" aria-label="Kalender"><option value="">Hauptkalender des Geräts</option></select>
+          <button class="btn small" type="button" id="btn-calendar-pick">Kalender laden</button>
+        </div>
+      </div>
+      <p class="hint">Mit KI wird das Foto zur Auswertung an den gewählten Anbieter geschickt und dort nicht für Training verwendet, sofern der Anbieter das zusichert. Ohne KI verlässt nichts dein Gerät.</p>
+      <div class="row">
+        <button class="btn primary" value="save" id="btn-settings-save">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <template id="tpl-card">
+    <li class="card">
+      <div class="leaf" aria-hidden="true"><span class="leaf-wd"></span><span class="leaf-day"></span><span class="leaf-mon"></span></div>
+      <div class="card-body">
+        <div class="card-top">
+          <span class="kw"></span>
+          <span class="pill warn" hidden>Bitte prüfen</span>
+          <label class="pick"><input type="checkbox" checked><span>übernehmen</span></label>
+        </div>
+        <h3 class="title"></h3>
+        <p class="meta when"></p>
+        <p class="meta loc" hidden></p>
+        <p class="meta bring" hidden></p>
+        <details class="edit">
+          <summary>Bearbeiten</summary>
+          <div class="grid2">
+            <label class="field wide"><span>Titel</span><input data-f="title"></label>
+            <label class="field"><span>Datum</span><input type="date" data-f="date"></label>
+            <label class="field"><span>Bis (mehrtägig)</span><input type="date" data-f="endDate"></label>
+            <label class="field"><span>Beginn</span><input type="time" data-f="start"></label>
+            <label class="field"><span>Ende</span><input type="time" data-f="end"></label>
+            <label class="field wide"><span>Ort</span><input data-f="location"></label>
+            <label class="field wide"><span>Mitbringen (mit Komma trennen)</span><input data-f="bring"></label>
+            <label class="field"><span>Kosten</span><input data-f="cost"></label>
+            <label class="field wide"><span>Notiz</span><textarea rows="2" data-f="notes"></textarea></label>
+          </div>
+          <button class="btn ghost small remove" type="button" data-act="remove">Termin entfernen</button>
+        </details>
+        <div class="card-actions">
+          <button class="btn primary small" type="button" data-act="share">Teilen</button>
+          <button class="btn small" type="button" data-act="ics">Kalender</button>
+          <a class="btn small web-only" data-act="google" target="_blank" rel="noopener">Google</a>
+        </div>
+      </div>
+    </li>
+  </template>
+</body>
+</html>

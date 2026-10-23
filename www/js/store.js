@@ -1,0 +1,38 @@
+// Alles bleibt im Browser dieses Geräts (localStorage). Kein Konto, keine Cloud.
+import { normalizeEvents } from './events.js';
+
+const KEY = { settings: 'terminus.settings', people: 'terminus.people', saved: 'terminus.saved' };
+
+function read(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function write(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export const DEFAULT_SETTINGS = { provider: null, endpoint: '', model: '', apiKey: '', alarmMinutes: 60, defaultMinutes: 60 };
+
+export const getSettings = () => ({ ...DEFAULT_SETTINGS, ...read(KEY.settings, {}) });
+export const setSettings = (s) => write(KEY.settings, s);
+
+export const getPeople = () => read(KEY.people, []);
+export const setPeople = (p) => write(KEY.people, p);
+
+export const getSaved = () => normalizeEvents(read(KEY.saved, []));
+export function addSaved(events) {
+  const byId = new Map(getSaved().map((e) => [e.id, e]));
+  events.forEach((e) => byId.set(e.id, e));
+  return write(KEY.saved, [...byId.values()]);
+}
+export const removeSaved = (id) => write(KEY.saved, getSaved().filter((e) => e.id !== id));
