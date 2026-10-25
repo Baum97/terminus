@@ -3,7 +3,7 @@ name: Web-Version veröffentlichen
 on:
   push:
     branches: [main]
-    paths: ['www/**', '.github/workflows/pages.yml']
+    paths: ['www/**', 'scripts/**', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 permissions:
@@ -23,6 +23,11 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Schulferien laden (OpenHolidays)
+        run: node scripts/ferien.mjs || echo "::warning::Ferien-Daten nicht geladen"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

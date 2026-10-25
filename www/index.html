@@ -12,6 +12,7 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="css/app.css">
   <script src="vendor/capacitor/capacitor.js"></script>
+  <script src="vendor/qrcode/qrcode.js"></script>
   <script type="module" src="js/app.js"></script>
 </head>
 <body>
@@ -86,6 +87,7 @@
         <button class="btn ghost small" id="btn-back" type="button">Neuer Zettel</button>
       </div>
       <p class="hint" id="review-hint">Prüfe die Angaben kurz. Antippen zum Bearbeiten.</p>
+      <button class="linkish" type="button" id="btn-check-calendar" hidden>Mit meinem Kalender abgleichen (Überschneidungen finden)</button>
       <ol class="cards" id="cards"></ol>
       <button class="btn ghost add" id="btn-add" type="button">+ Termin von Hand ergänzen</button>
       <details class="raw" id="raw-box" hidden>
@@ -151,6 +153,15 @@
           <a class="btn" id="share-mail">E-Mail</a>
           <button class="btn" type="button" id="share-copy">Text kopieren</button>
         </div>
+        <details class="qr" id="qr-box">
+          <summary>QR-Code zum Aushängen</summary>
+          <figure class="qr-figure"><canvas id="qr-canvas" width="600" height="760" aria-label="QR-Code zum Termin"></canvas></figure>
+          <div class="row">
+            <button class="btn small" type="button" id="qr-share">Als Bild teilen</button>
+            <a class="btn small web-only" id="qr-download" download="termin-qr.png">Bild speichern</a>
+          </div>
+          <p class="hint">Ausdrucken und an die Pinnwand hängen: Wer den Code mit der Handykamera scannt, übernimmt den Termin in den eigenen Kalender.</p>
+        </details>
         <p class="hint">Der Link im Text enthält den Termin selbst. Wer ihn öffnet, kann ihn mit einem Tipp in den eigenen Kalender übernehmen, auch ohne Terminus.</p>
       </div>
     </form>
@@ -191,7 +202,7 @@
 
   <!-- Einstellungen -->
   <dialog id="dlg-settings" aria-labelledby="settings-h">
-    <form method="dialog" class="dlg" id="settings-form">
+    <form method="dialog" class="dlg" id="settings-form" novalidate>
       <div class="dlg-head">
         <h2 id="settings-h">Einstellungen</h2>
         <button class="btn ghost small" value="close" aria-label="Schließen">Schließen</button>
@@ -204,6 +215,16 @@
         <label class="field"><span>Modell</span><input id="s-model" autocomplete="off"></label>
         <label class="field"><span>API-Schlüssel</span><input id="s-key" type="password" autocomplete="off"></label>
       </div>
+      <div class="grid2">
+        <label class="field"><span>Bundesland (Ferien und Feiertage)</span>
+          <select id="s-state"><option value="">keine Angabe</option></select>
+        </label>
+        <label class="field"><span>Sprache der Termine (mit KI)</span>
+          <select id="s-lang"></select>
+        </label>
+      </div>
+      <label class="check"><input type="checkbox" id="s-eve"> <span>Am Vorabend um 19 Uhr an Mitbringsachen erinnern</span></label>
+      <label class="check"><input type="checkbox" id="s-photo"> <span>Foto an die KI schicken, wenn kein Text erkannt wird (z. B. Handschrift)</span></label>
       <fieldset class="me">
         <legend>Für Einladungen</legend>
         <div class="grid2">
@@ -250,19 +271,35 @@
       <div class="card-body">
         <div class="card-top">
           <span class="kw"></span>
+          <span class="pill frist" hidden>Frist</span>
           <span class="pill warn" hidden>Bitte prüfen</span>
           <label class="pick"><input type="checkbox" checked><span>übernehmen</span></label>
         </div>
         <h3 class="title"></h3>
         <p class="meta when"></p>
-        <p class="meta loc" hidden></p>
+        <p class="meta repeat" hidden></p>
+        <button class="meta loc linkish" type="button" data-act="map" hidden></button>
         <p class="meta bring" hidden></p>
+        <ul class="notes" hidden></ul>
         <details class="edit">
           <summary>Bearbeiten</summary>
           <div class="grid2">
             <label class="field wide"><span>Titel</span><input data-f="title"></label>
             <label class="field"><span>Datum</span><input type="date" data-f="date"></label>
             <label class="field"><span>Bis (mehrtägig)</span><input type="date" data-f="endDate"></label>
+            <label class="field"><span>Art</span>
+              <select data-f="kind"><option value="termin">Termin</option><option value="frist">Frist (bis zu diesem Tag)</option></select>
+            </label>
+            <label class="field"><span>Wiederholen</span>
+              <select data-f="repeatFreq">
+                <option value="">nicht</option>
+                <option value="daily">täglich</option>
+                <option value="weekly">jede Woche</option>
+                <option value="biweekly">alle 2 Wochen</option>
+                <option value="monthly">jeden Monat</option>
+              </select>
+            </label>
+            <label class="field"><span>Wiederholen bis</span><input type="date" data-f="until"></label>
             <label class="field"><span>Beginn</span><input type="time" data-f="start"></label>
             <label class="field"><span>Ende</span><input type="time" data-f="end"></label>
             <label class="field wide"><span>Ort</span><input data-f="location"></label>

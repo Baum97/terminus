@@ -255,3 +255,18 @@ dialog::backdrop { background: rgb(10 14 26 / 0.5); }
 .dlg-actions { position: sticky; bottom: -18px; margin-inline: -18px; padding: 12px 18px; }
 .me { border: 0; padding: 0; margin: 0; }
 .me legend { font-weight: 700; margin-bottom: 8px; }
+
+/* Fristen, Hinweise, Wiederholung */
+.pill.frist { background: color-mix(in srgb, var(--leaf-top) 14%, var(--surface)); color: var(--leaf-top); }
+.card.is-frist .leaf-wd { background: var(--ink); }
+.meta.repeat { color: var(--ink); font-weight: 600; }
+.meta.loc { justify-self: start; text-align: left; font-size: 0.95rem; color: var(--pen); }
+.notes { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
+.notes li { font-size: var(--step--1); font-weight: 600; padding: 4px 8px; border-radius: 6px; background: var(--warn-bg); color: var(--warn); justify-self: start; }
+.notes li.info { background: color-mix(in srgb, var(--pen) 10%, var(--surface)); color: var(--pen); }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 0.95rem; cursor: pointer; }
+.check input { width: 20px; height: 20px; min-height: 0; margin: 2px 0 0; flex: none; accent-color: var(--pen); }
+.qr summary { cursor: pointer; color: var(--pen); font-weight: 600; padding-block: 8px; }
+.qr-figure { margin: 8px 0; background: #ffffff; border-radius: var(--r); padding: 8px; }
+.qr-figure canvas { display: block; width: 100%; max-width: 18rem; height: auto; margin-inline: auto; }
+.review-tools { display: flex; flex-wrap: wrap; gap: 8px; }

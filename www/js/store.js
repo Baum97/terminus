@@ -21,7 +21,7 @@ function write(key, value) {
   }
 }
 
-export const DEFAULT_SETTINGS = { provider: null, endpoint: '', model: '', apiKey: '', alarmMinutes: 60, defaultMinutes: 60, ownerName: '', ownerEmail: '' };
+export const DEFAULT_SETTINGS = { provider: null, endpoint: '', model: '', apiKey: '', alarmMinutes: 60, defaultMinutes: 60, ownerName: '', ownerEmail: '', state: '', lang: 'de', eveReminder: true, photoFallback: true };
 
 export const getSettings = () => ({ ...DEFAULT_SETTINGS, ...read(KEY.settings, {}) });
 export const setSettings = (s) => write(KEY.settings, s);

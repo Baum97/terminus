@@ -72,3 +72,43 @@ test('Wochentag passt nicht zum Datum: Termin wird zur Prüfung markiert', () =>
   const [right] = parseText('Sommerfest am Freitag, 13.11.2026 um 15 Uhr', today);
   assert.equal(right.unsure, false);
 });
+
+test('Fristen werden eigene Einträge mit passendem Namen', () => {
+  const text = `Ausflug in den Wildpark
+Am Mittwoch, 11.11.2026 fahren wir in den Wildpark. Abfahrt 8:30 Uhr.
+Bitte meldet euer Kind bis zum 2.11. an und überweist 12 € bis spätestens 6.11.
+Rückmeldung zum Elternabend bitte bis Freitag, 30.10.`;
+  const evs = parseText(text, today);
+  const byDate = Object.fromEntries(evs.map((e) => [e.date, e]));
+  assert.deepEqual([byDate['2026-11-11'].kind, byDate['2026-11-11'].title, byDate['2026-11-11'].start], ['termin', 'Ausflug in den Wildpark', '08:30']);
+  assert.deepEqual([byDate['2026-11-02'].kind, byDate['2026-11-02'].title], ['frist', 'Anmeldung: Ausflug in den Wildpark']);
+  assert.deepEqual([byDate['2026-11-06'].title, byDate['2026-11-06'].cost], ['Bezahlen: Ausflug in den Wildpark', '12 €']);
+  assert.equal(byDate['2026-10-30'].title, 'Rückmeldung: Ausflug in den Wildpark');
+  assert.equal(evs.length, 4);
+});
+
+test('Ferien mit "bis" bleiben ein Zeitraum und werden keine Frist', () => {
+  const [ev] = parseText('Herbstferien vom 26.10. bis 30.10.2026', today);
+  assert.deepEqual([ev.kind, ev.date, ev.endDate], ['termin', '2026-10-26', '2026-10-30']);
+});
+
+test('Wöchentliche Termine mit Enddatum', () => {
+  const [ev, ...rest] = parseText('Schwimmkurs dienstags 16:00 Uhr bis 23.03.2027', today);
+  assert.equal(rest.length, 0);
+  assert.deepEqual([ev.title, ev.date, ev.start], ['Schwimmkurs', '2026-10-27', '16:00']);
+  assert.deepEqual(ev.repeat, { freq: 'weekly', interval: 1, until: '2027-03-23' });
+});
+
+test('Alle zwei Wochen bis zu den Osterferien', () => {
+  const holidayStart = (name) => (name === 'oster' ? '2027-03-22' : null);
+  const [ev] = parseText('Fußballtraining alle zwei Wochen freitags 17 Uhr bis zu den Osterferien', today, { holidayStart });
+  assert.deepEqual([ev.title, ev.date, ev.start], ['Fußballtraining', '2026-10-23', '17:00']);
+  assert.deepEqual(ev.repeat, { freq: 'weekly', interval: 2, until: '2027-03-21' });
+});
+
+test('Satz als Terminzeile: Überschrift wird zum Titel, auch bei mehreren Terminen', () => {
+  const evs = parseText(`Ausflug in den Wildpark
+Am Mittwoch, 11.11.2026 fahren wir in den Wildpark. Abfahrt 8:30 Uhr.
+Kinderturnen 31.10. 10 Uhr`, today);
+  assert.deepEqual(evs.map((e) => e.title), ['Kinderturnen', 'Ausflug in den Wildpark']);
+});

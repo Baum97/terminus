@@ -30,6 +30,9 @@ jobs:
           java-version: 21
           cache: gradle
 
+      - name: Schulferien laden (OpenHolidays)
+        run: node scripts/ferien.mjs || echo "::warning::Ferien-Daten nicht geladen, App zeigt nur Feiertage"
+
       - name: Web-App in die Android-App kopieren
         run: npx cap sync android
 

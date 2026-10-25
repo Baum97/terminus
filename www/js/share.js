@@ -1,9 +1,9 @@
 // Teilen an andere Personen: Nachrichtentext, Termin-Link, WhatsApp- und Mail-Links.
 // Der Termin steckt im Link-Anker (#t=…). Der Teil hinter # wird nie an einen Server geschickt.
-import { fmtWhen, fmtDate } from './dates.js';
+import { fmtWhen, fmtDate, fmtRepeat } from './dates.js';
 import { normalizeEvent } from './events.js';
 
-const KEYS = { title: 't', date: 'd', endDate: 'e', start: 's', end: 'n', location: 'l', notes: 'o', bring: 'b', cost: 'c' };
+const KEYS = { title: 't', date: 'd', endDate: 'e', start: 's', end: 'n', location: 'l', notes: 'o', bring: 'b', cost: 'c', kind: 'k', repeat: 'r' };
 
 function b64urlEncode(str) {
   const bytes = new TextEncoder().encode(str);
@@ -21,7 +21,7 @@ export function encodeEvent(ev) {
   const compact = {};
   for (const [k, short] of Object.entries(KEYS)) {
     const v = ev[k];
-    if (v == null || v === '' || (Array.isArray(v) && !v.length)) continue;
+    if (v == null || v === '' || (Array.isArray(v) && !v.length) || (k === 'kind' && v === 'termin')) continue;
     compact[short] = k === 'notes' ? v.slice(0, 300) : v;
   }
   return b64urlEncode(JSON.stringify(compact));
@@ -43,7 +43,8 @@ export function eventLink(ev, base = location.origin + location.pathname) {
 }
 
 export function messageText(ev, link) {
-  const lines = [`📅 ${ev.title}`, fmtWhen(ev)];
+  const lines = [`${ev.kind === 'frist' ? '⏰ Frist: ' : '📅 '}${ev.title}`, ev.kind === 'frist' ? `bis ${fmtDate(ev.date)}` : fmtWhen(ev)];
+  if (ev.repeat) lines.push(`🔁 ${fmtRepeat(ev)}`);
   if (ev.location) lines.push(`📍 ${ev.location}`);
   if (ev.bring?.length) lines.push(`🎒 Mitbringen: ${ev.bring.join(', ')}`);
   if (ev.cost) lines.push(`💶 ${ev.cost}`);

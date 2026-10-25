@@ -61,7 +61,7 @@ function findDates(line, today) {
     for (const m of [...masked.matchAll(re)]) {
       const r = fn(m);
       if (!r || !r.date) continue;
-      dates.push({ ...r, index: m.index });
+      dates.push({ ...r, index: m.index, length: m[0].length });
       masked = mask(masked, m.index, m[0].length);
     }
   };
@@ -176,24 +176,104 @@ function findCost(lines) {
   return '';
 }
 
-export function parseText(text, today = new Date()) {
+// Steht vor dem Datum "bis", "spätestens" oder "Anmeldeschluss", ist es eine Frist.
+const FRIST_BEFORE = /(?:bis|spätestens|anmeldeschluss|abgabeschluss|einsendeschluss|frist|deadline)(?:\s+(?:zum|zur|am|den|spätestens|einschließlich|kommenden))*[\s:,]*(?:(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|mo|di|mi|do|fr|sa|so)\.?,?\s*)?(?:den\s+)?$/i;
+const FRIST_ACTION = /anmeld|melde[nt]?\b.*\ban\b|anmeldeschluss|rückmeld|zurück|abgeb|abgabe|einreich|einsend|überweis|bezahl|zahlen|einzahl|mitgeb|unterschr|bescheid|frist/i;
+const FRIST_LABELS = [
+  [/anmeld|melde[nt]?\b.*\ban\b/i, 'Anmeldung'],
+  [/rückmeld|zurück|unterschr|bescheid/i, 'Rückmeldung'],
+  [/überweis|bezahl|zahlen|einzahl|€|euro/i, 'Bezahlen'],
+  [/abgeb|abgabe|einreich|einsend/i, 'Abgabe'],
+  [/mitgeb/i, 'Mitgeben'],
+];
+
+function isFrist(line, index) {
+  const before = line.slice(Math.max(0, index - 40), index);
+  if (!FRIST_BEFORE.test(before)) return false;
+  return /schluss|frist|deadline|spätestens/i.test(before) || FRIST_ACTION.test(line);
+}
+
+function fristLabel(line) {
+  for (const [re, label] of FRIST_LABELS) if (re.test(line)) return label;
+  return 'Frist';
+}
+
+// Wiederkehrende Termine: "dienstags", "jeden Montag", "alle zwei Wochen"
+const WD_NAMES = ['sonntag', 'montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag', 'samstag'];
+const RE_WEEKLY = /(?<![\p{L}])(?:(?:jeden|jede[nm]?|immer)\s+(sonntag|montag|dienstag|mittwoch|donnerstag|freitag|samstag)|(sonntag|montag|dienstag|mittwoch|donnerstag|freitag|samstag)s)(?![\p{L}])/iu;
+const RE_INTERVAL = /alle\s+(zwei|2|drei|3|vier|4)\s+wochen|(14|vierzehn)[\s-]?tägig|zweiwöchentlich/i;
+const RE_UNTIL_HOLIDAY = /bis\s+(?:zu\s+den|zum\s+beginn\s+der|vor\s+den)\s+(herbst|weihnachts|winter|oster|pfingst|sommer|faschings|fastnachts)ferien/i;
+const RE_DAILY = /(?<![\p{L}])(täglich|jeden tag)(?![\p{L}])/iu;
+const RE_MONTHLY = /(?<![\p{L}])(monatlich|jeden monat)(?![\p{L}])/iu;
+const INTERVAL_WORDS = { zwei: 2, drei: 3, vier: 4, 14: 2, vierzehn: 2 };
+
+function findRepeat(line, opts) {
+  const weekly = line.match(RE_WEEKLY);
+  const freq = weekly ? 'weekly' : RE_DAILY.test(line) ? 'daily' : RE_MONTHLY.test(line) ? 'monthly' : null;
+  if (!freq) return null;
+  const iv = line.match(RE_INTERVAL);
+  const interval = iv ? INTERVAL_WORDS[(iv[1] || iv[2]).toLowerCase()] || +(iv[1] || iv[2]) || 1 : 1;
+  let until = null;
+  const hol = line.match(RE_UNTIL_HOLIDAY);
+  if (hol && opts.holidayStart) {
+    const startOfHoliday = opts.holidayStart(hol[1].toLowerCase());
+    if (startOfHoliday) until = addDaysISO(startOfHoliday, -1);
+  }
+  const weekday = weekly ? WD_NAMES.indexOf((weekly[1] || weekly[2]).toLowerCase()) : null;
+  return { freq, interval, until, weekday, match: weekly?.[0] || '' };
+}
+
+function addDaysISO(iso, n) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return toISO(new Date(y, m - 1, d + n));
+}
+
+function nextWeekday(today, weekday, from = null) {
+  const d = from ? new Date(+from.slice(0, 4), +from.slice(5, 7) - 1, +from.slice(8, 10)) : new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  while (d.getDay() !== weekday) d.setDate(d.getDate() + 1);
+  return toISO(d);
+}
+
+// opts.holidayStart(name): Beginn der nächsten Ferien dieses Namens ("oster" → "2027-03-29")
+export function parseText(text, today = new Date(), opts = {}) {
   const lines = String(text || '').split(/\r?\n/).map((l) => l.replace(/\s+/g, ' ').trim());
   const hits = [];
   lines.forEach((line, i) => {
     const r = findDates(line, today);
-    if (r.dates.length) hits.push({ i, ...r });
+    const repeat = findRepeat(line, opts);
+    // "bis 31.03." in einer Wiederholungszeile ist das Ende der Serie, kein eigener Termin.
+    if (repeat && r.dates.length) {
+      const last = r.dates[r.dates.length - 1];
+      if (/bis\s*(?:zum\s*)?(?:\S+\s*)?$/i.test(line.slice(Math.max(0, last.index - 12), last.index)) && r.dates.length >= 1) {
+        repeat.until = repeat.until || last.date;
+        r.dates.pop();
+      }
+    }
+    if (repeat && !r.dates.length && repeat.weekday != null) {
+      r.dates.push({ date: nextWeekday(today, repeat.weekday), index: 0, synthetic: true });
+    }
+    let prevEnd = 0;
+    for (const d of r.dates) {
+      d.frist = !d.endDate && !d.synthetic && isFrist(line, d.index);
+      // Wort für die Frist aus dem Satzteil direkt um dieses Datum ("überweist 12 € bis 6.11.")
+      d.clause = line.slice(prevEnd, d.index + (d.length || 0) + 15);
+      prevEnd = d.index + (d.length || 0);
+    }
+    if (r.dates.length) hits.push({ i, ...r, repeat });
   });
   const heading = lines.find((l, i) => looksLikeHeading(l) && !hits.some((h) => h.i === i)) || '';
-  const single = hits.length === 1 && hits[0].dates.length === 1;
+  const termDates = hits.flatMap((h) => h.dates.filter((d) => !d.frist));
+  const single = termDates.length === 1;
 
   const events = [];
   hits.forEach((h, hi) => {
     const nextHit = hi + 1 < hits.length ? hits[hi + 1].i : lines.length;
     const block = lines.slice(h.i, Math.min(nextHit, h.i + 8));
     const scope = single ? lines : block;
+    const onlyFrist = h.dates.every((d) => d.frist);
 
     let times = findTimes(h.masked);
-    if (!times) for (const l of block.slice(1)) if ((times = findTimes(l))) break;
+    if (!times && !onlyFrist) for (const l of block.slice(1)) if ((times = findTimes(l))) break;
     if (times && !times.end) {
       for (const l of block) {
         const m = l.match(/(?:ende|bis)\D{0,8}?(\d{1,2})(?:[:.](\d{2}))?\s*uhr/i);
@@ -202,28 +282,48 @@ export function parseText(text, today = new Date()) {
       }
     }
 
-    let title = cleanTitle(h.masked);
-    if (!title || title.length > 50) {
+    let titleSource = h.masked;
+    if (h.repeat?.match) titleSource = titleSource.replace(h.repeat.match, ' ');
+    titleSource = titleSource.replace(RE_INTERVAL, ' ').replace(RE_UNTIL_HOLIDAY, ' ').replace(RE_DAILY, ' ').replace(RE_MONTHLY, ' ').replace(/(?<![\p{L}])(ab|bis)\s*$/iu, ' ');
+    let title = cleanTitle(titleSource);
+    // Ein ganzer Satz ("fahren wir in den Wildpark. Abfahrt …") taugt nicht als Titel: dann die Überschrift darüber.
+    const sentence = /^\p{Ll}/u.test(title) || /[.!?]\s/.test(title);
+    if (!title || title.length > 50 || sentence) {
       const prev = lines.slice(Math.max(0, h.i - 3), h.i).reverse().find((l) => looksLikeHeading(l) && !findDates(l, today).dates.length);
-      title = (single ? heading : prev) || title.slice(0, 50) || heading || 'Termin';
+      title = (single ? heading : prev) || (sentence ? '' : title.slice(0, 50)) || heading || title.slice(0, 50) || 'Termin';
     }
-    if (single && heading && heading.length <= 50 && (title.split(' ').length > 6 || /einladung|termin|fest|feier|abend|treffen/i.test(heading))) {
+    if (single && !onlyFrist && heading && heading.length <= 50 && (title.split(' ').length > 6 || /einladung|termin|fest|feier|abend|treffen|ausflug|fahrt|besuch|konzert|aufführung|versammlung|sprechtag|turnier/i.test(heading))) {
       title = heading.replace(/^einladung\s+(zum|zur|zu)\s+/i, '');
     }
 
-    const location = findLocation(scope);
-    const bring = findBring(scope);
-    const cost = findCost(scope);
+    const location = onlyFrist ? '' : findLocation(scope);
+    const bring = onlyFrist ? [] : findBring(scope);
+    const cost = findCost(onlyFrist ? [lines[h.i]] : scope);
 
     for (const d of h.dates) {
+      if (d.frist) {
+        events.push({ kind: 'frist', title: fristLabel(d.clause), date: d.date, cost: findCost([d.clause]), context: true });
+        continue;
+      }
       events.push({
         title, date: d.date, endDate: d.endDate || null,
         start: d.endDate ? null : times?.start || null,
         end: d.endDate ? null : times?.end || null,
         location, bring, cost,
-        unsure: title === 'Termin' || (h.dates.length === 1 && weekdayMismatch(lines[h.i], d.date)),
+        repeat: h.repeat ? { freq: h.repeat.freq, interval: h.repeat.interval, until: h.repeat.until } : null,
+        unsure: title === 'Termin' || (h.dates.length === 1 && !d.synthetic && weekdayMismatch(lines[h.i], d.date)),
       });
     }
   });
+
+  // Fristen bekommen den Anlass dazu: "Anmeldung: Ausflug Wildpark"
+  const main = events.filter((e) => e.kind !== 'frist');
+  const context = main.length === 1 ? main[0].title : heading.replace(/^einladung\s+(zum|zur|zu)\s+/i, '');
+  for (const e of events) {
+    if (e.context) {
+      if (context && context.length <= 40) e.title = `${e.title}: ${context}`;
+      delete e.context;
+    }
+  }
   return normalizeEvents(events);
 }

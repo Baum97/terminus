@@ -1,11 +1,12 @@
 import { parseText } from './parse.js';
-import { PROVIDERS, extractWithLLM, LLMError } from './llm.js';
+import { PROVIDERS, LANGUAGES, extractWithLLM, LLMError } from './llm.js';
 import { recognize } from './ocr.js';
-import { buildICS, googleLink, icsFileName, description } from './ics.js';
+import { buildICS, googleLink, icsFileName, description, alarms, rrule, summary } from './ics.js';
+import { STATES, loadSchoolHolidays, holidayNotes, holidayStartFinder } from './holidays.js';
 import { eventLink, decodeEvent, messageText, whatsappLink, mailLink, normalizePhone, inviteMail, mailtoMany } from './share.js';
 import { normalizeEvent, normalizeGuests, newId, isEmail } from './events.js';
 import { parseVCards, contactsToPeople, mergePeople, matches, initials } from './contacts.js';
-import { fromISO, isoWeek, fmtWhen, WD_SHORT, MONTHS_SHORT, toISO, pad } from './dates.js';
+import { fromISO, isoWeek, fmtWhen, fmtDate, fmtRepeat, WD_SHORT, MONTHS_SHORT, toISO, pad, addDays } from './dates.js';
 import * as store from './store.js';
 import { CONFIG } from './config.js';
 import { isNative, Native } from './native.js';
@@ -130,24 +131,35 @@ async function run(forceLocal = false) {
   let rawText = text;
 
   try {
+    // 1. Text auf dem Gerät lesen. Das Foto selbst bleibt auf dem Handy.
+    if (canvas) {
+      $('#busy-status').textContent = 'Lese den Text auf dem Foto …';
+      rawText = await recognize(canvas, (m) => {
+        if (m.status === 'recognizing text') $('#busy-progress').value = m.progress;
+        else if (m.status?.startsWith('loading')) $('#busy-status').textContent = 'Lade die Texterkennung (einmalig) …';
+      });
+      if (abort.signal.aborted) return;
+    }
     let events;
-    if (!local) {
-      $('#busy-status').textContent = 'Die KI liest den Zettel …';
-      events = await extractWithLLM({ settings: state.settings, imageDataUrl: dataUrl, text, signal: abort.signal });
+    if (local) {
+      events = parseText(rawText, new Date(), { holidayStart: holidayStartFinder(state.settings.state) });
     } else {
-      if (canvas) {
-        $('#busy-status').textContent = 'Lese den Text auf dem Foto …';
-        rawText = await recognize(canvas, (m) => {
-          if (m.status === 'recognizing text') $('#busy-progress').value = m.progress;
-          else if (m.status?.startsWith('loading')) $('#busy-status').textContent = 'Lade die Texterkennung (einmalig) …';
-        });
-        if (abort.signal.aborted) return;
+      // 2. Nur den Text an die KI. Das Foto nur, wenn kaum Text erkannt wurde (Handschrift).
+      $('#busy-progress').removeAttribute('value');
+      $('#busy-status').textContent = 'Die KI sortiert die Termine …';
+      const readable = (rawText.match(/\p{L}/gu) || []).length >= 25;
+      const photoOk = canvas && state.settings.photoFallback !== false;
+      if (readable || !photoOk) {
+        events = await extractWithLLM({ settings: state.settings, text: rawText, signal: abort.signal });
       }
-      events = parseText(rawText);
+      if ((!events || !events.length) && photoOk) {
+        $('#busy-status').textContent = 'Die KI schaut sich das Foto an …';
+        events = await extractWithLLM({ settings: state.settings, imageDataUrl: dataUrl, signal: abort.signal });
+      }
     }
     if (abort.signal.aborted) return;
     state.drafts = events.map((e) => ({ ...e, picked: true }));
-    renderReview(rawText && local ? rawText : '');
+    renderReview(canvas || local ? rawText : '');
   } catch (e) {
     if (e.name === 'AbortError' || abort.signal.aborted) return;
     console.error(e);
@@ -169,17 +181,27 @@ function fillCard(li, ev) {
   $('.leaf-mon', li).textContent = MONTHS_SHORT[d.getMonth()];
   $('.kw', li).textContent = `KW ${isoWeek(ev.date)}`;
   $('.title', li).textContent = ev.title;
-  $('.when', li).textContent = fmtWhen(ev);
+  li.classList.toggle('is-frist', ev.kind === 'frist');
+  $('.pill.frist', li).hidden = ev.kind !== 'frist';
+  $('.when', li).textContent = ev.kind === 'frist' ? `bis ${fmtDate(ev.date)}` : fmtWhen(ev);
+  const rep = $('.repeat', li);
+  rep.hidden = !ev.repeat;
+  rep.textContent = ev.repeat ? `Wiederholt sich ${fmtRepeat(ev)}` : '';
   const loc = $('.loc', li);
   loc.hidden = !ev.location;
-  loc.textContent = ev.location ? `Ort: ${ev.location}` : '';
+  loc.textContent = ev.location ? `Ort: ${ev.location} ›` : '';
+  loc.ariaLabel = ev.location ? `Weg zu ${ev.location} in der Karten-App zeigen` : '';
+  const notes = [...holidayNotes(ev, state.settings.state), ...(ev._notes || [])];
+  const ul = $('.notes', li);
+  ul.hidden = !notes.length;
+  ul.replaceChildren(...notes.map((n) => Object.assign(document.createElement('li'), { textContent: n.text, className: n.type === 'info' ? 'info' : '' })));
   const bring = $('.bring', li);
   const parts = [];
   if (ev.bring.length) parts.push(`Mitbringen: ${ev.bring.join(', ')}`);
   if (ev.cost) parts.push(`Kosten: ${ev.cost}`);
   bring.hidden = !parts.length;
   bring.textContent = parts.join(' · ');
-  $('.pill', li).hidden = !ev.unsure;
+  $('.pill.warn', li).hidden = !ev.unsure;
   $('[data-act="google"]', li).href = googleLink(ev, state.settings.defaultMinutes);
   const guests = $('.guests', li);
   if (guests) {
@@ -188,6 +210,137 @@ function fillCard(li, ev) {
       ev.guests = ev.guests.filter((x) => x.email !== g.email);
       fillCard(li, ev);
     })));
+  }
+}
+
+function editValue(ev, f) {
+  if (f === 'bring') return ev.bring.join(', ');
+  if (f === 'repeatFreq') return !ev.repeat ? '' : ev.repeat.freq === 'weekly' && ev.repeat.interval === 2 ? 'biweekly' : ev.repeat.freq;
+  if (f === 'until') return ev.repeat?.until || '';
+  return ev[f] || '';
+}
+
+const normalizeRepeatInput = (v) => (v === 'biweekly' ? { freq: 'weekly', interval: 2 } : { freq: v, interval: 1 });
+
+function openMap(query) {
+  if (!query) return;
+  if (isNative) {
+    Native.openMap({ query }).catch((e) => toast(e.message || 'Keine Karten-App gefunden.'));
+    return;
+  }
+  const a = Object.assign(document.createElement('a'), { href: `https://www.openstreetmap.org/search?query=${encodeURIComponent(query)}`, target: '_blank', rel: 'noopener' });
+  document.body.append(a);
+  a.click();
+  a.remove();
+}
+
+/* ---------- Abgleich: doppelt und Überschneidungen ---------- */
+
+const simpleTitle = (t) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+function sameTitle(a, b) {
+  const x = simpleTitle(a), y = simpleTitle(b);
+  return x === y || (Math.min(x.length, y.length) >= 5 && (x.includes(y) || y.includes(x)));
+}
+const localMs = (iso, time = '00:00') => {
+  const [y, m, d] = iso.split('-').map(Number);
+  const [h, mi] = time.split(':').map(Number);
+  return new Date(y, m - 1, d, h, mi).getTime();
+};
+const hhmm = (ms) => new Date(ms).toTimeString().slice(0, 5);
+
+async function checkConflicts() {
+  const drafts = state.drafts;
+  if (!drafts.length) return;
+  const saved = store.getSaved();
+  for (const ev of drafts) {
+    ev._notes = [];
+    if (saved.some((x) => x.id !== ev.id && x.date === ev.date && sameTitle(x.title, ev.title))) ev._notes.push({ type: 'info', text: 'Schon gemerkt' });
+  }
+  if (isNative) {
+    const from = localMs(drafts.reduce((m, e) => (e.date < m ? e.date : m), drafts[0].date));
+    const to = localMs(addDays(drafts.reduce((m, e) => ((e.endDate || e.date) > m ? e.endDate || e.date : m), drafts[0].date), 1));
+    try {
+      const { granted, events } = await Native.findEvents({ from, to });
+      $('#btn-check-calendar').hidden = granted;
+      for (const ev of granted ? drafts : []) {
+        const start = ev.start ? localMs(ev.date, ev.start) : null;
+        const end = ev.start ? (ev.end ? localMs(ev.date, ev.end) : start + (+state.settings.defaultMinutes || 60) * 60000) : null;
+        for (const cal of events) {
+          const calDay = cal.allDay ? new Date(cal.begin).toISOString().slice(0, 10) : toISO(new Date(cal.begin));
+          if (calDay === ev.date && sameTitle(cal.title || '', ev.title)) {
+            ev._notes.push({ type: 'info', text: 'Steht schon in deinem Kalender' });
+            break;
+          }
+          if (start && !cal.allDay && cal.begin < end && cal.end > start) {
+            ev._notes.push({ type: 'warn', text: `Überschneidung: ${cal.title || 'Termin'} ${hhmm(cal.begin)}–${hhmm(cal.end)}` });
+          }
+        }
+      }
+    } catch {
+      // Abgleich ist eine Hilfe, kein Muss.
+    }
+  }
+  for (const li of document.querySelectorAll('#cards > li')) {
+    const ev = drafts.find((d) => d.id === li.dataset.id);
+    if (ev) fillCard(li, ev);
+  }
+}
+
+/* ---------- QR-Code ---------- */
+
+function drawQR(ev) {
+  const canvas = $('#qr-canvas');
+  const ctx = canvas.getContext('2d');
+  const qr = window.qrcode(0, 'L');
+  qr.addData(eventLink(ev, isNative ? CONFIG.publicUrl : undefined));
+  qr.make();
+  const n = qr.getModuleCount();
+  const size = 520, cell = Math.floor(size / n), offset = (canvas.width - cell * n) / 2;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#15203a';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect(offset + c * cell, 30 + r * cell, cell, cell);
+  const y = 30 + cell * n + 50;
+  ctx.textAlign = 'center';
+  ctx.font = '700 32px system-ui, sans-serif';
+  let title = ev.title;
+  while (ctx.measureText(title).width > canvas.width - 60 && title.length > 4) title = title.slice(0, -2);
+  ctx.fillText(title === ev.title ? title : `${title}…`, canvas.width / 2, y);
+  ctx.font = '400 24px system-ui, sans-serif';
+  ctx.fillText(ev.kind === 'frist' ? `bis ${fmtDate(ev.date)}` : fmtWhen(ev), canvas.width / 2, y + 38);
+  ctx.fillStyle = '#4b5774';
+  ctx.font = '400 20px system-ui, sans-serif';
+  ctx.fillText('Mit der Handykamera scannen: Termin in den Kalender', canvas.width / 2, y + 74);
+  $('#qr-download').href = canvas.toDataURL('image/png');
+}
+
+async function shareQR() {
+  const canvas = $('#qr-canvas');
+  const dataUrl = canvas.toDataURL('image/png');
+  if (isNative) {
+    Native.shareFile({ base64: dataUrl.split(',')[1], mimeType: 'image/png', fileName: 'termin-qr.png', text: shareEvent.title, title: 'QR-Code teilen' })
+      .catch((e) => toast(e.message || 'Teilen hat nicht geklappt.'));
+    return;
+  }
+  const blob = await (await fetch(dataUrl)).blob();
+  const file = new File([blob], 'termin-qr.png', { type: 'image/png' });
+  if (navigator.canShare?.({ files: [file] })) {
+    navigator.share({ files: [file], text: shareEvent.title }).catch(() => {});
+  } else {
+    toast('Teilen geht in diesem Browser nicht. Nutze „Bild speichern“.');
+  }
+}
+
+/* ---------- Kamera und Galerie in der App ---------- */
+
+async function nativeCapture(kind) {
+  try {
+    const r = kind === 'camera' ? await Native.takePhoto() : await Native.pickImage();
+    if (!r.image) return;
+    state.input = { canvas: await dataUrlToCanvas(r.image), dataUrl: r.image, text: '', label: kind === 'camera' ? 'Erkannt aus deinem Foto' : 'Erkannt aus deinem Bild' };
+    run();
+  } catch (e) {
+    toast(e.message || 'Das Bild konnte nicht geöffnet werden.');
   }
 }
 
@@ -230,9 +383,19 @@ function cardFor(ev, { editable = true, onRemove } = {}) {
   });
   for (const input of li.querySelectorAll('[data-f]')) {
     const f = input.dataset.f;
-    input.value = f === 'bring' ? ev.bring.join(', ') : ev[f] || '';
+    input.value = editValue(ev, f);
     input.addEventListener('change', () => {
-      const next = normalizeEvent({ ...ev, [f]: input.value, unsure: false });
+      const raw = { ...ev, unsure: false };
+      if (f === 'repeatFreq') raw.repeat = input.value ? { ...normalizeRepeatInput(input.value), until: ev.repeat?.until || null } : null;
+      else if (f === 'until') {
+        if (!ev.repeat) {
+          toast('Wähle zuerst, wie oft sich der Termin wiederholt.');
+          input.value = '';
+          return;
+        }
+        raw.repeat = { ...ev.repeat, until: input.value || null };
+      } else raw[f] = input.value;
+      const next = normalizeEvent(raw);
       if (!next) {
         toast('Bitte ein gültiges Datum eintragen.');
         input.value = ev[f] || '';
@@ -240,12 +403,14 @@ function cardFor(ev, { editable = true, onRemove } = {}) {
       }
       Object.assign(ev, next);
       fillCard(li, ev);
+      for (const other of li.querySelectorAll('[data-f]')) if (other !== input) other.value = editValue(ev, other.dataset.f);
     });
   }
   li.addEventListener('click', (e) => {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'share') openShare(ev);
     if (act === 'invite') openInvite(ev, li);
+    if (act === 'map') openMap(ev.location);
     if (act === 'send-invite') sendInvite(ev);
     if (act === 'ics') addToCalendar([ev]);
     if (act === 'remove') onRemove?.(ev, li);
@@ -261,6 +426,7 @@ function renderReview(rawText) {
   $('#raw-text').textContent = rawText || '';
   updateActionbar();
   show('review');
+  checkConflicts();
 }
 
 function removeDraft(ev, li) {
@@ -286,17 +452,18 @@ function updateActionbar() {
 
 function icsFor(events) {
   const alarm = state.settings.alarmMinutes;
-  return buildICS(events, { defaultMinutes: +state.settings.defaultMinutes || 60, alarmMinutes: alarm === '' || alarm == null ? null : +alarm });
+  return buildICS(events, { defaultMinutes: +state.settings.defaultMinutes || 60, alarmMinutes: alarm === '' || alarm == null ? null : +alarm, eveReminder: state.settings.eveReminder !== false });
 }
 
 // Termine für die Android-Brücke: Beschreibung fertig zusammengesetzt, fehlende Werte als null.
 function nativeEvent(ev) {
   const alarm = state.settings.alarmMinutes;
   return {
-    title: ev.title, date: ev.date, endDate: ev.endDate, start: ev.start, end: ev.end,
+    title: ev.title, summary: summary(ev), date: ev.date, endDate: ev.endDate, start: ev.start, end: ev.end,
     location: ev.location, description: description(ev),
     defaultMinutes: +state.settings.defaultMinutes || 60,
-    alarmMinutes: alarm === '' || alarm == null ? null : +alarm,
+    rrule: rrule(ev),
+    reminders: alarms(ev, { alarmMinutes: alarm === '' || alarm == null ? null : +alarm, eveReminder: state.settings.eveReminder !== false }).map((a) => a.minutes),
   };
 }
 
@@ -334,6 +501,7 @@ let shareEvent = null;
 function openShare(ev) {
   shareEvent = ev;
   $('#share-text').value = messageText(ev, eventLink(ev, isNative ? CONFIG.publicUrl : undefined));
+  $('#qr-box').open = false;
   renderPeople();
   updateShareLinks();
   const native = $('#share-native');
@@ -603,7 +771,7 @@ function renderProviders() {
     $('small', label).textContent = p.hint;
     fs.append(label);
   }
-  fs.addEventListener('change', syncProviderFields);
+  fs.onchange = syncProviderFields;
 }
 
 function syncProviderFields(fromSaved = false) {
@@ -625,6 +793,10 @@ function openSettings() {
   syncProviderFields(true);
   $('#s-alarm').value = state.settings.alarmMinutes ?? '';
   $('#s-duration').value = String(state.settings.defaultMinutes || 60);
+  $('#s-state').value = state.settings.state || '';
+  $('#s-lang').value = state.settings.lang || 'de';
+  $('#s-eve').checked = state.settings.eveReminder !== false;
+  $('#s-photo').checked = state.settings.photoFallback !== false;
   $('#s-owner-name').value = state.settings.ownerName || '';
   $('#s-owner-email').value = state.settings.ownerEmail || '';
   if (isNative) {
@@ -661,6 +833,10 @@ function saveSettings() {
     apiKey: $('#s-key').value.trim(),
     alarmMinutes: $('#s-alarm').value === '' ? '' : +$('#s-alarm').value,
     defaultMinutes: +$('#s-duration').value,
+    state: $('#s-state').value,
+    lang: $('#s-lang').value,
+    eveReminder: $('#s-eve').checked,
+    photoFallback: $('#s-photo').checked,
     ownerName: $('#s-owner-name').value.trim(),
     ownerEmail: $('#s-owner-email').value.trim().toLowerCase(),
   };
@@ -718,6 +894,10 @@ async function takeSharedFile() {
 async function takeNativeShare() {
   try {
     const shared = await Native.takeShared();
+    if (shared.action) {
+      nativeCapture(shared.action);
+      return true;
+    }
     if (shared.image) {
       state.input = { canvas: await dataUrlToCanvas(shared.image), dataUrl: shared.image, text: '', label: 'Erkannt aus dem geteilten Bild' };
       run();
@@ -829,6 +1009,29 @@ function bind() {
   $('#share-copy').addEventListener('click', copyShareText);
   $('#btn-person-add').addEventListener('click', addPerson);
 
+  if (isNative) {
+    // In der App: Kamera und Galerie direkt über Android statt über das Dateifeld.
+    $('label[for="in-camera"]').addEventListener('click', (e) => {
+      e.preventDefault();
+      nativeCapture('camera');
+    });
+    $('label[for="in-file"]').addEventListener('click', (e) => {
+      e.preventDefault();
+      nativeCapture('pick');
+    });
+  }
+  $('#btn-check-calendar').addEventListener('click', async () => {
+    try {
+      await Native.listCalendars();
+      await checkConflicts();
+    } catch (e) {
+      toast(e.message || 'Kein Zugriff auf den Kalender.');
+    }
+  });
+  $('#qr-box').addEventListener('toggle', () => $('#qr-box').open && drawQR(shareEvent));
+  $('#qr-share').addEventListener('click', shareQR);
+  $('#s-state').append(...Object.entries(STATES).map(([k, v]) => new Option(v, k)));
+  $('#s-lang').append(...Object.entries(LANGUAGES).map(([k, v]) => new Option(v, k)));
   $('#invite-search').addEventListener('input', renderInvite);
   $('#invite-search').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -874,8 +1077,8 @@ async function init() {
     Native.addListener('shared', () => takeNativeShare());
     $('#btn-calendar-pick').addEventListener('click', pickCalendar);
   }
+  await Promise.all([detectServer(), loadSchoolHolidays()]);
   renderProviders();
-  await detectServer();
   renderMode();
   await route();
   if (!isNative && 'serviceWorker' in navigator && location.protocol !== 'file:') {

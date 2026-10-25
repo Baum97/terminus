@@ -1,6 +1,7 @@
 package io.github.baum97.terminus;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
 import android.content.ContentValues;
@@ -14,6 +15,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.provider.CalendarContract.Calendars;
 import android.provider.CalendarContract.Events;
+import android.provider.CalendarContract.Instances;
 import android.provider.CalendarContract.Reminders;
 import android.provider.CalendarContract;
 import android.provider.ContactsContract.CommonDataKinds.Email;
@@ -32,6 +34,8 @@ import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import androidx.activity.result.ActivityResult;
+import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
@@ -60,8 +64,13 @@ public class TerminusPlugin extends Plugin {
     private static final String BERLIN = "Europe/Berlin";
     private static final int MAX_SIDE = 2000;
 
+    static final String ACTION_CAMERA = "io.github.baum97.terminus.CAMERA";
+    static final String ACTION_PICK = "io.github.baum97.terminus.PICK";
+
     private Uri pendingImage;
     private String pendingText;
+    private String pendingAction;
+    private Uri photoUri;
 
     /* ---------- Teilen-Menü: Eingang ---------- */
 
@@ -77,7 +86,14 @@ public class TerminusPlugin extends Plugin {
     }
 
     private boolean takeIntent(Intent intent) {
-        if (intent == null || !Intent.ACTION_SEND.equals(intent.getAction())) return false;
+        if (intent == null) return false;
+        // Schnellstart vom App-Icon (lange drücken): "Zettel knipsen" oder "Screenshot wählen"
+        if (ACTION_CAMERA.equals(intent.getAction()) || ACTION_PICK.equals(intent.getAction())) {
+            pendingAction = ACTION_CAMERA.equals(intent.getAction()) ? "camera" : "pick";
+            intent.setAction(null);
+            return true;
+        }
+        if (!Intent.ACTION_SEND.equals(intent.getAction())) return false;
         String type = intent.getType();
         if (type != null && type.startsWith("image/")) {
             pendingImage = streamExtra(intent);
@@ -105,6 +121,7 @@ public class TerminusPlugin extends Plugin {
         try {
             if (pendingImage != null) result.put("image", imageDataUrl(pendingImage));
             else if (pendingText != null) result.put("text", pendingText);
+            else if (pendingAction != null) result.put("action", pendingAction);
         } catch (Exception e) {
             pendingImage = null;
             call.reject("Das geteilte Bild konnte nicht gelesen werden.", e);
@@ -112,6 +129,7 @@ public class TerminusPlugin extends Plugin {
         }
         pendingImage = null;
         pendingText = null;
+        pendingAction = null;
         call.resolve(result);
     }
 
@@ -332,21 +350,28 @@ public class TerminusPlugin extends Plugin {
                 boolean allDay = ev.isNull("start");
                 ContentValues v = new ContentValues();
                 v.put(Events.CALENDAR_ID, calendarId);
-                v.put(Events.TITLE, ev.optString("title", "Termin"));
+                v.put(Events.TITLE, ev.optString("summary", ev.optString("title", "Termin")));
                 v.put(Events.EVENT_LOCATION, ev.optString("location", ""));
                 v.put(Events.DESCRIPTION, ev.optString("description", ""));
                 v.put(Events.DTSTART, span[0]);
-                v.put(Events.DTEND, span[1]);
+                String rule = ev.optString("rrule", "");
+                if (rule.isEmpty()) {
+                    v.put(Events.DTEND, span[1]);
+                } else {
+                    // Serientermine brauchen bei Android eine Dauer statt eines Endes.
+                    v.put(Events.RRULE, rule);
+                    v.put(Events.DURATION, allDay ? "P" + ((span[1] - span[0]) / 86400000L) + "D" : "PT" + ((span[1] - span[0]) / 60000L) + "M");
+                }
                 v.put(Events.ALL_DAY, allDay ? 1 : 0);
                 v.put(Events.EVENT_TIMEZONE, allDay ? "UTC" : BERLIN);
                 Uri uri = resolver.insert(Events.CONTENT_URI, v);
                 if (uri == null) continue;
                 count++;
-                if (!ev.isNull("alarmMinutes")) {
+                JSONArray reminders = ev.optJSONArray("reminders");
+                for (int k = 0; reminders != null && k < reminders.length(); k++) {
                     ContentValues r = new ContentValues();
                     r.put(Reminders.EVENT_ID, Long.parseLong(uri.getLastPathSegment()));
-                    // Ganztägig: am Vortag um 18 Uhr, wie in der .ics-Datei.
-                    r.put(Reminders.MINUTES, allDay ? 6 * 60 : ev.getInt("alarmMinutes"));
+                    r.put(Reminders.MINUTES, reminders.getInt(k));
                     r.put(Reminders.METHOD, Reminders.METHOD_ALERT);
                     resolver.insert(Reminders.CONTENT_URI, r);
                 }
@@ -422,15 +447,146 @@ public class TerminusPlugin extends Plugin {
                 .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, span[0])
                 .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, span[1])
                 .putExtra(CalendarContract.EXTRA_EVENT_ALL_DAY, ev.isNull("start"))
-                .putExtra(Events.TITLE, ev.optString("title", "Termin"))
+                .putExtra(Events.TITLE, ev.optString("summary", ev.optString("title", "Termin")))
                 .putExtra(Events.EVENT_LOCATION, ev.optString("location", ""))
                 .putExtra(Events.DESCRIPTION, ev.optString("description", ""));
+            if (!ev.optString("rrule", "").isEmpty()) i.putExtra(Events.RRULE, ev.getString("rrule"));
             getActivity().startActivity(i);
             call.resolve();
         } catch (ActivityNotFoundException e) {
             call.reject("Keine Kalender-App gefunden.", "not_found");
         } catch (Exception e) {
             call.reject("Der Termin konnte nicht geöffnet werden.", e);
+        }
+    }
+
+    /* ---------- Abgleich mit dem Kalender ---------- */
+
+    // Termine im Zeitraum, für Hinweise auf Doppelte und Überschneidungen.
+    // Fragt nicht nach der Berechtigung: ohne Zugriff kommt granted=false zurück.
+    @PluginMethod
+    public void findEvents(PluginCall call) {
+        JSObject result = new JSObject();
+        JSArray list = new JSArray();
+        boolean granted = getPermissionState("calendar") == PermissionState.GRANTED;
+        result.put("granted", granted);
+        if (granted) {
+            long from = call.getLong("from", 0L);
+            long to = call.getLong("to", 0L);
+            String[] projection = { Instances.TITLE, Instances.BEGIN, Instances.END, Instances.ALL_DAY };
+            Uri uri = Instances.CONTENT_URI.buildUpon().appendPath(String.valueOf(from)).appendPath(String.valueOf(to)).build();
+            try (Cursor c = getContext().getContentResolver().query(uri, projection, Instances.VISIBLE + "=1", null, Instances.BEGIN + " ASC")) {
+                while (c != null && c.moveToNext() && list.length() < 500) {
+                    JSObject ev = new JSObject();
+                    ev.put("title", c.getString(0));
+                    ev.put("begin", c.getLong(1));
+                    ev.put("end", c.getLong(2));
+                    ev.put("allDay", c.getInt(3) == 1);
+                    list.put(ev);
+                }
+            } catch (Exception ignored) {}
+        }
+        result.put("events", list);
+        call.resolve(result);
+    }
+
+    /* ---------- Karten-App ---------- */
+
+    // Öffnet die eingestellte Karten-App (OsmAnd, Organic Maps, Google Maps …) mit der Adresse.
+    @PluginMethod
+    public void openMap(PluginCall call) {
+        try {
+            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode(call.getString("query", ""))));
+            getActivity().startActivity(i);
+            call.resolve();
+        } catch (ActivityNotFoundException e) {
+            call.reject("Keine Karten-App gefunden.", "not_found");
+        }
+    }
+
+    /* ---------- Kamera und Galerie ---------- */
+
+    @PluginMethod
+    public void takePhoto(PluginCall call) {
+        try {
+            File dir = new File(getContext().getCacheDir(), "fotos");
+            dir.mkdirs();
+            File file = new File(dir, "zettel.jpg");
+            photoUri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", file);
+            Intent i = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+            i.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, photoUri);
+            i.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivityForResult(call, i, "photoResult");
+        } catch (Exception e) {
+            call.reject("Die Kamera konnte nicht geöffnet werden.", e);
+        }
+    }
+
+    @ActivityCallback
+    private void photoResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        if (result.getResultCode() != Activity.RESULT_OK || photoUri == null) {
+            call.resolve(new JSObject());
+            return;
+        }
+        resolveImage(call, photoUri);
+    }
+
+    @PluginMethod
+    public void pickImage(PluginCall call) {
+        Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+        i.setType("image/*");
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        startActivityForResult(call, i, "pickResult");
+    }
+
+    @ActivityCallback
+    private void pickResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        Intent data = result.getData();
+        if (result.getResultCode() != Activity.RESULT_OK || data == null || data.getData() == null) {
+            call.resolve(new JSObject());
+            return;
+        }
+        resolveImage(call, data.getData());
+    }
+
+    private void resolveImage(PluginCall call, Uri uri) {
+        try {
+            JSObject r = new JSObject();
+            r.put("image", imageDataUrl(uri));
+            call.resolve(r);
+        } catch (Exception e) {
+            call.reject("Das Bild konnte nicht gelesen werden.", e);
+        }
+    }
+
+    /* ---------- Datei teilen (z. B. QR-Code als Bild) ---------- */
+
+    @PluginMethod
+    public void shareFile(PluginCall call) {
+        try {
+            byte[] bytes = Base64.decode(call.getString("base64", ""), Base64.DEFAULT);
+            File dir = new File(getContext().getCacheDir(), "teilen");
+            dir.mkdirs();
+            File file = new File(dir, call.getString("fileName", "terminus.png"));
+            try (FileOutputStream out = new FileOutputStream(file)) {
+                out.write(bytes);
+            }
+            Uri uri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", file);
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType(call.getString("mimeType", "image/png"));
+            send.putExtra(Intent.EXTRA_STREAM, uri);
+            String text = call.getString("text");
+            if (text != null) send.putExtra(Intent.EXTRA_TEXT, text);
+            send.setClipData(ClipData.newRawUri("", uri));
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Intent chooser = Intent.createChooser(send, call.getString("title", "Teilen"));
+            chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            getActivity().startActivity(chooser);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Teilen hat nicht geklappt.", e);
         }
     }
 }

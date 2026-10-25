@@ -4,4 +4,8 @@
     <string name="title_activity_main">Terminus</string>
     <string name="package_name">io.github.baum97.terminus</string>
     <string name="custom_url_scheme">io.github.baum97.terminus</string>
+    <string name="shortcut_camera">Zettel knipsen</string>
+    <string name="shortcut_camera_long">Zettel fotografieren</string>
+    <string name="shortcut_pick">Screenshot wählen</string>
+    <string name="shortcut_pick_long">Bild oder Screenshot wählen</string>
 </resources>

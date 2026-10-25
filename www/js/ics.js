@@ -1,5 +1,5 @@
 // Kalender-Export: iCalendar-Datei (RFC 5545) und Google-Kalender-Link.
-import { addDays, addMinutes } from './dates.js';
+import { addDays, addMinutes, toMinutes, fromISO } from './dates.js';
 
 const VTIMEZONE = [
   'BEGIN:VTIMEZONE', 'TZID:Europe/Berlin',
@@ -34,6 +34,43 @@ function fold(line) {
   return parts.join('\r\n ');
 }
 
+// Erinnerungen in Minuten vor Beginn. Bei ganztägigen Terminen ist "Beginn" 0 Uhr.
+// - Frist: am Vortag um 9 Uhr
+// - Mitbringliste oder Kosten: am Vorabend um 19 Uhr ("Morgen: …, Mitbringen: …")
+// - sonst die eingestellte Erinnerung
+export function alarms(ev, { alarmMinutes = null, eveReminder = true } = {}) {
+  if (ev.kind === 'frist') return [{ minutes: 15 * 60, text: `Frist morgen: ${ev.title}` }];
+  const out = [];
+  const startMin = ev.start ? toMinutes(ev.start) : 0;
+  const eve = eveReminder && (ev.bring?.length || ev.cost);
+  if (eve) {
+    const what = [ev.bring?.length ? `Mitbringen: ${ev.bring.join(', ')}` : '', ev.cost ? `Kosten: ${ev.cost}` : ''].filter(Boolean).join(' · ');
+    out.push({ minutes: startMin + 5 * 60, text: `Morgen: ${ev.title}. ${what}` });
+  }
+  if (alarmMinutes != null && alarmMinutes !== '' && !(eve && !ev.start)) {
+    const minutes = ev.start ? +alarmMinutes : 6 * 60;
+    if (!out.some((a) => a.minutes === minutes)) out.push({ minutes, text: ev.title });
+  }
+  return out;
+}
+
+const BYDAY = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+
+// RRULE ohne Präfix, z. B. "FREQ=WEEKLY;INTERVAL=2;BYDAY=FR;UNTIL=20270321T225959Z"
+export function rrule(ev) {
+  const r = ev.repeat;
+  if (!r) return '';
+  const parts = [`FREQ=${r.freq.toUpperCase()}`];
+  if (r.interval > 1) parts.push(`INTERVAL=${r.interval}`);
+  if (r.freq === 'weekly') parts.push(`BYDAY=${BYDAY[fromISO(ev.date).getDay()]}`);
+  if (r.until) parts.push(`UNTIL=${compactDate(r.until)}${ev.start ? 'T225959Z' : ''}`);
+  return parts.join(';');
+}
+
+export function summary(ev) {
+  return ev.kind === 'frist' ? `${ev.title} (Frist)` : ev.title;
+}
+
 export function description(ev) {
   const lines = [];
   if (ev.bring?.length) lines.push(`Mitbringen: ${ev.bring.join(', ')}`);
@@ -52,7 +89,7 @@ const cn = (name) => `"${String(name || '').replace(/["\r\n]/g, '')}"`;
 
 // Mit organizer (eigene Adresse) und Gästen wird eine echte Einladung daraus (METHOD:REQUEST):
 // Kalender wie Outlook, Thunderbird oder Gmail zeigen dann Zusagen/Absagen an.
-export function buildICS(events, { defaultMinutes = 60, alarmMinutes = null, organizer = null } = {}) {
+export function buildICS(events, { defaultMinutes = 60, alarmMinutes = null, eveReminder = true, organizer = null } = {}) {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
   const invite = Boolean(organizer?.email) && events.some((e) => e.guests?.length);
   const out = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Terminus//DE', 'CALSCALE:GREGORIAN', `METHOD:${invite ? 'REQUEST' : 'PUBLISH'}`, ...VTIMEZONE];
@@ -65,7 +102,8 @@ export function buildICS(events, { defaultMinutes = 60, alarmMinutes = null, org
       out.push(`DTSTART;TZID=Europe/Berlin:${compactDate(s.date)}T${compactTime(s.start)}`,
         `DTEND;TZID=Europe/Berlin:${compactDate(s.date)}T${compactTime(s.end)}`);
     }
-    out.push(`SUMMARY:${escapeText(ev.title)}`);
+    out.push(`SUMMARY:${escapeText(summary(ev))}`);
+    if (ev.repeat) out.push(`RRULE:${rrule(ev)}`);
     if (invite && ev.guests?.length) {
       out.push('SEQUENCE:0', 'STATUS:CONFIRMED', `ORGANIZER;CN=${cn(organizer.name || organizer.email)}:mailto:${organizer.email}`);
       for (const g of ev.guests) out.push(`ATTENDEE;CN=${cn(g.name || g.email)};ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:${g.email}`);
@@ -73,10 +111,8 @@ export function buildICS(events, { defaultMinutes = 60, alarmMinutes = null, org
     if (ev.location) out.push(`LOCATION:${escapeText(ev.location)}`);
     const desc = description(ev);
     if (desc) out.push(`DESCRIPTION:${escapeText(desc)}`);
-    if (alarmMinutes != null) {
-      // Bei ganztägigen Terminen bezieht sich die Erinnerung auf 0 Uhr, daher am Vortag um 18 Uhr.
-      const trigger = s.allDay ? '-PT6H' : `-PT${alarmMinutes}M`;
-      out.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${escapeText(ev.title)}`, `TRIGGER:${trigger}`, 'END:VALARM');
+    for (const a of alarms(ev, { alarmMinutes, eveReminder })) {
+      out.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${escapeText(a.text)}`, `TRIGGER:-PT${a.minutes}M`, 'END:VALARM');
     }
     out.push('END:VEVENT');
   }
@@ -94,7 +130,8 @@ export function googleLink(ev, defaultMinutes = 60) {
   const dates = s.allDay
     ? `${compactDate(s.start)}/${compactDate(s.end)}`
     : `${compactDate(s.date)}T${compactTime(s.start)}/${compactDate(s.date)}T${compactTime(s.end)}`;
-  const p = new URLSearchParams({ action: 'TEMPLATE', text: ev.title, dates, ctz: 'Europe/Berlin' });
+  const p = new URLSearchParams({ action: 'TEMPLATE', text: summary(ev), dates, ctz: 'Europe/Berlin' });
+  if (ev.repeat) p.set('recur', `RRULE:${rrule(ev)}`);
   if (ev.location) p.set('location', ev.location);
   const desc = description(ev);
   if (desc) p.set('details', desc);

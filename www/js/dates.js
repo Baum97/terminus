@@ -66,3 +66,20 @@ export function fmtWhen(ev) {
   if (!ev.start) return `${day} · ganztägig`;
   return `${day} · ${ev.start}${ev.end ? '–' + ev.end : ''} Uhr`;
 }
+
+export const toMinutes = (t) => {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+};
+
+// "jeden Dienstag", "alle 2 Wochen dienstags", "täglich", "monatlich am 27." und ggf. "bis 21.03.2027"
+export function fmtRepeat(ev) {
+  const r = ev.repeat;
+  if (!r) return '';
+  const d = fromISO(ev.date);
+  let text;
+  if (r.freq === 'daily') text = r.interval > 1 ? `alle ${r.interval} Tage` : 'täglich';
+  else if (r.freq === 'monthly') text = `${r.interval > 1 ? `alle ${r.interval} Monate` : 'monatlich'} am ${d.getDate()}.`;
+  else text = r.interval > 1 ? `alle ${r.interval} Wochen ${WEEKDAYS[d.getDay()].toLowerCase()}s` : `jeden ${WEEKDAYS[d.getDay()]}`;
+  return r.until ? `${text} bis ${fmtDate(r.until)}` : text;
+}

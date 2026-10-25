@@ -13,7 +13,9 @@ const ROOT = resolve(fileURLToPath(new URL('../www', import.meta.url)));
 const PORT = +(process.env.PORT || 8080);
 const LLM_URL = process.env.LLM_URL || 'https://api.mistral.ai/v1/chat/completions';
 const LLM_KEY = process.env.LLM_KEY || process.env.MISTRAL_API_KEY || '';
+// Kleines Modell für Text (Standardweg), größeres nur für Fotos ohne erkennbaren Text.
 const LLM_MODEL = process.env.LLM_MODEL || 'mistral-small-latest';
+const LLM_TEXT_MODEL = process.env.LLM_TEXT_MODEL || (process.env.LLM_MODEL ? LLM_MODEL : 'ministral-8b-latest');
 const DAILY_LIMIT = +(process.env.DAILY_LIMIT || 30);
 const MAX_BODY = 8 * 1024 * 1024;
 const AI_ENABLED = Boolean(LLM_KEY || process.env.LLM_URL);
@@ -25,7 +27,7 @@ const TYPES = {
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json',
   '.webmanifest': 'application/manifest+json', '.wasm': 'application/wasm', '.gz': 'application/gzip', '.txt': 'text/plain; charset=utf-8',
 };
-const PUBLIC = /^\/(index\.html|sw\.js|manifest\.webmanifest|(css|js|icons|vendor)\/.+)?$/;
+const PUBLIC = /^\/(index\.html|sw\.js|manifest\.webmanifest|(css|js|icons|vendor|data)\/.+)?$/;
 
 // Einfaches Tageslimit pro IP, nur im Speicher.
 const usage = new Map();
@@ -69,7 +71,8 @@ async function chat(req, res) {
   }
   if (!Array.isArray(input.messages)) return send(res, 400, { error: 'messages fehlt.' });
   // Nur bekannte Felder weitergeben; das Modell legt der Server fest.
-  const body = { model: LLM_MODEL, messages: input.messages, temperature: 0.1, response_format: { type: 'json_object' } };
+  const model = input.mode === 'image' ? LLM_MODEL : LLM_TEXT_MODEL;
+  const body = { model, messages: input.messages, temperature: 0.1, max_tokens: 1500, response_format: { type: 'json_object' } };
   // Mistral erwartet image_url als String.
   if (LLM_URL.includes('api.mistral.ai')) {
     for (const m of body.messages) {
@@ -133,5 +136,5 @@ createServer(async (req, res) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'Methode nicht erlaubt.' });
   return serveStatic(req, res, pathname);
 }).listen(PORT, () => {
-  console.log(`Terminus läuft auf http://localhost:${PORT}  (KI: ${AI_ENABLED ? `${LLM_MODEL} über ${new URL(LLM_URL).host}` : 'aus, nur Erkennung auf dem Gerät'})`);
+  console.log(`Terminus läuft auf http://localhost:${PORT}  (KI: ${AI_ENABLED ? `${LLM_TEXT_MODEL} / Fotos: ${LLM_MODEL} über ${new URL(LLM_URL).host}` : 'aus, nur Erkennung auf dem Gerät'})`);
 });

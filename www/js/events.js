@@ -22,15 +22,35 @@ export function normalizeGuests(list) {
 
 const str = (v, max = 300) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
 
+const FREQS = ['daily', 'weekly', 'monthly'];
+
+// Wiederholung: { freq: 'daily' | 'weekly' | 'monthly', interval: 1–4, until: 'YYYY-MM-DD' | null }.
+// Die KI darf auch kurz "weekly", "biweekly" oder "monthly" plus "until" liefern.
+export function normalizeRepeat(raw, until, date) {
+  let r = raw;
+  if (typeof r === 'string') {
+    const s = r.toLowerCase();
+    r = s === 'biweekly' ? { freq: 'weekly', interval: 2 } : { freq: s };
+  }
+  if (!r || typeof r !== 'object' || !FREQS.includes(r.freq)) return null;
+  const interval = Math.min(4, Math.max(1, Math.round(+r.interval || 1)));
+  let u = typeof (r.until ?? until) === 'string' ? (r.until ?? until).slice(0, 10) : null;
+  if (!isValidISO(u) || u <= date) u = null;
+  return { freq: r.freq, interval, until: u };
+}
+
 export function normalizeEvent(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const date = str(raw.date, 10);
   if (!isValidISO(date)) return null;
   let endDate = str(raw.endDate, 10);
   if (!isValidISO(endDate) || endDate <= date) endDate = null;
-  const start = normTime(raw.start ?? '');
+  const kind = raw.kind === 'frist' || raw.kind === 'deadline' ? 'frist' : 'termin';
+  // Fristen sind ganztägig: "bis 2.11." heißt bis zum Ende des Tages.
+  const start = kind === 'frist' ? null : normTime(raw.start ?? '');
   let end = start ? normTime(raw.end ?? '') : null;
   if (end && !endDate && end <= start) end = null;
+  if (kind === 'frist') endDate = null;
   let bring = raw.bring;
   if (typeof bring === 'string') bring = bring.split(/[,;]/);
   bring = Array.isArray(bring) ? bring.map((b) => str(b, 80)).filter(Boolean).slice(0, 12) : [];
@@ -46,6 +66,8 @@ export function normalizeEvent(raw) {
     bring,
     cost: str(raw.cost, 40),
     guests: normalizeGuests(raw.guests),
+    kind,
+    repeat: kind === 'frist' || endDate ? null : normalizeRepeat(raw.repeat, raw.until, date),
     unsure: raw.unsure === true || raw.confidence === 'niedrig' || raw.confidence === 'low',
   };
 }
@@ -57,7 +79,7 @@ export function normalizeEvents(list) {
   for (const raw of list) {
     const ev = normalizeEvent(raw);
     if (!ev) continue;
-    const key = `${ev.date}|${ev.start}|${ev.title.toLowerCase()}`;
+    const key = `${ev.kind}|${ev.date}|${ev.start}|${ev.title.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(ev);
