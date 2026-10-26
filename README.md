@@ -53,6 +53,19 @@ Terminus ersetzt Google Kalender, ohne eigene Cloud. Synchronisiert wird über d
 
 In der Web-Version zeigt der Kalender die gemerkten Termine. Der Import landet ebenfalls dort.
 
+## Alltag
+
+| Funktion | Was passiert |
+|---|---|
+| **Schnelleingabe** | Eine Zeile tippen oder mit dem Tastatur-Mikrofon diktieren: „Mi 16 Uhr Zahnarzt Ben“, „morgen 8:30 Elterngespräch @ Schule“, „dienstags 16 Uhr Schwimmkurs Mia bis 26.01.“. Namen aus der Familie werden zu „Für“ |
+| **Morgen-Überblick** | Jeden Tag zur gewählten Uhrzeit eine Benachrichtigung: Termine von heute, offene Mitbringsachen, Fristen von heute und morgen. Läuft auch nach einem Neustart weiter |
+| **Kalender abonnieren** | Müllabfuhr, Schule, Verein per Link (.ics/webcal). Auf Android übernimmt ICSx⁵ (Open Source, vom DAVx⁵-Team) das regelmäßige Aktualisieren |
+| **Serien setzen in den Ferien aus** | Schwimmkurs oder Training fallen in den Schulferien und an Feiertagen des Bundeslands automatisch aus (als Ausnahmen der Serie, auch in anderen Kalender-Apps sichtbar) |
+| **Termine bearbeiten** | Titel, Datum, Uhrzeit und Ort direkt in Terminus ändern, bei Serien wahlweise nur diesen Termin oder alle; einzelne Serientermine absagen |
+| **Einfach-Modus** | Große Schrift, nur „Erfassen“ und „Heute“, etwa für Oma und Opa |
+| **Sicherung** | Personen, Familie, gemerkte Termine und Einstellungen als Datei sichern und auf einem neuen Handy einlesen (ohne API-Schlüssel) |
+| **App-Sperre** | Fingerabdruck oder Display-Sperre beim Öffnen und nach einer Minute im Hintergrund |
+
 ## Personen einladen
 
 Auf jeder Terminkarte öffnet der Knopf mit der Personenfigur die Auswahl. Woher die Kontakte kommen:
@@ -130,12 +143,16 @@ www/                      Web-App, wird auch in die Android-App gepackt
   js/desc.js              gemeinsame Angaben in der Terminbeschreibung
   js/icsimport.js         .ics-Import mit Zeitzonen
   js/unzip.js             ZIP-Leser für den Google-Export
+  js/quick.js             Schnelleingabe
+  js/backup.js            Sicherung
   data/ferien.json        Schulferien, beim Build erzeugt
   js/native.js            Brücke zur Android-App
   js/config.js            öffentliche Adressen (Web-Version, Server)
 android/                  Android-Projekt (Capacitor)
   …/TerminusPlugin.java   Teilen-Menü, Kalender lesen/schreiben, Adressbuch, Geburtstage, Einladungs-Mail
   …/TerminusWidget.java   Startbildschirm-Widget
+  …/MorningBrief.java     Morgen-Überblick (Wecker, Neustart, Benachrichtigung)
+docs/ROADMAP.md           Merkzettel für spätere Ausbaustufen (Listen über VTODO)
 proxy/server.mjs          Server: liefert die Web-App aus und reicht KI-Anfragen weiter
 scripts/ferien.mjs        lädt die Schulferien aller Bundesländer
 .github/workflows/        APK bauen, Web-Version veröffentlichen
@@ -152,10 +169,9 @@ scripts/ferien.mjs        lädt die Schulferien aller Bundesländer
 ## Nächste Schritte
 
 1. Veröffentlichung auf F-Droid und im Play Store
-2. Echte Aufgaben über den offenen Standard VTODO (kompatibel mit Tasks.org)
-3. Termine in der Kalenderansicht direkt bearbeiten (Zeit, Ort), einzelne Serientermine ändern
-4. Mailversand mit echter Einladung über einen EU-Mailanbieter
-5. Unterstützung per Spende (Liberapay, Open Collective) oder Pro-Funktionen für Vereine und Kitas
+2. Listen und echte Aufgaben über den offenen Standard VTODO (Paket B, siehe docs/ROADMAP.md)
+3. Mailversand mit echter Einladung über einen EU-Mailanbieter
+4. Unterstützung per Spende (Liberapay, Open Collective) oder Pro-Funktionen für Vereine und Kitas
 
 ## Lizenz
 

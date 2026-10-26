@@ -24,6 +24,8 @@ test('Schnelleingabe mit Wochentag, Uhrzeit und Person', () => {
 test('Schnelleingabe für wiederkehrende Termine', () => {
   const e = quickParse('dienstags 16 Uhr Schwimmkurs Mia', today, { family });
   assert.deepEqual([e.title, e.date, e.start, e.repeat.freq, e.forWhom[0]], ['Schwimmkurs', '2026-10-27', '16:00', 'weekly', 'Mia']);
+  const f = quickParse('dienstags 16 Uhr Schwimmkurs Mia bis 26.01.2027', today, { family });
+  assert.deepEqual([f.title, f.date, f.repeat.until, f.forWhom[0]], ['Schwimmkurs', '2026-10-27', '2027-01-26', 'Mia']);
 });
 
 import { holidayExdates, setSchoolHolidays } from '../www/js/holidays.js';
@@ -44,4 +46,23 @@ test('Serie setzt in den Ferien und an Feiertagen aus', () => {
   assert.match(buildICS([withEx]), /EXDATE;TZID=Europe\/Berlin:20261229T160000,20270105T160000\r\n/);
   assert.equal(berlinUtcStamp('2026-12-29', '16:00'), '20261229T150000Z');
   assert.equal(berlinUtcStamp('2026-07-01', '16:00'), '20260701T140000Z');
+});
+
+import { buildBackup, parseBackup } from '../www/js/backup.js';
+
+test('Sicherung: ohne API-Schlüssel, Rücklesen mit Prüfung', () => {
+  const text = buildBackup({
+    settings: { provider: 'mistral', apiKey: 'geheim', state: 'NI' },
+    people: [{ id: 'p', name: 'Oma', email: 'oma@posteo.de' }],
+    family: [{ id: 'f', name: 'Mia', role: 'kind' }],
+    saved: [{ title: 'Laternenfest', date: '2026-11-13' }, { title: 'kaputt', date: 'x' }],
+  }, new Date('2026-10-26T10:00:00Z'));
+  assert.doesNotMatch(text, /geheim/);
+  const back = parseBackup(text);
+  assert.equal(back.settings.state, 'NI');
+  assert.equal(back.settings.apiKey, undefined);
+  assert.deepEqual([back.people.length, back.family[0].name, back.saved.length, back.created], [1, 'Mia', 1, '2026-10-26T10:00:00.000Z']);
+  assert.throws(() => parseBackup('{"app":"andere"}'), /keine Terminus-Sicherung/);
+  assert.throws(() => parseBackup('kein json'), /kein gültiges JSON/);
+  assert.throws(() => parseBackup('{"app":"terminus","version":99}'), /neueren Terminus-Version/);
 });

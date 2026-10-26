@@ -7,6 +7,7 @@ import { normalizeEvent } from './events.js';
 const WD = { so: 0, sonntag: 0, mo: 1, montag: 1, di: 2, dienstag: 2, mi: 3, mittwoch: 3, do: 4, donnerstag: 4, fr: 5, freitag: 5, sa: 6, samstag: 6 };
 const RE_REL = /(?<![\p{L}])(heute|morgen|übermorgen|in\s+(\d+|zwei|drei|vier|fünf)\s+tagen|(?:(nächste[nrs]?|kommende[nrs]?|am)\s+)?(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|mo|di|mi|do|fr|sa|so)\.?)(?![\p{L}])/iu;
 const NUM = { zwei: 2, drei: 3, vier: 4, fünf: 5 };
+const RE_SERIES = /(?<![\p{L}])((montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)s|jeden|jede[nm]?\s|immer\s|täglich|monatlich|alle\s+\S+\s+wochen)(?![\p{L}])/iu;
 const RE_DAYPART = /(?<![\p{L}])(früh|morgens|vormittags?|mittags?|nachmittags?|abends?)(?![\p{L}])/iu;
 const DAYPART = { früh: '08:00', morgen: '08:00', vormittag: '10:00', mittag: '12:00', nachmittag: '15:00', abend: '19:00' };
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -45,6 +46,12 @@ export function quickParse(text, today = new Date(), { family = [] } = {}) {
   if (at) {
     location = at[1].trim();
     s = s.slice(0, at.index);
+  }
+
+  // Wiederholungen ("dienstags … bis 26.01.") übernimmt die Serien-Regel der Zettel-Erkennung
+  if (RE_SERIES.test(s)) {
+    const [ev] = parseText(s, today);
+    if (ev) return normalizeEvent({ ...ev, forWhom, location: location || ev.location });
   }
 
   let date = null;

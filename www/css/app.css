@@ -373,3 +373,30 @@ html.tabbar-off .actionbar { bottom: 0; }
 .status { padding: 10px 12px; border-radius: var(--r); background: color-mix(in srgb, var(--pen) 10%, var(--surface)); font-size: var(--step--1); font-weight: 600; }
 .fam { display: none; }
 .has-family .fam { display: grid; }
+
+/* Schnelleingabe */
+.quick { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.quick input { min-height: 46px; }
+.quick-hint { margin-top: -12px; }
+.skip-row { grid-column: 1 / -1; }
+.ev-edit summary { cursor: pointer; color: var(--pen); font-weight: 600; padding-block: 6px; }
+.ev-edit[open] { display: grid; gap: 10px; }
+.scope { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; }
+.scope legend { font-weight: 700; font-size: var(--step--1); margin-bottom: 4px; }
+.brief-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.brief-row input[type="time"] { width: auto; }
+html:not(.native) .native-only.brief-row { display: none !important; }
+
+/* App-Sperre */
+.lock { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: var(--paper); }
+.lock-box { display: grid; gap: 14px; justify-items: center; text-align: center; color: var(--ink-soft); }
+.lock-box .brand { font-size: 2rem; }
+
+/* Einfach-Modus: größere Schrift, weniger Auswahl */
+html.simple { font-size: 118%; }
+html.simple .tabbar { grid-template-columns: repeat(2, 1fr); }
+html.simple .tabbar [data-tab="tasks"], html.simple .tabbar [data-tab="family"] { display: none; }
+html.simple #paste-box, html.simple .mode, html.simple #home-migrate, html.simple .quick-hint,
+html.simple .segmented, html.simple #cal-people, html.simple #cal-month, html.simple .card-actions .invite,
+html.simple .edit, html.simple .saved-head .linkish { display: none !important; }
+html.simple .agenda-list li > button { padding: 14px; }

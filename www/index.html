@@ -42,6 +42,13 @@
         <input id="in-file" type="file" accept="image/*" hidden>
       </div>
 
+<form class="quick" data-quick>
+        <label class="sr" for="quick-home">Schnell eintragen</label>
+        <input id="quick-home" type="text" autocomplete="off" enterkeyhint="done" placeholder="Schnell eintragen: Mi 16 Uhr Zahnarzt Ben">
+        <button class="btn primary small" type="submit">Eintragen</button>
+      </form>
+      <p class="hint quick-hint">Auch: „morgen 8:30 Elterngespräch @ Schule“, „dienstags 16 Uhr Schwimmen Mia“. Das Mikrofon der Tastatur funktioniert auch.</p>
+
       <details class="paste" id="paste-box">
         <summary>Text einfügen statt Foto</summary>
         <label class="sr" for="in-text">Text mit Terminen</label>
@@ -114,6 +121,11 @@
         <button type="button" role="tab" data-mode="week">Woche</button>
         <button type="button" role="tab" data-mode="month" aria-selected="true">Monat</button>
       </div>
+<form class="quick" data-quick>
+        <label class="sr" for="quick-cal">Schnell eintragen</label>
+        <input id="quick-cal" type="text" autocomplete="off" enterkeyhint="done" placeholder="Schnell eintragen: Mi 16 Uhr Zahnarzt Ben">
+        <button class="btn primary small" type="submit">Eintragen</button>
+      </form>
       <ul class="person-filter" id="cal-people" aria-label="Nach Person filtern"></ul>
       <div class="cal-permission" id="cal-permission" hidden>
         <p>Terminus zeigt hier die Kalender deines Handys, auch die über DAVx⁵ synchronisierten.</p>
@@ -167,6 +179,20 @@
           <li><strong>Fertig.</strong> Neue Termine landen im Familienkalender. Häkchen, „Für“ und „Zuständig“ sehen alle.</li>
         </ol>
         <button class="btn" type="button" id="family-send">Anleitung an die Familie schicken</button>
+      </section>
+      <section class="panel">
+        <h3>Kalender abonnieren</h3>
+        <p class="hint">Müllabfuhr, Schule, Verein, Kita: Viele bieten einen Kalender-Link an (oft „iCal“, „ICS“ oder „Abonnieren“ genannt). Abonnierte Kalender aktualisieren sich von selbst.</p>
+        <form class="quick" id="sub-form">
+          <label class="sr" for="sub-url">Kalender-Link</label>
+          <input id="sub-url" type="url" inputmode="url" autocomplete="off" placeholder="https://… .ics oder webcal://…">
+          <button class="btn small" type="submit">Abonnieren</button>
+        </form>
+        <p class="hint" id="sub-hint">Auf Android übernimmt das die App ICSx⁵ (Open Source, vom DAVx⁵-Team).</p>
+        <div class="row" id="sub-install" hidden>
+          <a class="btn small" href="https://f-droid.org/packages/at.bitfire.icsdroid/" target="_blank" rel="noopener">ICSx⁵ bei F-Droid</a>
+          <a class="btn small" href="https://play.google.com/store/apps/details?id=at.bitfire.icsdroid" target="_blank" rel="noopener">im Play Store</a>
+        </div>
       </section>
       <button class="btn ghost" type="button" id="open-migrate">Umzugshelfer: Google oder Apple verlassen</button>
     </section>
@@ -279,10 +305,28 @@
         <label class="field"><span>Für</span><select id="ev-for"><option value="">alle</option></select></label>
         <label class="field"><span>Zuständig</span><select id="ev-resp"><option value="">niemand</option></select></label>
       </div>
-      <p class="hint" id="ev-series" hidden>Das ist ein Serientermin. Änderungen gelten für alle Termine der Serie.</p>
+      <p class="hint" id="ev-series" hidden>Das ist ein Serientermin. Häkchen und „Für“ gelten für alle Termine der Serie.</p>
+      <details class="ev-edit" id="ev-edit">
+        <summary>Bearbeiten</summary>
+        <div class="grid2">
+          <label class="field wide"><span>Titel</span><input id="ee-title"></label>
+          <label class="field"><span>Datum</span><input type="date" id="ee-date"></label>
+          <label class="field"><span>Ganztägig</span><select id="ee-allday"><option value="0">nein</option><option value="1">ja</option></select></label>
+          <label class="field"><span>Beginn</span><input type="time" id="ee-start"></label>
+          <label class="field"><span>Ende</span><input type="time" id="ee-end"></label>
+          <label class="field wide"><span>Ort</span><input id="ee-loc"></label>
+        </div>
+        <fieldset class="scope" id="ee-scope" hidden>
+          <legend>Ändern für</legend>
+          <label class="check"><input type="radio" name="ee-scope" value="one" checked> <span>nur diesen Termin</span></label>
+          <label class="check"><input type="radio" name="ee-scope" value="all"> <span>alle Termine der Serie (Datum bleibt, Uhrzeit ändert sich)</span></label>
+        </fieldset>
+        <button class="btn primary" type="button" id="ee-save">Änderungen speichern</button>
+      </details>
       <div class="row">
         <button class="btn primary" type="button" id="ev-share">Teilen</button>
         <button class="btn native-only" type="button" id="ev-open">In Kalender-App</button>
+        <button class="btn ghost danger" type="button" id="ev-delete-one" hidden>Nur diesen Termin löschen</button>
         <button class="btn ghost danger" type="button" id="ev-delete">Löschen</button>
       </div>
     </form>
@@ -396,6 +440,32 @@
         </label>
       </div>
       <label class="check"><input type="checkbox" id="s-eve"> <span>Am Vorabend um 19 Uhr an Mitbringsachen erinnern</span></label>
+      <fieldset class="me">
+        <legend>Alltag</legend>
+        <label class="check"><input type="checkbox" id="s-simple"> <span>Einfach-Modus: große Schrift, nur Erfassen und Heute</span></label>
+        <div class="native-only brief-row">
+          <label class="check"><input type="checkbox" id="s-brief"> <span>Morgen-Überblick als Benachrichtigung um</span></label>
+          <input type="time" id="s-brief-time" value="07:00" aria-label="Uhrzeit Morgen-Überblick">
+          <button class="btn small" type="button" id="s-brief-test">Jetzt zeigen</button>
+        </div>
+        <label class="check native-only"><input type="checkbox" id="s-lock"> <span>App-Sperre mit Fingerabdruck oder Display-Sperre</span></label>
+      </fieldset>
+      <fieldset class="me">
+        <legend>Sicherung</legend>
+        <p class="hint">Personen, Familie, gemerkte Termine und Einstellungen als Datei, z. B. für ein neues Handy. Termine im Kalender sichert dein Kalender-Anbieter.</p>
+        <div class="row">
+          <button class="btn small" type="button" id="backup-save">Sicherung erstellen</button>
+          <label class="btn small" for="backup-file">Sicherung einlesen</label>
+          <input type="file" id="backup-file" accept=".json,application/json" hidden>
+        </div>
+        <div class="error" id="backup-confirm" hidden>
+          <p id="backup-confirm-text"></p>
+          <div class="row">
+            <button class="btn primary small" type="button" id="backup-apply">Ersetzen</button>
+            <button class="btn small" type="button" id="backup-cancel">Abbrechen</button>
+          </div>
+        </div>
+      </fieldset>
       <label class="check"><input type="checkbox" id="s-bdays"> <span>Geburtstage aus den Kontakten im Kalender zeigen</span></label>
       <button class="btn small" type="button" id="s-open-migrate">Umzugshelfer öffnen</button>
       <label class="check"><input type="checkbox" id="s-photo"> <span>Foto an die KI schicken, wenn kein Text erkannt wird (z. B. Handschrift)</span></label>
@@ -437,6 +507,14 @@
     </form>
   </dialog>
 
+  <div class="lock" id="lock" hidden>
+    <div class="lock-box">
+      <p class="brand">Termin<span>us</span></p>
+      <p>Gesperrt</p>
+      <button class="btn primary big" type="button" id="lock-open">Entsperren</button>
+    </div>
+  </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
   <template id="tpl-card">
@@ -474,6 +552,7 @@
               </select>
             </label>
             <label class="field"><span>Wiederholen bis</span><input type="date" data-f="until"></label>
+            <label class="check wide skip-row"><input type="checkbox" data-f="skipHolidays"> <span>In den Schulferien und an Feiertagen aussetzen</span></label>
             <label class="field"><span>Beginn</span><input type="time" data-f="start"></label>
             <label class="field"><span>Ende</span><input type="time" data-f="end"></label>
             <label class="field wide"><span>Ort</span><input data-f="location"></label>

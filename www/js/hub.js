@@ -68,7 +68,7 @@ async function birthdays() {
   if (cal.birthdays) return cal.birthdays;
   if (ctx.isNative) {
     try {
-      cal.birthdays = (await ctx.Native.listBirthdays()).birthdays;
+      cal.birthdays = (await ctx.Native.listBirthdays())?.birthdays || [];
     } catch {
       cal.birthdays = [];
     }
@@ -91,7 +91,7 @@ async function loadItems(from, to) {
   } else {
     for (const ev of ctx.store.getSaved()) items.push(...fromLocal(ev, from, to));
   }
-  if (ctx.state.settings.showBirthdays) items.push(...birthdayItems(await birthdays(), from, to));
+  if (ctx.state.settings.showBirthdays !== false) items.push(...birthdayItems((await birthdays()) || [], from, to));
   return items;
 }
 
@@ -148,6 +148,7 @@ function renderPeopleFilter(el, current, onPick) {
 }
 
 async function renderCalendar() {
+  if (document.documentElement.classList.contains('simple')) cal.mode = 'day';
   const [from, to] = range();
   const d = fromISO(cal.selected);
   for (const b of document.querySelectorAll('.segmented [data-mode]')) b.setAttribute('aria-selected', String(b.dataset.mode === cal.mode));
@@ -247,6 +248,24 @@ function bindEventDialog() {
     ctx.openShare(toTerminusEvent(cal.current));
   });
   $('#ev-open').addEventListener('click', () => ctx.Native.openEvent({ id: cal.current.id }).catch((e) => ctx.toast(e.message)));
+  $('#ee-allday').addEventListener('change', () => syncAllDay());
+  $('#ee-save').addEventListener('click', saveEdit);
+  $('#ev-delete-one').addEventListener('click', async () => {
+    const item = cal.current;
+    try {
+      if (item.source === 'device') await ctx.Native.cancelOccurrence({ id: item.id, occurrence: item.begin });
+      else {
+        const ev = ctx.store.getSaved().find((e) => e.id === item.id);
+        ev.exdates = [...(ev.exdates || []), item.occurrence];
+        ctx.store.addSaved([ev]);
+      }
+      $('#dlg-event').close();
+      ctx.toast('Dieser Termin fällt aus.');
+      refresh();
+    } catch (err) {
+      ctx.toast(err.message || 'Absagen hat nicht geklappt.');
+    }
+  });
   $('#ev-delete').addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     if (btn.dataset.confirm !== '1') {
@@ -265,6 +284,69 @@ function bindEventDialog() {
       ctx.toast(err.message || 'Löschen hat nicht geklappt.');
     }
   });
+}
+
+function syncAllDay() {
+  const allDay = $('#ee-allday').value === '1';
+  $('#ee-start').disabled = allDay;
+  $('#ee-end').disabled = allDay;
+}
+
+function fillEdit(item) {
+  $('#ev-edit').open = false;
+  $('#ev-edit').hidden = !!item.birthday;
+  $('#ee-title').value = item.frist ? `${item.title}` : item.title;
+  $('#ee-date').value = item.date;
+  $('#ee-allday').value = item.allDay ? '1' : '0';
+  $('#ee-start').value = item.start || '';
+  $('#ee-end').value = item.end || '';
+  $('#ee-loc').value = item.location || '';
+  $('#ee-scope').hidden = !item.recurring;
+  $('#ee-scope input[value="one"]').checked = true;
+  syncAllDay();
+}
+
+async function saveEdit() {
+  const item = cal.current;
+  const allDay = $('#ee-allday').value === '1';
+  const title = $('#ee-title').value.trim() || item.title;
+  const date = $('#ee-date').value || item.date;
+  const start = allDay ? null : $('#ee-start').value || item.start || '10:00';
+  let end = allDay ? null : $('#ee-end').value || null;
+  if (end && end <= start) end = null;
+  const location = $('#ee-loc').value.trim();
+  const series = item.recurring && $('#ee-scope input:checked').value === 'all';
+  try {
+    if (item.source === 'device') {
+      const minutes = +ctx.state.settings.defaultMinutes || 60;
+      const when = { date, start, end: end || (start ? addMinutesHM(start, minutes) : null), endDate: allDay ? item.endDate : null };
+      await ctx.Native.updateEvent({
+        id: item.id, title: titleWithDone({ ...item, title }, item.done), location, when,
+        ...(item.recurring && !series ? { occurrence: item.begin } : {}),
+      });
+    } else {
+      const ev = ctx.store.getSaved().find((e) => e.id === item.id);
+      if (item.recurring && !series) {
+        // Einzelner Termin der Serie: aus der Serie nehmen, als eigenen Termin speichern
+        ev.exdates = [...(ev.exdates || []), item.occurrence];
+        const single = normalizeEvent({ ...ev, id: newId(), title, date, start, end, location, repeat: null, exdates: [] });
+        ctx.store.addSaved([ev, single]);
+      } else {
+        ctx.store.addSaved([normalizeEvent({ ...ev, title, start, end, location, date: series ? ev.date : date })]);
+      }
+    }
+    $('#dlg-event').close();
+    ctx.toast('Gespeichert.');
+    refresh();
+  } catch (e) {
+    ctx.toast(e.message || 'Speichern hat nicht geklappt.');
+  }
+}
+
+function addMinutesHM(time, minutes) {
+  const [h, m] = time.split(':').map(Number);
+  const t = Math.min(h * 60 + m + minutes, 23 * 60 + 59);
+  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 }
 
 function toTerminusEvent(item) {
@@ -310,13 +392,15 @@ function openEvent(item) {
     fillSelect($('#ev-resp'), 'niemand', item.meta.responsible);
   }
   $('#ev-series').hidden = !item.recurring;
+  fillEdit(item);
+  $('#ev-delete-one').hidden = !item.recurring || item.birthday;
   const editable = !item.birthday;
   $('#ev-share').hidden = !editable;
   $('#ev-open').hidden = item.source !== 'device';
   const del = $('#ev-delete');
   del.hidden = !editable;
   del.dataset.confirm = '';
-  del.textContent = 'Löschen';
+  del.textContent = item.recurring ? 'Ganze Serie löschen' : 'Löschen';
   $('#dlg-event').showModal();
 }
 
@@ -426,6 +510,25 @@ function updateFamilyClass() {
 }
 
 function bindFamily() {
+  $('#sub-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const url = $('#sub-url').value.trim();
+    if (!/^(https?|webcals?):\/\/\S+$/i.test(url)) return ctx.toast('Das sieht nicht wie ein Kalender-Link aus (https://… oder webcal://…).');
+    if (ctx.isNative) {
+      try {
+        await ctx.Native.openSubscription({ url });
+        $('#sub-install').hidden = true;
+        $('#sub-url').value = '';
+      } catch (err) {
+        $('#sub-install').hidden = false;
+        $('#sub-hint').textContent = 'Installiere zuerst ICSx⁵, dann noch einmal „Abonnieren“ tippen.';
+      }
+    } else {
+      $('#sub-install').hidden = false;
+      $('#sub-hint').textContent = 'Am Android-Handy übernimmt das ICSx⁵. Am Computer: im Kalenderprogramm „Kalender abonnieren“ wählen und den Link einfügen. Auf dem iPhone: Einstellungen → Apps → Kalender → Accounts → Account hinzufügen → Andere → Kalenderabo hinzufügen.';
+      navigator.clipboard?.writeText(url).then(() => ctx.toast('Link kopiert.'), () => {});
+    }
+  });
   $('#fm-add').addEventListener('click', () => {
     const name = $('#fm-name').value.trim();
     if (!name) return ctx.toast('Gib einen Namen ein.');

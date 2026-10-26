@@ -35,7 +35,7 @@ export function fromDevice(raw) {
     if (toISO(end) !== date && end - begin > 0) endDate = toISO(new Date(raw.end - 1));
   }
   return decorate({
-    key: `d:${raw.id}:${raw.begin}`, source: 'device', id: raw.id, calendarId: raw.calendarId, calendar: raw.calendar,
+    key: `d:${raw.id}:${raw.begin}`, source: 'device', id: raw.id, begin: raw.begin, calendarId: raw.calendarId, calendar: raw.calendar,
     color: raw.color || '#2443C4', date, endDate, start, end: stop, allDay: !!raw.allDay,
     location: raw.location || '', description: raw.description || '', meta: parseDescription(raw.description || ''),
     recurring: !!raw.recurring,
@@ -48,7 +48,7 @@ export function fromLocal(ev, from, to) {
   return dates.map((date) => {
     const span = ev.endDate ? Math.round((fromISO(ev.endDate) - fromISO(ev.date)) / 86400000) : 0;
     return {
-      key: `l:${ev.id}:${date}`, source: 'local', id: ev.id, calendarId: 'local', calendar: 'Gemerkt', color: '#2443C4',
+      key: `l:${ev.id}:${date}`, source: 'local', id: ev.id, occurrence: date, calendarId: 'local', calendar: 'Gemerkt', color: '#2443C4',
       title: ev.title, frist: ev.kind === 'frist', done: !!ev.completed, date, endDate: span ? addDays(date, span) : null,
       start: ev.start, end: ev.end, allDay: !ev.start, location: ev.location, description: describeEvent(ev),
       meta: parseDescription(describeEvent(ev)), recurring: !!ev.repeat,

@@ -2,7 +2,7 @@ import { parseText } from './parse.js';
 import { PROVIDERS, LANGUAGES, extractWithLLM, LLMError } from './llm.js';
 import { recognize } from './ocr.js';
 import { buildICS, googleLink, icsFileName, description, alarms, rrule, summary } from './ics.js';
-import { STATES, loadSchoolHolidays, holidayNotes, holidayStartFinder } from './holidays.js';
+import { STATES, loadSchoolHolidays, holidayNotes, holidayStartFinder, holidayExdates } from './holidays.js';
 import { eventLink, decodeEvent, messageText, whatsappLink, mailLink, normalizePhone, inviteMail, mailtoMany } from './share.js';
 import { normalizeEvent, normalizeGuests, newId, isEmail } from './events.js';
 import { parseVCards, contactsToPeople, mergePeople, matches, initials } from './contacts.js';
@@ -11,6 +11,9 @@ import * as store from './store.js';
 import { CONFIG } from './config.js';
 import { isNative, Native } from './native.js';
 import { initHub, onShow, invalidateBirthdays } from './hub.js';
+import { quickParse } from './quick.js';
+import { berlinUtcStamp } from './icsimport.js';
+import { buildBackup, parseBackup, backupFileName } from './backup.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -44,6 +47,34 @@ const TAB_OF = { home: 'home', busy: 'home', review: 'home', calendar: 'calendar
 function show(view) {
   for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== `view-${view}`;
   document.documentElement.classList.toggle('tabbar-off', view === 'busy' || view === 'received');
+  for (const form of document.querySelectorAll('[data-quick]')) {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      handleQuick($('input', form));
+    });
+  }
+  $('#s-brief-test').addEventListener('click', () => Native.showMorningBrief().then((r) => !r.shown && toast('Benachrichtigungen sind nicht erlaubt.'), () => {}));
+  $('#s-lock').addEventListener('change', async (e) => {
+    if (!e.target.checked) return;
+    const { available } = await Native.lockAvailable().catch(() => ({ available: false }));
+    if (!available) {
+      e.target.checked = false;
+      toast('Richte zuerst in den Android-Einstellungen eine Displaysperre ein.');
+    }
+  });
+  $('#backup-save').addEventListener('click', saveBackup);
+  $('#backup-file').addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) readBackup(await file.text());
+  });
+  $('#backup-apply').addEventListener('click', applyBackup);
+  $('#backup-cancel').addEventListener('click', () => ($('#backup-confirm').hidden = true));
+  $('#lock-open').addEventListener('click', unlock);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) lockState.hiddenAt = Date.now();
+    else if (state.settings.lock && isNative && Date.now() - lockState.hiddenAt > 60000) lock();
+  });
   for (const b of document.querySelectorAll('#tabbar [data-tab]')) {
     if (b.dataset.tab === TAB_OF[view]) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
@@ -177,7 +208,7 @@ async function run(forceLocal = false) {
       }
     }
     if (abort.signal.aborted) return;
-    state.drafts = events.map((e) => ({ ...e, picked: true }));
+    state.drafts = events.map((e) => applySkip({ ...e, picked: true, skipHolidays: !!(e.repeat && state.settings.state) }));
     renderReview(canvas || local ? rawText : '');
   } catch (e) {
     if (e.name === 'AbortError' || abort.signal.aborted) return;
@@ -205,7 +236,11 @@ function fillCard(li, ev) {
   $('.when', li).textContent = ev.kind === 'frist' ? `bis ${fmtDate(ev.date)}` : fmtWhen(ev);
   const rep = $('.repeat', li);
   rep.hidden = !ev.repeat;
-  rep.textContent = ev.repeat ? `Wiederholt sich ${fmtRepeat(ev)}` : '';
+  rep.textContent = ev.repeat
+    ? `Wiederholt sich ${fmtRepeat(ev)}${ev.exdates?.length ? `, in Ferien und an Feiertagen nicht (${ev.exdates.length} ${ev.exdates.length === 1 ? 'Termin fällt' : 'Termine fallen'} aus)` : ''}`
+    : '';
+  const skipRow = $('.skip-row', li);
+  if (skipRow) skipRow.hidden = !ev.repeat || !state.settings.state;
   const loc = $('.loc', li);
   loc.hidden = !ev.location;
   loc.textContent = ev.location ? `Ort: ${ev.location} ›` : '';
@@ -232,6 +267,26 @@ function fillCard(li, ev) {
       fillCard(li, ev);
     })));
   }
+}
+
+// Ausfälle einer Serie in Ferien und an Feiertagen neu berechnen
+function applySkip(ev) {
+  ev.exdates = ev.skipHolidays && ev.repeat ? holidayExdates(ev, state.settings.state) : [];
+  return ev;
+}
+
+function handleQuick(input) {
+  const text = input.value.trim();
+  if (!text) return toast('Schreib z. B. „Mi 16 Uhr Zahnarzt“.');
+  const ev = quickParse(text, new Date(), { family: store.getFamily().map((m) => m.name) });
+  if (!ev) {
+    if (usesLLM()) return handleText(text);
+    return toast('Kein Datum erkannt. Beispiel: „morgen 15 Uhr Kinderarzt“.');
+  }
+  input.value = '';
+  state.input = { canvas: null, dataUrl: null, text, label: 'Schnelleingabe' };
+  state.drafts = [applySkip({ ...ev, picked: true, skipHolidays: !!(ev.repeat && state.settings.state) })];
+  renderReview('');
 }
 
 function editValue(ev, f) {
@@ -422,7 +477,8 @@ function cardFor(ev, { editable = true, onRemove } = {}) {
   renderFor();
   for (const input of li.querySelectorAll('[data-f]')) {
     const f = input.dataset.f;
-    input.value = editValue(ev, f);
+    if (input.type === 'checkbox') input.checked = !!ev[f];
+    else input.value = editValue(ev, f);
     input.addEventListener('change', () => {
       const raw = { ...ev, unsure: false };
       if (f === 'repeatFreq') raw.repeat = input.value ? { ...normalizeRepeatInput(input.value), until: ev.repeat?.until || null } : null;
@@ -433,7 +489,7 @@ function cardFor(ev, { editable = true, onRemove } = {}) {
           return;
         }
         raw.repeat = { ...ev.repeat, until: input.value || null };
-      } else raw[f] = input.value;
+      } else raw[f] = input.type === 'checkbox' ? input.checked : input.value;
       const next = normalizeEvent(raw);
       if (!next) {
         toast('Bitte ein gültiges Datum eintragen.');
@@ -441,8 +497,13 @@ function cardFor(ev, { editable = true, onRemove } = {}) {
         return;
       }
       Object.assign(ev, next);
+      applySkip(ev);
       fillCard(li, ev);
-      for (const other of li.querySelectorAll('[data-f]')) if (other !== input) other.value = editValue(ev, other.dataset.f);
+      for (const other of li.querySelectorAll('[data-f]')) {
+        if (other === input) continue;
+        if (other.type === 'checkbox') other.checked = !!ev[other.dataset.f];
+        else other.value = editValue(ev, other.dataset.f);
+      }
     });
   }
   li.addEventListener('click', (e) => {
@@ -502,6 +563,7 @@ function nativeEvent(ev) {
     location: ev.location, description: description(ev),
     defaultMinutes: +state.settings.defaultMinutes || 60,
     rrule: rrule(ev),
+    exdate: (ev.exdates || []).map((d) => (ev.start ? berlinUtcStamp(d, ev.start) : `${d.replace(/-/g, '')}T000000Z`)).join(','),
     reminders: alarms(ev, { alarmMinutes: alarm === '' || alarm == null ? null : +alarm, eveReminder: state.settings.eveReminder !== false }).map((a) => a.minutes),
   };
 }
@@ -839,6 +901,11 @@ function openSettings() {
   $('#s-eve').checked = state.settings.eveReminder !== false;
   $('#s-photo').checked = state.settings.photoFallback !== false;
   $('#s-bdays').checked = state.settings.showBirthdays !== false;
+  $('#s-simple').checked = !!state.settings.simple;
+  $('#s-brief').checked = !!state.settings.brief;
+  $('#s-brief-time').value = state.settings.briefTime || '07:00';
+  $('#s-lock').checked = !!state.settings.lock;
+  $('#backup-confirm').hidden = true;
   $('#s-owner-name').value = state.settings.ownerName || '';
   $('#s-owner-email').value = state.settings.ownerEmail || '';
   if (isNative) {
@@ -880,6 +947,10 @@ function saveSettings() {
     eveReminder: $('#s-eve').checked,
     photoFallback: $('#s-photo').checked,
     showBirthdays: $('#s-bdays').checked,
+    simple: $('#s-simple').checked,
+    brief: $('#s-brief').checked,
+    briefTime: $('#s-brief-time').value || '07:00',
+    lock: $('#s-lock').checked,
     ownerName: $('#s-owner-name').value.trim(),
     ownerEmail: $('#s-owner-email').value.trim().toLowerCase(),
   };
@@ -896,10 +967,18 @@ function saveSettings() {
     toast('Für Mistral wird ein API-Schlüssel gebraucht.');
     return false;
   }
+  const briefChanged = s.brief !== !!state.settings.brief || s.briefTime !== state.settings.briefTime;
   state.settings = s;
   store.setSettings(s);
   invalidateBirthdays();
+  applySimple();
   renderMode();
+  if (isNative && briefChanged) {
+    const [hour, minute] = s.briefTime.split(':').map(Number);
+    Native.setMorningBrief({ enabled: s.brief, hour, minute })
+      .then(() => s.brief && toast(`Morgen-Überblick jeden Tag um ${s.briefTime} Uhr.`))
+      .catch((e) => toast(e.message || 'Benachrichtigungen sind nicht erlaubt.'));
+  }
   toast('Gespeichert.');
   return true;
 }
@@ -988,6 +1067,79 @@ async function detectServer() {
     state.settings.provider = state.serverAvailable ? 'server' : 'local';
   }
   if (state.settings.provider === 'server' && !state.serverAvailable) state.settings.provider = 'local';
+}
+
+/* ---------- Einfach-Modus, Sicherung, App-Sperre ---------- */
+
+function applySimple() {
+  document.documentElement.classList.toggle('simple', !!state.settings.simple);
+}
+
+let pendingBackup = null;
+
+function saveBackup() {
+  const json = buildBackup({ settings: state.settings, people: store.getPeople(), family: store.getFamily(), saved: store.getSaved() });
+  const name = backupFileName();
+  if (isNative) {
+    const base64 = btoa(String.fromCharCode(...new TextEncoder().encode(json)));
+    Native.shareFile({ base64, mimeType: 'application/json', fileName: name, title: 'Sicherung speichern' }).catch((e) => toast(e.message));
+    return;
+  }
+  const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+  toast('Sicherung gespeichert.');
+}
+
+function readBackup(text) {
+  try {
+    pendingBackup = parseBackup(text);
+  } catch (e) {
+    toast(e.message);
+    return;
+  }
+  const b = pendingBackup;
+  const when = b.created ? ` vom ${new Date(b.created).toLocaleDateString('de-DE')}` : '';
+  $('#backup-confirm-text').textContent = `Sicherung${when}: ${b.people.length} Personen, ${b.family.length} Familienmitglieder, ${b.saved.length} gemerkte Termine. Das ersetzt die Daten auf diesem Gerät.`;
+  $('#backup-confirm').hidden = false;
+}
+
+function applyBackup() {
+  if (!pendingBackup) return;
+  const b = pendingBackup;
+  store.setPeople(b.people);
+  store.setFamily(b.family);
+  store.clearSaved();
+  store.addSaved(b.saved);
+  state.settings = { ...state.settings, ...b.settings, apiKey: state.settings.apiKey };
+  store.setSettings(state.settings);
+  pendingBackup = null;
+  $('#backup-confirm').hidden = true;
+  $('#dlg-settings').close();
+  applySimple();
+  renderMode();
+  renderSaved();
+  document.documentElement.classList.toggle('has-family', b.family.length > 0);
+  toast('Sicherung eingelesen.');
+}
+
+const lockState = { hiddenAt: 0 };
+
+function lock() {
+  $('#lock').hidden = false;
+  unlock();
+}
+
+async function unlock() {
+  try {
+    await Native.authenticate({ reason: 'Familientermine sind privat.' });
+    $('#lock').hidden = true;
+  } catch {
+    // bleibt gesperrt, "Entsperren" versucht es erneut
+  }
 }
 
 /* ---------- Start ---------- */
@@ -1132,6 +1284,8 @@ async function route() {
 
 async function init() {
   document.documentElement.classList.toggle('native', isNative);
+  applySimple();
+  if (isNative && state.settings.lock) lock();
   bind();
   initHub({
     state, store, Native, isNative, toast, show, openShare, openMap, startManual,

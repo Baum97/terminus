@@ -36,6 +36,7 @@ export function addSaved(events) {
   return write(KEY.saved, [...byId.values()]);
 }
 export const removeSaved = (id) => write(KEY.saved, getSaved().filter((e) => e.id !== id));
+export const clearSaved = () => write(KEY.saved, []);
 
 // Familienmitglieder: [{ id, name, role: 'kind' | 'erw' }]
 export const getFamily = () => read(KEY.family, []);
