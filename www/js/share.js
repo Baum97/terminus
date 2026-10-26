@@ -3,7 +3,7 @@
 import { fmtWhen, fmtDate, fmtRepeat } from './dates.js';
 import { normalizeEvent } from './events.js';
 
-const KEYS = { title: 't', date: 'd', endDate: 'e', start: 's', end: 'n', location: 'l', notes: 'o', bring: 'b', cost: 'c', kind: 'k', repeat: 'r' };
+const KEYS = { title: 't', date: 'd', endDate: 'e', start: 's', end: 'n', location: 'l', notes: 'o', bring: 'b', cost: 'c', kind: 'k', repeat: 'r', forWhom: 'f', responsible: 'z' };
 
 function b64urlEncode(str) {
   const bytes = new TextEncoder().encode(str);

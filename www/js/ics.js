@@ -1,5 +1,6 @@
 // Kalender-Export: iCalendar-Datei (RFC 5545) und Google-Kalender-Link.
 import { addDays, addMinutes, toMinutes, fromISO } from './dates.js';
+import { describeEvent } from './desc.js';
 
 const VTIMEZONE = [
   'BEGIN:VTIMEZONE', 'TZID:Europe/Berlin',
@@ -72,11 +73,7 @@ export function summary(ev) {
 }
 
 export function description(ev) {
-  const lines = [];
-  if (ev.bring?.length) lines.push(`Mitbringen: ${ev.bring.join(', ')}`);
-  if (ev.cost) lines.push(`Kosten: ${ev.cost}`);
-  if (ev.notes) lines.push(ev.notes);
-  return lines.join('\n');
+  return describeEvent(ev);
 }
 
 // Zeitspanne eines Termins. Ganztägige Termine enden exklusiv am Folgetag.

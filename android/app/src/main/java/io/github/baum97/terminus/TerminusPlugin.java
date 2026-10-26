@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
+import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
@@ -18,6 +19,7 @@ import android.provider.CalendarContract.Events;
 import android.provider.CalendarContract.Instances;
 import android.provider.CalendarContract.Reminders;
 import android.provider.CalendarContract;
+import android.provider.ContactsContract;
 import android.provider.ContactsContract.CommonDataKinds.Email;
 import androidx.core.content.FileProvider;
 import java.io.File;
@@ -66,6 +68,7 @@ public class TerminusPlugin extends Plugin {
 
     static final String ACTION_CAMERA = "io.github.baum97.terminus.CAMERA";
     static final String ACTION_PICK = "io.github.baum97.terminus.PICK";
+    static final String ACTION_CALENDAR = "io.github.baum97.terminus.CALENDAR";
 
     private Uri pendingImage;
     private String pendingText;
@@ -88,8 +91,9 @@ public class TerminusPlugin extends Plugin {
     private boolean takeIntent(Intent intent) {
         if (intent == null) return false;
         // Schnellstart vom App-Icon (lange drücken): "Zettel knipsen" oder "Screenshot wählen"
-        if (ACTION_CAMERA.equals(intent.getAction()) || ACTION_PICK.equals(intent.getAction())) {
-            pendingAction = ACTION_CAMERA.equals(intent.getAction()) ? "camera" : "pick";
+        String a = intent.getAction();
+        if (ACTION_CAMERA.equals(a) || ACTION_PICK.equals(a) || ACTION_CALENDAR.equals(a)) {
+            pendingAction = ACTION_CAMERA.equals(a) ? "camera" : ACTION_PICK.equals(a) ? "pick" : "calendar";
             intent.setAction(null);
             return true;
         }
@@ -295,7 +299,7 @@ public class TerminusPlugin extends Plugin {
     private JSObject calendars() {
         JSArray list = new JSArray();
         String[] projection = {
-            Calendars._ID, Calendars.CALENDAR_DISPLAY_NAME, Calendars.ACCOUNT_NAME, Calendars.IS_PRIMARY, Calendars.CALENDAR_COLOR
+            Calendars._ID, Calendars.CALENDAR_DISPLAY_NAME, Calendars.ACCOUNT_NAME, Calendars.IS_PRIMARY, Calendars.CALENDAR_COLOR, Calendars.ACCOUNT_TYPE
         };
         String where = Calendars.CALENDAR_ACCESS_LEVEL + ">=? AND " + Calendars.VISIBLE + "=1";
         String[] args = { String.valueOf(Calendars.CAL_ACCESS_CONTRIBUTOR) };
@@ -307,6 +311,8 @@ public class TerminusPlugin extends Plugin {
                 cal.put("account", c.getString(2));
                 cal.put("primary", c.getInt(3) == 1);
                 cal.put("color", String.format("#%06X", 0xFFFFFF & c.getInt(4)));
+                // z. B. "bitfire.at.davdroid" (DAVx⁵), "com.google", "LOCAL"
+                cal.put("accountType", c.getString(5));
                 list.put(cal);
             }
         }
@@ -380,6 +386,7 @@ public class TerminusPlugin extends Plugin {
             call.reject("Eintragen ist fehlgeschlagen: " + e.getMessage(), e);
             return;
         }
+        TerminusWidget.refresh(getContext());
         JSObject result = new JSObject();
         result.put("count", count);
         result.put("calendarId", String.valueOf(calendarId));
@@ -473,15 +480,25 @@ public class TerminusPlugin extends Plugin {
         if (granted) {
             long from = call.getLong("from", 0L);
             long to = call.getLong("to", 0L);
-            String[] projection = { Instances.TITLE, Instances.BEGIN, Instances.END, Instances.ALL_DAY };
+            String[] projection = {
+                Instances.TITLE, Instances.BEGIN, Instances.END, Instances.ALL_DAY, Instances.EVENT_ID, Instances.CALENDAR_ID,
+                Instances.DISPLAY_COLOR, Instances.EVENT_LOCATION, Instances.DESCRIPTION, Instances.CALENDAR_DISPLAY_NAME, Instances.RRULE
+            };
             Uri uri = Instances.CONTENT_URI.buildUpon().appendPath(String.valueOf(from)).appendPath(String.valueOf(to)).build();
             try (Cursor c = getContext().getContentResolver().query(uri, projection, Instances.VISIBLE + "=1", null, Instances.BEGIN + " ASC")) {
-                while (c != null && c.moveToNext() && list.length() < 500) {
+                while (c != null && c.moveToNext() && list.length() < 2000) {
                     JSObject ev = new JSObject();
                     ev.put("title", c.getString(0));
                     ev.put("begin", c.getLong(1));
                     ev.put("end", c.getLong(2));
                     ev.put("allDay", c.getInt(3) == 1);
+                    ev.put("id", String.valueOf(c.getLong(4)));
+                    ev.put("calendarId", String.valueOf(c.getLong(5)));
+                    ev.put("color", String.format("#%06X", 0xFFFFFF & c.getInt(6)));
+                    ev.put("location", c.getString(7));
+                    ev.put("description", c.getString(8));
+                    ev.put("calendar", c.getString(9));
+                    ev.put("recurring", c.getString(10) != null);
                     list.put(ev);
                 }
             } catch (Exception ignored) {}
@@ -588,5 +605,95 @@ public class TerminusPlugin extends Plugin {
         } catch (Exception e) {
             call.reject("Teilen hat nicht geklappt.", e);
         }
+    }
+
+    /* ---------- Termine ändern, löschen, öffnen ---------- */
+
+    // Ändert Titel und/oder Beschreibung (Häkchen der Mitbringliste, Zuständigkeit, Frist erledigt).
+    // Bei Serien betrifft das die ganze Serie.
+    @PluginMethod
+    public void updateEvent(PluginCall call) {
+        if (getPermissionState("calendar") != PermissionState.GRANTED) {
+            call.reject("Kein Zugriff auf den Kalender.", "denied");
+            return;
+        }
+        try {
+            ContentValues v = new ContentValues();
+            if (call.hasOption("title")) v.put(Events.TITLE, call.getString("title"));
+            if (call.hasOption("description")) v.put(Events.DESCRIPTION, call.getString("description"));
+            Uri uri = ContentUris.withAppendedId(Events.CONTENT_URI, Long.parseLong(call.getString("id")));
+            int n = getContext().getContentResolver().update(uri, v, null, null);
+            TerminusWidget.refresh(getContext());
+            JSObject r = new JSObject();
+            r.put("updated", n);
+            call.resolve(r);
+        } catch (Exception e) {
+            call.reject("Der Termin konnte nicht geändert werden.", e);
+        }
+    }
+
+    @PluginMethod
+    public void deleteEvent(PluginCall call) {
+        if (getPermissionState("calendar") != PermissionState.GRANTED) {
+            call.reject("Kein Zugriff auf den Kalender.", "denied");
+            return;
+        }
+        try {
+            Uri uri = ContentUris.withAppendedId(Events.CONTENT_URI, Long.parseLong(call.getString("id")));
+            getContext().getContentResolver().delete(uri, null, null);
+            TerminusWidget.refresh(getContext());
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Der Termin konnte nicht gelöscht werden.", e);
+        }
+    }
+
+    @PluginMethod
+    public void openEvent(PluginCall call) {
+        try {
+            Uri uri = ContentUris.withAppendedId(Events.CONTENT_URI, Long.parseLong(call.getString("id")));
+            getActivity().startActivity(new Intent(Intent.ACTION_VIEW).setData(uri));
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Keine Kalender-App gefunden.", "not_found");
+        }
+    }
+
+    /* ---------- Geburtstage aus dem Adressbuch ---------- */
+
+    @PluginMethod
+    public void listBirthdays(PluginCall call) {
+        if (getPermissionState("contacts") != PermissionState.GRANTED) {
+            requestPermissionForAlias("contacts", call, "birthdaysAfterPermission");
+            return;
+        }
+        call.resolve(birthdays());
+    }
+
+    @PermissionCallback
+    private void birthdaysAfterPermission(PluginCall call) {
+        if (getPermissionState("contacts") == PermissionState.GRANTED) call.resolve(birthdays());
+        else call.reject("Ohne Zugriff auf die Kontakte gibt es keine Geburtstage.", "denied");
+    }
+
+    private JSObject birthdays() {
+        JSArray list = new JSArray();
+        String[] projection = { ContactsContract.Data.DISPLAY_NAME_PRIMARY, ContactsContract.CommonDataKinds.Event.START_DATE };
+        String where = ContactsContract.Data.MIMETYPE + "=? AND " + ContactsContract.CommonDataKinds.Event.TYPE + "=?";
+        String[] args = { ContactsContract.CommonDataKinds.Event.CONTENT_ITEM_TYPE, String.valueOf(ContactsContract.CommonDataKinds.Event.TYPE_BIRTHDAY) };
+        Set<String> seen = new HashSet<>();
+        try (Cursor c = getContext().getContentResolver().query(ContactsContract.Data.CONTENT_URI, projection, where, args, null)) {
+            while (c != null && c.moveToNext()) {
+                String name = c.getString(0), date = c.getString(1);
+                if (name == null || date == null || !seen.add(name + date)) continue;
+                JSObject b = new JSObject();
+                b.put("name", name);
+                b.put("date", date);
+                list.put(b);
+            }
+        }
+        JSObject r = new JSObject();
+        r.put("birthdays", list);
+        return r;
     }
 }
