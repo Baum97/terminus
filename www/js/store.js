@@ -1,7 +1,7 @@
 // Alles bleibt im Browser dieses Geräts (localStorage). Kein Konto, keine Cloud.
 import { normalizeEvents } from './events.js';
 
-const KEY = { settings: 'terminus.settings', people: 'terminus.people', saved: 'terminus.saved' };
+const KEY = { settings: 'terminus.settings', people: 'terminus.people', saved: 'terminus.saved', family: 'terminus.family' };
 
 function read(key, fallback) {
   try {
@@ -21,7 +21,7 @@ function write(key, value) {
   }
 }
 
-export const DEFAULT_SETTINGS = { provider: null, endpoint: '', model: '', apiKey: '', alarmMinutes: 60, defaultMinutes: 60, ownerName: '', ownerEmail: '', state: '', lang: 'de', eveReminder: true, photoFallback: true };
+export const DEFAULT_SETTINGS = { provider: null, endpoint: '', model: '', apiKey: '', alarmMinutes: 60, defaultMinutes: 60, ownerName: '', ownerEmail: '', state: '', lang: 'de', eveReminder: true, photoFallback: true, showBirthdays: true, familyCalendarId: '' };
 
 export const getSettings = () => ({ ...DEFAULT_SETTINGS, ...read(KEY.settings, {}) });
 export const setSettings = (s) => write(KEY.settings, s);
@@ -36,3 +36,7 @@ export function addSaved(events) {
   return write(KEY.saved, [...byId.values()]);
 }
 export const removeSaved = (id) => write(KEY.saved, getSaved().filter((e) => e.id !== id));
+
+// Familienmitglieder: [{ id, name, role: 'kind' | 'erw' }]
+export const getFamily = () => read(KEY.family, []);
+export const setFamily = (f) => write(KEY.family, f);

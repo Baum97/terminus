@@ -50,6 +50,7 @@
       </details>
 
       <p class="mode"><span class="dot" id="mode-dot"></span><span id="mode-line">Erkennung: …</span></p>
+      <button class="linkish" type="button" id="home-migrate">Von Google oder Apple umziehen</button>
 
       <section class="saved" aria-labelledby="saved-h">
         <div class="saved-head">
@@ -100,6 +101,139 @@
       </div>
     </section>
 
+    <!-- Kalender -->
+    <section id="view-calendar" class="view" hidden>
+      <div class="cal-head">
+        <button class="btn ghost small icon" type="button" id="cal-prev" aria-label="Zurück">‹</button>
+        <h2 id="cal-title">Kalender</h2>
+        <button class="btn ghost small icon" type="button" id="cal-next" aria-label="Weiter">›</button>
+        <button class="btn small" type="button" id="cal-today">Heute</button>
+      </div>
+      <div class="segmented" role="tablist" aria-label="Ansicht">
+        <button type="button" role="tab" data-mode="day">Tag</button>
+        <button type="button" role="tab" data-mode="week">Woche</button>
+        <button type="button" role="tab" data-mode="month" aria-selected="true">Monat</button>
+      </div>
+      <ul class="person-filter" id="cal-people" aria-label="Nach Person filtern"></ul>
+      <div class="cal-permission" id="cal-permission" hidden>
+        <p>Terminus zeigt hier die Kalender deines Handys, auch die über DAVx⁵ synchronisierten.</p>
+        <button class="btn primary" type="button" id="cal-grant">Kalender freigeben</button>
+      </div>
+      <div class="month" id="cal-month" role="grid" aria-label="Monat"></div>
+      <div class="agenda" id="cal-agenda"></div>
+      <button class="fab" type="button" id="cal-add" aria-label="Neuer Termin">+</button>
+    </section>
+
+    <!-- Aufgaben -->
+    <section id="view-tasks" class="view" hidden>
+      <div>
+        <h2 class="page-h">Aufgaben</h2>
+        <p class="hint">Fristen und Mitbringlisten aus deinen Terminen. Häkchen werden in den Kalender geschrieben, im Familienkalender sehen sie alle.</p>
+      </div>
+      <ul class="person-filter" id="tasks-people" aria-label="Nach Person filtern"></ul>
+      <div id="tasks-list" class="tasks"></div>
+      <p class="empty" id="tasks-empty" hidden>Keine offenen Fristen oder Mitbringlisten in den nächsten drei Monaten.</p>
+    </section>
+
+    <!-- Familie -->
+    <section id="view-family" class="view" hidden>
+      <div>
+        <h2 class="page-h">Familie</h2>
+        <p class="hint">Ein gemeinsamer Kalender für alle, auch mit iPhone. Ohne Google, ohne Apple.</p>
+      </div>
+      <section class="panel">
+        <h3>Wer gehört dazu?</h3>
+        <ul class="members" id="family-list"></ul>
+        <div class="add-member">
+          <label class="field"><span>Name</span><input id="fm-name" autocomplete="off" placeholder="Mia"></label>
+          <label class="field"><span>Rolle</span>
+            <select id="fm-role"><option value="kind">Kind</option><option value="erw">Erwachsen</option></select>
+          </label>
+          <button class="btn" type="button" id="fm-add">Hinzufügen</button>
+        </div>
+      </section>
+      <section class="panel">
+        <h3>Familienkalender</h3>
+        <div id="family-cal-native" class="native-only">
+          <label class="field"><span>Gemeinsamer Kalender auf diesem Handy</span>
+            <select id="family-cal"><option value="">noch nicht gewählt</option></select>
+          </label>
+          <p class="hint" id="family-cal-hint"></p>
+        </div>
+        <ol class="steps">
+          <li><strong>Kalender anlegen und teilen.</strong> Beim Anbieter (z. B. mailbox.org, Posteo oder Nextcloud) einen Kalender „Familie“ anlegen und für die anderen freigeben. Wie das geht, steht im Umzugshelfer.</li>
+          <li><strong>Android:</strong> In DAVx⁵ das Konto öffnen und den Kalender „Familie“ anhaken. Danach hier oben auswählen.</li>
+          <li><strong>iPhone:</strong> Einstellungen → Apps → Kalender → Accounts → Account hinzufügen → Andere → CalDAV-Account. Server, Name und Passwort vom Anbieter eintragen.</li>
+          <li><strong>Fertig.</strong> Neue Termine landen im Familienkalender. Häkchen, „Für“ und „Zuständig“ sehen alle.</li>
+        </ol>
+        <button class="btn" type="button" id="family-send">Anleitung an die Familie schicken</button>
+      </section>
+      <button class="btn ghost" type="button" id="open-migrate">Umzugshelfer: Google oder Apple verlassen</button>
+    </section>
+
+    <!-- Umzugshelfer -->
+    <section id="view-migrate" class="view" hidden>
+      <div>
+        <button class="btn ghost small" type="button" id="migrate-back">‹ Zurück</button>
+        <h2 class="page-h">Umzug ohne Google und Apple</h2>
+        <p class="hint">Schritt für Schritt. Dauert etwa 20 Minuten, die Daten bleiben in Europa.</p>
+      </div>
+      <div class="status" id="migrate-status" hidden></div>
+      <ol class="migrate">
+        <li>
+          <h3>Neues Zuhause für Kalender und Kontakte wählen</h3>
+          <div class="providers-list">
+            <div class="prov"><strong>mailbox.org</strong> <span class="tag">Berlin</span><p>Mail, Kalender, Kontakte, ab ca. 3 € im Monat.</p><code>Server: https://dav.mailbox.org</code></div>
+            <div class="prov"><strong>Posteo</strong> <span class="tag">Berlin</span><p>Mail, Kalender, Kontakte, ca. 1 € im Monat.</p><code>Kalender: https://posteo.de:8443 · Kontakte: https://posteo.de:8843</code></div>
+            <div class="prov"><strong>Nextcloud</strong> <span class="tag">eigener Server</span><p>Selbst betreiben oder bei einem Hoster mieten.</p><code>Server: https://dein-server/remote.php/dav</code></div>
+            <div class="prov"><strong>GMX / Web.de</strong> <span class="tag">Montabaur</span><p>Wenn du dort schon ein Postfach hast.</p><code>GMX: https://caldav.gmx.net · https://carddav.gmx.net</code></div>
+          </div>
+          <p class="hint">Adressen Stand Oktober 2026. Bei Fragen hilft die Anleitung des Anbieters, Stichwort „CalDAV“.</p>
+        </li>
+        <li>
+          <h3>DAVx⁵ installieren und Konto verbinden</h3>
+          <p>DAVx⁵ (Open Source, aus Österreich) holt Kalender und Kontakte des Anbieters auf das Handy. Danach sieht Terminus sie automatisch.</p>
+          <div class="row">
+            <a class="btn small" href="https://f-droid.org/packages/at.bitfire.davdroid/" target="_blank" rel="noopener">DAVx⁵ bei F-Droid</a>
+            <a class="btn small" href="https://play.google.com/store/apps/details?id=at.bitfire.davdroid" target="_blank" rel="noopener">im Play Store</a>
+          </div>
+        </li>
+        <li>
+          <h3>Google-Kalender exportieren</h3>
+          <p>Am Computer auf calendar.google.com: Einstellungen → Importieren &amp; Exportieren → Exportieren. Es kommt eine ZIP-Datei mit allen Kalendern.</p>
+          <a class="btn small" href="https://calendar.google.com/calendar/r/settings/export" target="_blank" rel="noopener">Export bei Google öffnen</a>
+          <p class="hint">Vom Mac: Kalender-App → Ablage → Exportieren → Exportieren. Aus Outlook oder Thunderbird geht es ebenso als .ics-Datei.</p>
+        </li>
+        <li>
+          <h3>In den neuen Kalender importieren</h3>
+          <label class="field native-only"><span>Ziel-Kalender</span><select id="import-cal"><option value="">Hauptkalender des Geräts</option></select></label>
+          <label class="btn primary" for="import-file">ZIP- oder .ics-Datei wählen</label>
+          <input id="import-file" type="file" accept=".ics,.zip,text/calendar,application/zip" hidden>
+          <progress id="import-progress" max="1" hidden></progress>
+          <p class="hint" id="import-result"></p>
+        </li>
+        <li>
+          <h3>Kontakte mitnehmen</h3>
+          <p>Auf contacts.google.com: Exportieren → vCard. Dann in der Kontakte-App des Handys: Importieren → die .vcf-Datei → als Konto „DAVx⁵“ wählen.</p>
+          <a class="btn small" href="https://contacts.google.com/" target="_blank" rel="noopener">Google Kontakte öffnen</a>
+        </li>
+        <li>
+          <h3>Google-Sync abschalten</h3>
+          <p>Wenn alles im neuen Kalender steht: Einstellungen → Konten → Google → Kalender und Kontakte ausschalten. Das Google-Konto selbst kann bleiben, etwa für den Play Store.</p>
+        </li>
+        <li>
+          <h3>Was sonst noch geht</h3>
+          <table class="alts">
+            <tr><th>Mail</th><td>Posteo, mailbox.org; App: Thunderbird</td></tr>
+            <tr><th>Karten</th><td>Organic Maps, OsmAnd</td></tr>
+            <tr><th>Fotos und Dateien</th><td>Nextcloud</td></tr>
+            <tr><th>Apps</th><td>F-Droid</td></tr>
+            <tr><th>Ganz ohne Google</th><td>/e/OS, GrapheneOS</td></tr>
+          </table>
+        </li>
+      </ol>
+    </section>
+
     <!-- Empfänger eines geteilten Termins -->
     <section id="view-received" class="view" hidden>
       <p class="eyebrow">Dir wurde ein Termin geschickt</p>
@@ -115,6 +249,44 @@
       </div>
     </section>
   </main>
+
+  <nav class="tabbar" id="tabbar" aria-label="Bereiche">
+    <button type="button" data-tab="home"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span>Erfassen</span></button>
+    <button type="button" data-tab="calendar"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span>Kalender</span></button>
+    <button type="button" data-tab="tasks"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 7 2 2 3-3M5 15l2 2 3-3M13 8h6M13 16h6"/></svg><span>Aufgaben</span></button>
+    <button type="button" data-tab="family"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="10" r="2.4"/><path d="M3 20c.5-3.5 2.5-5.5 5-5.5s4.5 2 5 5.5M13.5 20c.4-2.6 1.7-4 3.5-4s3.1 1.4 3.5 4"/></svg><span>Familie</span></button>
+  </nav>
+
+  <!-- Termin im Kalender -->
+  <dialog id="dlg-event" aria-labelledby="ev-title">
+    <form method="dialog" class="dlg">
+      <div class="dlg-head">
+        <div>
+          <p class="eyebrow" id="ev-calendar"></p>
+          <h2 id="ev-title"></h2>
+        </div>
+        <button class="btn ghost small" value="close" aria-label="Schließen">Schließen</button>
+      </div>
+      <p class="meta when" id="ev-when"></p>
+      <label class="check" id="ev-done-row" hidden><input type="checkbox" id="ev-done"> <span>Frist erledigt</span></label>
+      <button class="meta loc linkish" type="button" id="ev-loc" hidden></button>
+      <p id="ev-notes" class="ev-notes"></p>
+      <div id="ev-bring-box" hidden>
+        <h3>Mitbringen</h3>
+        <ul class="checklist" id="ev-bring"></ul>
+      </div>
+      <div class="grid2" id="ev-family" hidden>
+        <label class="field"><span>Für</span><select id="ev-for"><option value="">alle</option></select></label>
+        <label class="field"><span>Zuständig</span><select id="ev-resp"><option value="">niemand</option></select></label>
+      </div>
+      <p class="hint" id="ev-series" hidden>Das ist ein Serientermin. Änderungen gelten für alle Termine der Serie.</p>
+      <div class="row">
+        <button class="btn primary" type="button" id="ev-share">Teilen</button>
+        <button class="btn native-only" type="button" id="ev-open">In Kalender-App</button>
+        <button class="btn ghost danger" type="button" id="ev-delete">Löschen</button>
+      </div>
+    </form>
+  </dialog>
 
   <footer class="foot">
     <p>Open Source unter EUPL-1.2 · Kein Konto, keine Werbung, keine Tracker · Termine und Kontakte bleiben auf diesem Gerät</p>
@@ -224,6 +396,8 @@
         </label>
       </div>
       <label class="check"><input type="checkbox" id="s-eve"> <span>Am Vorabend um 19 Uhr an Mitbringsachen erinnern</span></label>
+      <label class="check"><input type="checkbox" id="s-bdays"> <span>Geburtstage aus den Kontakten im Kalender zeigen</span></label>
+      <button class="btn small" type="button" id="s-open-migrate">Umzugshelfer öffnen</button>
       <label class="check"><input type="checkbox" id="s-photo"> <span>Foto an die KI schicken, wenn kein Text erkannt wird (z. B. Handschrift)</span></label>
       <fieldset class="me">
         <legend>Für Einladungen</legend>
@@ -305,6 +479,8 @@
             <label class="field wide"><span>Ort</span><input data-f="location"></label>
             <label class="field wide"><span>Mitbringen (mit Komma trennen)</span><input data-f="bring"></label>
             <label class="field"><span>Kosten</span><input data-f="cost"></label>
+            <label class="field fam"><span>Zuständig</span><select data-f="responsible"><option value="">niemand</option></select></label>
+            <div class="field wide fam"><span>Für</span><ul class="person-filter for-chips"></ul></div>
             <label class="field wide"><span>Notiz</span><textarea rows="2" data-f="notes"></textarea></label>
           </div>
           <button class="btn ghost small remove" type="button" data-act="remove">Termin entfernen</button>

@@ -10,6 +10,7 @@ import { fromISO, isoWeek, fmtWhen, fmtDate, fmtRepeat, WD_SHORT, MONTHS_SHORT, 
 import * as store from './store.js';
 import { CONFIG } from './config.js';
 import { isNative, Native } from './native.js';
+import { initHub, onShow, invalidateBirthdays } from './hub.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -38,9 +39,27 @@ const state = {
 
 /* ---------- Ansichten ---------- */
 
+const TAB_OF = { home: 'home', busy: 'home', review: 'home', calendar: 'calendar', tasks: 'tasks', family: 'family', migrate: 'family' };
+
 function show(view) {
   for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== `view-${view}`;
+  document.documentElement.classList.toggle('tabbar-off', view === 'busy' || view === 'received');
+  for (const b of document.querySelectorAll('#tabbar [data-tab]')) {
+    if (b.dataset.tab === TAB_OF[view]) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  }
   window.scrollTo({ top: 0 });
+  onShow(view);
+}
+
+// Leerer Termin zum Ausfüllen, z. B. über "+" im Kalender
+function startManual(date) {
+  state.input = { canvas: null, dataUrl: null, text: '', label: 'Neuer Termin' };
+  state.drafts = [{ ...normalizeEvent({ title: 'Neuer Termin', date, start: '10:00' }), picked: true }];
+  renderReview('');
+  const li = $('#cards > li');
+  $('.edit', li).open = true;
+  $('[data-f="title"]', li).select();
 }
 
 let toastTimer;
@@ -199,6 +218,8 @@ function fillCard(li, ev) {
   const parts = [];
   if (ev.bring.length) parts.push(`Mitbringen: ${ev.bring.join(', ')}`);
   if (ev.cost) parts.push(`Kosten: ${ev.cost}`);
+  if (ev.forWhom?.length) parts.push(`Für: ${ev.forWhom.join(', ')}`);
+  if (ev.responsible) parts.push(`Zuständig: ${ev.responsible}`);
   bring.hidden = !parts.length;
   bring.textContent = parts.join(' · ');
   $('.pill.warn', li).hidden = !ev.unsure;
@@ -381,6 +402,24 @@ function cardFor(ev, { editable = true, onRemove } = {}) {
     li.classList.toggle('off', !pick.checked);
     updateActionbar();
   });
+  const family = store.getFamily();
+  const resp = $('[data-f="responsible"]', li);
+  resp.append(...family.map((m) => new Option(m.name, m.name)));
+  const forChips = $('.for-chips', li);
+  const renderFor = () => forChips.replaceChildren(...family.map((m) => {
+    const item = document.createElement('li');
+    const b = Object.assign(document.createElement('button'), { type: 'button', textContent: m.name });
+    b.setAttribute('aria-pressed', String((ev.forWhom || []).includes(m.name)));
+    b.addEventListener('click', () => {
+      const on = (ev.forWhom || []).includes(m.name);
+      ev.forWhom = on ? ev.forWhom.filter((n) => n !== m.name) : [...(ev.forWhom || []), m.name];
+      renderFor();
+      fillCard(li, ev);
+    });
+    item.append(b);
+    return item;
+  }));
+  renderFor();
   for (const input of li.querySelectorAll('[data-f]')) {
     const f = input.dataset.f;
     input.value = editValue(ev, f);
@@ -469,16 +508,18 @@ function nativeEvent(ev) {
 
 // Im Browser: Kalenderdatei. In der App: einzelner Termin öffnet die Kalender-App,
 // mehrere werden nach einmaliger Erlaubnis direkt eingetragen.
+// In der App werden Termine direkt eingetragen (in den Familien- bzw. gewählten Kalender).
+// Ohne Kalender-Erlaubnis öffnet sich bei einem einzelnen Termin die Kalender-App ausgefüllt.
 async function addToCalendar(events) {
   if (!isNative) return downloadICS(events);
   try {
-    if (events.length === 1) {
-      await Native.openInCalendar({ event: nativeEvent(events[0]) });
+    const { count } = await Native.insertEvents({ events: events.map(nativeEvent), calendarId: state.settings.calendarId || undefined });
+    toast(count === 1 ? `Eingetragen${state.settings.calendarName ? ` in „${state.settings.calendarName}“` : ''}.` : `${count} Termine eingetragen.`);
+  } catch (e) {
+    if (e.code === 'denied' && events.length === 1) {
+      Native.openInCalendar({ event: nativeEvent(events[0]) }).catch(() => toast(e.message));
       return;
     }
-    const { count } = await Native.insertEvents({ events: events.map(nativeEvent), calendarId: state.settings.calendarId || undefined });
-    toast(count === 1 ? '1 Termin eingetragen.' : `${count} Termine eingetragen.`);
-  } catch (e) {
     toast(e.message || 'Eintragen hat nicht geklappt.');
   }
 }
@@ -797,6 +838,7 @@ function openSettings() {
   $('#s-lang').value = state.settings.lang || 'de';
   $('#s-eve').checked = state.settings.eveReminder !== false;
   $('#s-photo').checked = state.settings.photoFallback !== false;
+  $('#s-bdays').checked = state.settings.showBirthdays !== false;
   $('#s-owner-name').value = state.settings.ownerName || '';
   $('#s-owner-email').value = state.settings.ownerEmail || '';
   if (isNative) {
@@ -837,6 +879,7 @@ function saveSettings() {
     lang: $('#s-lang').value,
     eveReminder: $('#s-eve').checked,
     photoFallback: $('#s-photo').checked,
+    showBirthdays: $('#s-bdays').checked,
     ownerName: $('#s-owner-name').value.trim(),
     ownerEmail: $('#s-owner-email').value.trim().toLowerCase(),
   };
@@ -855,6 +898,7 @@ function saveSettings() {
   }
   state.settings = s;
   store.setSettings(s);
+  invalidateBirthdays();
   renderMode();
   toast('Gespeichert.');
   return true;
@@ -894,6 +938,10 @@ async function takeSharedFile() {
 async function takeNativeShare() {
   try {
     const shared = await Native.takeShared();
+    if (shared.action === 'calendar') {
+      show('calendar');
+      return true;
+    }
     if (shared.action) {
       nativeCapture(shared.action);
       return true;
@@ -1020,6 +1068,18 @@ function bind() {
       nativeCapture('pick');
     });
   }
+  for (const b of document.querySelectorAll('#tabbar [data-tab]')) {
+    b.addEventListener('click', () => {
+      if (b.dataset.tab === 'home') renderSaved();
+      show(b.dataset.tab);
+    });
+  }
+  for (const id of ['#home-migrate', '#open-migrate']) $(id).addEventListener('click', () => show('migrate'));
+  $('#s-open-migrate').addEventListener('click', () => {
+    $('#dlg-settings').close();
+    show('migrate');
+  });
+  $('#migrate-back').addEventListener('click', () => show('family'));
   $('#btn-check-calendar').addEventListener('click', async () => {
     try {
       await Native.listCalendars();
@@ -1073,6 +1133,13 @@ async function route() {
 async function init() {
   document.documentElement.classList.toggle('native', isNative);
   bind();
+  initHub({
+    state, store, Native, isNative, toast, show, openShare, openMap, startManual,
+    saveSettings: (s) => {
+      state.settings = s;
+      store.setSettings(s);
+    },
+  });
   if (isNative) {
     Native.addListener('shared', () => takeNativeShare());
     $('#btn-calendar-pick').addEventListener('click', pickCalendar);

@@ -36,6 +36,23 @@ Du fotografierst einen Elternbrief, ein Plakat, eine Einladung oder einen Chat-S
 
 Feiertage berechnet die App selbst. Die Schulferien kommen von der [OpenHolidays-API](https://www.openholidaysapi.org) (offene Daten, EU-gefördert) und werden beim Build nach `www/data/ferien.json` geladen (`node scripts/ferien.mjs`), danach liegen sie offline in der App.
 
+## Kalender, Aufgaben und Familie (ohne Google und Apple)
+
+Terminus ersetzt Google Kalender, ohne eigene Cloud. Synchronisiert wird über den offenen Standard **CalDAV**: Ein EU-Anbieter (mailbox.org, Posteo, Nextcloud, GMX …) speichert den Kalender, **DAVx⁵** bringt ihn auf Android-Handys, iPhones können CalDAV von Haus aus. Terminus liest und schreibt über den Android-Kalender und sieht damit alle Konten.
+
+| Bereich | Was es kann |
+|---|---|
+| **Kalender** | Tag, Woche, Monat; Farben der Kalender, Feiertage und Ferien, Geburtstage aus den Kontakten, Filter nach Person, „+“ für neue Termine |
+| **Termin-Details** | Mitbringliste abhaken, „Für“ und „Zuständig“ setzen, Ort in der Karten-App, teilen, löschen |
+| **Aufgaben** | Fristen und Mitbringlisten aller Termine: überfällig, diese Woche, später, erledigt |
+| **Familie** | Mitglieder (Kinder, Erwachsene), Familienkalender wählen, Anleitung für Android und iPhone an alle schicken |
+| **Umzugshelfer** | EU-Anbieter mit Server-Adressen, DAVx⁵ einrichten, Google-Export (ZIP) oder .ics importieren, Kontakte mitnehmen, Google-Sync abschalten, Status („2 Kalender laufen noch über Google“) |
+| **Widget** | Startbildschirm: Termine von heute und morgen |
+
+**Wie die Familie Häkchen teilt:** Mitbringliste, „Für“ und „Zuständig“ stehen lesbar in der Terminbeschreibung (`☐ Laterne`, `Für: Mia`, `Zuständig: Papa`). Die Beschreibung wird per CalDAV an alle verteilt, und jede Kalender-App zeigt sie verständlich an. Erledigte Fristen bekommen ein „✓“ vor den Titel. So braucht es keinen eigenen Server und keine eigene Datenbank.
+
+In der Web-Version zeigt der Kalender die gemerkten Termine. Der Import landet ebenfalls dort.
+
 ## Personen einladen
 
 Auf jeder Terminkarte öffnet der Knopf mit der Personenfigur die Auswahl. Woher die Kontakte kommen:
@@ -108,11 +125,17 @@ www/                      Web-App, wird auch in die Android-App gepackt
   js/share.js             Termin-Links, WhatsApp, E-Mail, Einladungstext
   js/contacts.js          vCard-Import und Kontaktliste
   js/holidays.js          Feiertage (berechnet) und Schulferien
+  js/hub.js               Kalender, Aufgaben, Familie, Umzugshelfer
+  js/calendar.js          Einträge vereinheitlichen, Serien aufklappen, Geburtstage
+  js/desc.js              gemeinsame Angaben in der Terminbeschreibung
+  js/icsimport.js         .ics-Import mit Zeitzonen
+  js/unzip.js             ZIP-Leser für den Google-Export
   data/ferien.json        Schulferien, beim Build erzeugt
   js/native.js            Brücke zur Android-App
   js/config.js            öffentliche Adressen (Web-Version, Server)
 android/                  Android-Projekt (Capacitor)
-  …/TerminusPlugin.java   Teilen-Menü, Kalender, Adressbuch, Einladungs-Mail
+  …/TerminusPlugin.java   Teilen-Menü, Kalender lesen/schreiben, Adressbuch, Geburtstage, Einladungs-Mail
+  …/TerminusWidget.java   Startbildschirm-Widget
 proxy/server.mjs          Server: liefert die Web-App aus und reicht KI-Anfragen weiter
 scripts/ferien.mjs        lädt die Schulferien aller Bundesländer
 .github/workflows/        APK bauen, Web-Version veröffentlichen
@@ -129,9 +152,10 @@ scripts/ferien.mjs        lädt die Schulferien aller Bundesländer
 ## Nächste Schritte
 
 1. Veröffentlichung auf F-Droid und im Play Store
-2. Gruppen („Kita-Termine immer an beide Eltern“) und Zusagen in der App anzeigen
-3. Mailversand mit echter Einladung über einen EU-Mailanbieter
-4. Unterstützung per Spende (Liberapay, Open Collective) oder Pro-Funktionen für Vereine und Kitas
+2. Echte Aufgaben über den offenen Standard VTODO (kompatibel mit Tasks.org)
+3. Termine in der Kalenderansicht direkt bearbeiten (Zeit, Ort), einzelne Serientermine ändern
+4. Mailversand mit echter Einladung über einen EU-Mailanbieter
+5. Unterstützung per Spende (Liberapay, Open Collective) oder Pro-Funktionen für Vereine und Kitas
 
 ## Lizenz
 

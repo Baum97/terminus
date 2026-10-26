@@ -51,12 +51,12 @@ export function parseVCards(text) {
   const contacts = [];
   let cur = null;
   for (const line of lines) {
-    if (/^BEGIN:VCARD/i.test(line)) cur = { fn: '', n: '', emails: [], phone: '' };
+    if (/^BEGIN:VCARD/i.test(line)) cur = { fn: '', n: '', emails: [], phone: '', bday: '' };
     else if (/^END:VCARD/i.test(line)) {
       if (cur) {
         const [family = '', given = ''] = cur.n.split(';');
         const name = cur.fn || [given, family].map(unescape).filter(Boolean).join(' ');
-        if (cur.emails.length || cur.phone) contacts.push({ name: name || cur.emails[0] || cur.phone, emails: cur.emails, phone: cur.phone });
+        if (cur.emails.length || cur.phone) contacts.push({ name: name || cur.emails[0] || cur.phone, emails: cur.emails, phone: cur.phone, ...(cur.bday ? { bday: cur.bday } : {}) });
       }
       cur = null;
     } else if (cur) {
@@ -67,6 +67,10 @@ export function parseVCards(text) {
       else if (prop.name === 'EMAIL') {
         const email = unescape(prop.value).replace(/^mailto:/i, '').toLowerCase();
         if (isEmail(email) && !cur.emails.includes(email)) cur.emails.push(email);
+      } else if (prop.name === 'BDAY') {
+        // 1950-03-14, 19500314, --0314 oder --03-14
+        const m = prop.value.trim().match(/^(\d{4}|--)-?(\d{2})-?(\d{2})/);
+        if (m) cur.bday = `${m[1] === '--' ? '-' : m[1]}-${m[2]}-${m[3]}`;
       } else if (prop.name === 'TEL' && !cur.phone) cur.phone = unescape(prop.value).replace(/^tel:/i, '');
     }
   }
@@ -79,10 +83,10 @@ export function contactsToPeople(contacts) {
   for (const c of contacts) {
     const phone = normalizePhone(c.phone);
     if (!c.emails.length) {
-      if (phone) people.push({ id: newId(), name: c.name, phone, email: '' });
+      if (phone) people.push({ id: newId(), name: c.name, phone, email: '', ...(c.bday ? { bday: c.bday } : {}) });
       continue;
     }
-    c.emails.forEach((email, i) => people.push({ id: newId(), name: c.name, email, phone: i === 0 ? phone : '' }));
+    c.emails.forEach((email, i) => people.push({ id: newId(), name: c.name, email, phone: i === 0 ? phone : '', ...(i === 0 && c.bday ? { bday: c.bday } : {}) }));
   }
   return people;
 }
@@ -95,6 +99,7 @@ export function mergePeople(existing, incoming) {
     const same = out.find((o) => (p.email && o.email === p.email) || (!p.email && p.phone && o.phone === p.phone));
     if (same) {
       if (!same.phone && p.phone) same.phone = p.phone;
+      if (!same.bday && p.bday) same.bday = p.bday;
       if ((!same.name || same.name === same.email) && p.name) same.name = p.name;
     } else {
       out.push(p);

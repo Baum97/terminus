@@ -88,3 +88,62 @@ test('ICS-Import: UTC, Zeitzonen, ganztägig, Dauer, Serien, Absagen', () => {
   assert.deepEqual(simpleRepeat(kurs.rrule), { freq: 'weekly', interval: 1, until: '2027-03-21' });
   assert.equal(simpleRepeat('FREQ=WEEKLY;BYDAY=MO,WE'), null);
 });
+
+import { deflateRawSync } from 'node:zlib';
+import { readZip } from '../www/js/unzip.js';
+import { fromDevice, fromLocal, occurrences, birthdayItems, itemsOnDay, matchesPerson, titleWithDone, monthGrid } from '../www/js/calendar.js';
+
+// Kleine ZIP-Datei wie der Google-Export: eine komprimierte .ics, eine unkomprimierte andere Datei
+function makeZip(files) {
+  const enc = new TextEncoder();
+  const locals = [], centrals = [];
+  let offset = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name), raw = enc.encode(f.text);
+    const data = f.store ? raw : deflateRawSync(raw);
+    const lh = Buffer.alloc(30);
+    lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(f.store ? 0 : 8, 8); lh.writeUInt32LE(data.length, 18);
+    lh.writeUInt32LE(raw.length, 22); lh.writeUInt16LE(name.length, 26);
+    const ch = Buffer.alloc(46);
+    ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(f.store ? 0 : 8, 10); ch.writeUInt32LE(data.length, 20);
+    ch.writeUInt32LE(raw.length, 24); ch.writeUInt16LE(name.length, 28); ch.writeUInt32LE(offset, 42);
+    locals.push(lh, name, data);
+    centrals.push(ch, name);
+    offset += 30 + name.length + data.length;
+  }
+  const cd = Buffer.concat(centrals);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0); eocd.writeUInt16LE(files.length, 8); eocd.writeUInt16LE(files.length, 10);
+  eocd.writeUInt32LE(cd.length, 12); eocd.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, cd, eocd]);
+}
+
+test('Google-Export als ZIP wird entpackt', async () => {
+  const zip = makeZip([{ name: 'anna@gmail.com.ics', text: 'BEGIN:VCALENDAR\nÄÖÜ\nEND:VCALENDAR' }, { name: 'readme.txt', text: 'x', store: true }]);
+  const files = await readZip(zip);
+  assert.deepEqual(files, [{ name: 'anna@gmail.com.ics', text: 'BEGIN:VCALENDAR\nÄÖÜ\nEND:VCALENDAR' }]);
+});
+
+test('Handykalender: Frist, erledigt, Familienangaben, ganztägig', () => {
+  const frist = fromDevice({ id: '7', title: '✓ Anmeldung: Ausflug (Frist)', begin: Date.UTC(2026, 10, 2), end: Date.UTC(2026, 10, 3), allDay: true, description: 'Für: Mia\nZuständig: Papa' });
+  assert.deepEqual([frist.title, frist.frist, frist.done, frist.date, frist.endDate, frist.meta.forWhom], ['Anmeldung: Ausflug', true, true, '2026-11-02', null, ['Mia']]);
+  assert.equal(titleWithDone(frist, false), 'Anmeldung: Ausflug (Frist)');
+  assert.ok(matchesPerson(frist, 'Papa') && matchesPerson(frist, 'Mia') && !matchesPerson(frist, 'Ben'));
+  const t = new Date(2026, 10, 13, 17, 0).getTime();
+  const fest = fromDevice({ id: '8', title: 'Laternenfest', begin: t, end: t + 90 * 60000, allDay: false });
+  assert.deepEqual([fest.date, fest.start, fest.end, fest.endDate], ['2026-11-13', '17:00', '18:30', null]);
+});
+
+test('Serien aufklappen, Geburtstage und Monatsraster', () => {
+  const kurs = { id: 'k', title: 'Schwimmkurs', date: '2026-10-27', start: '16:00', repeat: { freq: 'weekly', interval: 2, until: '2026-12-01' }, bring: [], notes: '' };
+  assert.deepEqual(occurrences(kurs, '2026-11-01', '2026-12-31'), ['2026-11-10', '2026-11-24']);
+  assert.equal(fromLocal(kurs, '2026-11-01', '2026-11-30').length, 2);
+  const monat = { id: 'm', date: '2026-01-31', repeat: { freq: 'monthly', interval: 1 } };
+  assert.deepEqual(occurrences(monat, '2026-01-01', '2026-05-31'), ['2026-01-31', '2026-03-31', '2026-05-31']);
+  const bdays = birthdayItems([{ name: 'Oma Gisela', date: '1950-11-14' }, { name: 'Ben', date: '--02-29' }], '2026-11-01', '2028-03-01');
+  assert.deepEqual(bdays.map((b) => `${b.date} ${b.title}`), ['2026-11-14 Oma Gisela wird 76', '2027-11-14 Oma Gisela wird 77', '2028-02-29 Ben hat Geburtstag']);
+  const day = itemsOnDay([fromLocal(kurs, '2026-11-10', '2026-11-10')[0], bdays[0]], '2026-11-10');
+  assert.equal(day.length, 1);
+  const grid = monthGrid(2026, 10);
+  assert.deepEqual([grid[0], grid.length, grid[41]], ['2026-10-26', 42, '2026-12-06']);
+});
