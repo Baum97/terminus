@@ -53,7 +53,7 @@ function mask(line, start, len) {
   return line.slice(0, start) + ' '.repeat(len) + line.slice(start + len);
 }
 
-function findDates(line, today) {
+export function findDates(line, today) {
   const dates = [];
   let masked = line;
   const take = (re, fn) => {

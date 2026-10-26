@@ -101,6 +101,11 @@ export function buildICS(events, { defaultMinutes = 60, alarmMinutes = null, eve
     }
     out.push(`SUMMARY:${escapeText(summary(ev))}`);
     if (ev.repeat) out.push(`RRULE:${rrule(ev)}`);
+    if (ev.repeat && ev.exdates?.length) {
+      out.push(ev.start
+        ? `EXDATE;TZID=Europe/Berlin:${ev.exdates.map((d) => `${compactDate(d)}T${compactTime(ev.start)}`).join(',')}`
+        : `EXDATE;VALUE=DATE:${ev.exdates.map(compactDate).join(',')}`);
+    }
     if (invite && ev.guests?.length) {
       out.push('SEQUENCE:0', 'STATUS:CONFIRMED', `ORGANIZER;CN=${cn(organizer.name || organizer.email)}:mailto:${organizer.email}`);
       for (const g of ev.guests) out.push(`ATTENDEE;CN=${cn(g.name || g.email)};ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:${g.email}`);

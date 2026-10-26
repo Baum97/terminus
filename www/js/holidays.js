@@ -1,6 +1,7 @@
 // Gesetzliche Feiertage (offline berechnet) und Schulferien (data/ferien.json, beim Build
 // aus der OpenHolidays-API erzeugt) je Bundesland.
 import { toISO, addDays } from './dates.js';
+import { occurrences } from './calendar.js';
 
 export const STATES = {
   BW: 'Baden-Württemberg', BY: 'Bayern', BE: 'Berlin', BB: 'Brandenburg', HB: 'Bremen', HH: 'Hamburg',
@@ -100,4 +101,15 @@ export function holidayStartFinder(state, today = new Date()) {
       .sort((a, b) => a.start.localeCompare(b.start))[0];
     return hit ? hit.start : null;
   };
+}
+
+// Termine einer Serie, die in die Schulferien oder auf einen Feiertag fallen (höchstens ein Jahr voraus)
+export function holidayExdates(ev, state) {
+  if (!ev.repeat) return [];
+  const to = ev.repeat.until || addDays(ev.date, 366);
+  const dates = occurrences({ ...ev, exdates: [] }, ev.date, to);
+  const years = [...new Set(dates.map((d) => +d.slice(0, 4)))];
+  const feiertage = new Set(years.flatMap((y) => publicHolidays(y, state).map((h) => h.date)));
+  const ferien = state ? schoolHolidays(state) : [];
+  return dates.filter((d) => feiertage.has(d) || ferien.some((p) => d >= p.start && d <= p.end));
 }

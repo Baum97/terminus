@@ -19,6 +19,9 @@ import android.provider.CalendarContract.Events;
 import android.provider.CalendarContract.Instances;
 import android.provider.CalendarContract.Reminders;
 import android.provider.CalendarContract;
+import androidx.biometric.BiometricManager;
+import androidx.biometric.BiometricPrompt;
+import androidx.fragment.app.FragmentActivity;
 import android.provider.ContactsContract;
 import android.provider.ContactsContract.CommonDataKinds.Email;
 import androidx.core.content.FileProvider;
@@ -58,7 +61,8 @@ import org.json.JSONObject;
     name = "Terminus",
     permissions = {
         @Permission(alias = "calendar", strings = { Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR }),
-        @Permission(alias = "contacts", strings = { Manifest.permission.READ_CONTACTS })
+        @Permission(alias = "contacts", strings = { Manifest.permission.READ_CONTACTS }),
+        @Permission(alias = "notifications", strings = { "android.permission.POST_NOTIFICATIONS" })
     }
 )
 public class TerminusPlugin extends Plugin {
@@ -366,6 +370,8 @@ public class TerminusPlugin extends Plugin {
                 } else {
                     // Serientermine brauchen bei Android eine Dauer statt eines Endes.
                     v.put(Events.RRULE, rule);
+                    String exdate = ev.optString("exdate", "");
+                    if (!exdate.isEmpty()) v.put(Events.EXDATE, exdate);
                     v.put(Events.DURATION, allDay ? "P" + ((span[1] - span[0]) / 86400000L) + "D" : "PT" + ((span[1] - span[0]) / 60000L) + "M");
                 }
                 v.put(Events.ALL_DAY, allDay ? 1 : 0);
@@ -611,6 +617,9 @@ public class TerminusPlugin extends Plugin {
 
     // Ändert Titel und/oder Beschreibung (Häkchen der Mitbringliste, Zuständigkeit, Frist erledigt).
     // Bei Serien betrifft das die ganze Serie.
+    // Ändert einen Termin. Felder: title, description, location und optional die Zeit
+    // (date, start, end, endDate wie beim Eintragen). Mit "occurrence" (Beginn in ms) wird bei einer
+    // Serie nur dieser eine Termin geändert, sonst die ganze Serie (dann bleibt das Datum, nur die Uhrzeit ändert sich).
     @PluginMethod
     public void updateEvent(PluginCall call) {
         if (getPermissionState("calendar") != PermissionState.GRANTED) {
@@ -618,17 +627,89 @@ public class TerminusPlugin extends Plugin {
             return;
         }
         try {
+            long id = Long.parseLong(call.getString("id"));
+            ContentResolver resolver = getContext().getContentResolver();
             ContentValues v = new ContentValues();
             if (call.hasOption("title")) v.put(Events.TITLE, call.getString("title"));
             if (call.hasOption("description")) v.put(Events.DESCRIPTION, call.getString("description"));
-            Uri uri = ContentUris.withAppendedId(Events.CONTENT_URI, Long.parseLong(call.getString("id")));
-            int n = getContext().getContentResolver().update(uri, v, null, null);
+            if (call.hasOption("location")) v.put(Events.EVENT_LOCATION, call.getString("location"));
+            JSObject when = call.getObject("when");
+            Long occurrence = call.getLong("occurrence");
+            int n;
+            if (occurrence != null) {
+                // Ausnahme für einen einzelnen Termin der Serie
+                v.put(Events.ORIGINAL_INSTANCE_TIME, occurrence);
+                if (when != null) putTimes(v, when, 0);
+                Uri ex = ContentUris.withAppendedId(Events.CONTENT_EXCEPTION_URI, id);
+                n = resolver.insert(ex, v) != null ? 1 : 0;
+            } else {
+                if (when != null) putTimes(v, when, isRecurring(id) ? id : 0);
+                n = resolver.update(ContentUris.withAppendedId(Events.CONTENT_URI, id), v, null, null);
+            }
             TerminusWidget.refresh(getContext());
             JSObject r = new JSObject();
             r.put("updated", n);
             call.resolve(r);
         } catch (Exception e) {
             call.reject("Der Termin konnte nicht geändert werden.", e);
+        }
+    }
+
+    private boolean isRecurring(long id) {
+        try (Cursor c = getContext().getContentResolver().query(ContentUris.withAppendedId(Events.CONTENT_URI, id), new String[] { Events.RRULE }, null, null, null)) {
+            return c != null && c.moveToFirst() && c.getString(0) != null;
+        }
+    }
+
+    private long seriesStart(long id) {
+        try (Cursor c = getContext().getContentResolver().query(ContentUris.withAppendedId(Events.CONTENT_URI, id), new String[] { Events.DTSTART }, null, null, null)) {
+            return c != null && c.moveToFirst() ? c.getLong(0) : 0;
+        }
+    }
+
+    // seriesId > 0: ganze Serie ändern. Das Datum des ersten Termins bleibt, Uhrzeit und Dauer ändern sich.
+    private void putTimes(ContentValues v, JSONObject when, long seriesId) throws Exception {
+        long[] span = span(when);
+        boolean allDay = when.isNull("start");
+        v.put(Events.ALL_DAY, allDay ? 1 : 0);
+        v.put(Events.EVENT_TIMEZONE, allDay ? "UTC" : BERLIN);
+        if (seriesId <= 0) {
+            v.put(Events.DTSTART, span[0]);
+            v.put(Events.DTEND, span[1]);
+            return;
+        }
+        long first = span[0];
+        if (!allDay) {
+            Calendar old = Calendar.getInstance(TimeZone.getTimeZone(BERLIN));
+            old.setTimeInMillis(seriesStart(seriesId));
+            Calendar now = Calendar.getInstance(TimeZone.getTimeZone(BERLIN));
+            now.setTimeInMillis(span[0]);
+            old.set(Calendar.HOUR_OF_DAY, now.get(Calendar.HOUR_OF_DAY));
+            old.set(Calendar.MINUTE, now.get(Calendar.MINUTE));
+            first = old.getTimeInMillis();
+        }
+        v.put(Events.DTSTART, first);
+        v.putNull(Events.DTEND);
+        v.put(Events.DURATION, allDay ? "P" + ((span[1] - span[0]) / 86400000L) + "D" : "PT" + ((span[1] - span[0]) / 60000L) + "M");
+    }
+
+    // Nur diesen einen Termin einer Serie absagen
+    @PluginMethod
+    public void cancelOccurrence(PluginCall call) {
+        if (getPermissionState("calendar") != PermissionState.GRANTED) {
+            call.reject("Kein Zugriff auf den Kalender.", "denied");
+            return;
+        }
+        try {
+            ContentValues v = new ContentValues();
+            v.put(Events.ORIGINAL_INSTANCE_TIME, call.getLong("occurrence"));
+            v.put(Events.STATUS, Events.STATUS_CANCELED);
+            Uri ex = ContentUris.withAppendedId(Events.CONTENT_EXCEPTION_URI, Long.parseLong(call.getString("id")));
+            getContext().getContentResolver().insert(ex, v);
+            TerminusWidget.refresh(getContext());
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Der Termin konnte nicht abgesagt werden.", e);
         }
     }
 
@@ -695,5 +776,110 @@ public class TerminusPlugin extends Plugin {
         JSObject r = new JSObject();
         r.put("birthdays", list);
         return r;
+    }
+
+    /* ---------- Morgen-Überblick ---------- */
+
+    @PluginMethod
+    public void setMorningBrief(PluginCall call) {
+        boolean enabled = Boolean.TRUE.equals(call.getBoolean("enabled", false));
+        if (enabled && Build.VERSION.SDK_INT >= 33 && getPermissionState("notifications") != PermissionState.GRANTED) {
+            requestPermissionForAlias("notifications", call, "morningAfterPermission");
+            return;
+        }
+        applyMorning(call);
+    }
+
+    @PermissionCallback
+    private void morningAfterPermission(PluginCall call) {
+        if (getPermissionState("notifications") != PermissionState.GRANTED) {
+            call.reject("Ohne Erlaubnis für Benachrichtigungen gibt es keinen Morgen-Überblick.", "denied");
+            return;
+        }
+        applyMorning(call);
+    }
+
+    private void applyMorning(PluginCall call) {
+        MorningBrief.save(getContext(), Boolean.TRUE.equals(call.getBoolean("enabled", false)), call.getInt("hour", 7), call.getInt("minute", 0));
+        MorningBrief.schedule(getContext());
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void showMorningBrief(PluginCall call) {
+        if (Build.VERSION.SDK_INT >= 33 && getPermissionState("notifications") != PermissionState.GRANTED) {
+            requestPermissionForAlias("notifications", call, "showMorningAfterPermission");
+            return;
+        }
+        JSObject r = new JSObject();
+        r.put("shown", MorningBrief.show(getContext(), true));
+        call.resolve(r);
+    }
+
+    @PermissionCallback
+    private void showMorningAfterPermission(PluginCall call) {
+        JSObject r = new JSObject();
+        r.put("shown", getPermissionState("notifications") == PermissionState.GRANTED && MorningBrief.show(getContext(), true));
+        call.resolve(r);
+    }
+
+    /* ---------- Kalender abonnieren (über ICSx⁵) ---------- */
+
+    @PluginMethod
+    public void openSubscription(PluginCall call) {
+        String url = call.getString("url", "").trim().replaceFirst("^https://", "webcals://").replaceFirst("^http://", "webcal://");
+        try {
+            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            i.setPackage("at.bitfire.icsdroid");
+            getActivity().startActivity(i);
+            call.resolve();
+        } catch (ActivityNotFoundException e) {
+            call.reject("ICSx⁵ ist nicht installiert.", "not_found");
+        }
+    }
+
+    /* ---------- App-Sperre ---------- */
+
+    private static final int LOCK_AUTH = BiometricManager.Authenticators.BIOMETRIC_WEAK | BiometricManager.Authenticators.DEVICE_CREDENTIAL;
+
+    @PluginMethod
+    public void lockAvailable(PluginCall call) {
+        JSObject r = new JSObject();
+        boolean ok = Build.VERSION.SDK_INT >= 30
+            ? BiometricManager.from(getContext()).canAuthenticate(LOCK_AUTH) == BiometricManager.BIOMETRIC_SUCCESS
+            : ((android.app.KeyguardManager) getContext().getSystemService(android.content.Context.KEYGUARD_SERVICE)).isDeviceSecure();
+        r.put("available", ok);
+        call.resolve(r);
+    }
+
+    @SuppressWarnings("deprecation")
+    @PluginMethod
+    public void authenticate(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            try {
+                BiometricPrompt prompt = new BiometricPrompt((FragmentActivity) getActivity(), androidx.core.content.ContextCompat.getMainExecutor(getContext()),
+                    new BiometricPrompt.AuthenticationCallback() {
+                        @Override
+                        public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
+                            JSObject r = new JSObject();
+                            r.put("ok", true);
+                            call.resolve(r);
+                        }
+
+                        @Override
+                        public void onAuthenticationError(int code, CharSequence msg) {
+                            call.reject(msg.toString(), "cancel");
+                        }
+                    });
+                BiometricPrompt.PromptInfo.Builder b = new BiometricPrompt.PromptInfo.Builder()
+                    .setTitle("Terminus entsperren")
+                    .setSubtitle(call.getString("reason", "Familientermine sind privat."));
+                if (Build.VERSION.SDK_INT >= 30) b.setAllowedAuthenticators(LOCK_AUTH);
+                else b.setDeviceCredentialAllowed(true);
+                prompt.authenticate(b.build());
+            } catch (Exception e) {
+                call.reject("Entsperren ist auf diesem Gerät nicht möglich.", e);
+            }
+        });
     }
 }

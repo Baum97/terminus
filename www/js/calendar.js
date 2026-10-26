@@ -74,7 +74,7 @@ export function occurrences(ev, from, to) {
     }
     const iso = toISO(d);
     if (iso > end) break;
-    if (iso >= from) out.push(iso);
+    if (iso >= from && !(ev.exdates || []).includes(iso)) out.push(iso);
     if (i > 5000) break;
   }
   return out;

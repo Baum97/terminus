@@ -154,3 +154,10 @@ export function simpleRepeat(rule) {
   const until = p.UNTIL ? `${p.UNTIL.slice(0, 4)}-${p.UNTIL.slice(4, 6)}-${p.UNTIL.slice(6, 8)}` : null;
   return { freq, interval: +(p.INTERVAL || 1), until };
 }
+
+// Berliner Wanduhrzeit als UTC-Zeitstempel "20261222T150000Z" (für EXDATE auf Android)
+export function berlinUtcStamp(iso, time = '00:00') {
+  const [y, mo, d] = iso.split('-').map(Number);
+  const [h, mi] = time.split(':').map(Number);
+  return new Date(zonedToMs(y, mo, d, h, mi, 0, BERLIN)).toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+}

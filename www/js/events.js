@@ -70,6 +70,8 @@ export function normalizeEvent(raw) {
     responsible: str(raw.responsible, 40),
     done: (Array.isArray(raw.done) ? raw.done : []).map((n) => str(n, 80)).filter(Boolean),
     kind,
+    skipHolidays: raw.skipHolidays === true,
+    exdates: (Array.isArray(raw.exdates) ? raw.exdates : []).filter((d) => isValidISO(d) && d > date).slice(0, 200),
     repeat: kind === 'frist' || endDate ? null : normalizeRepeat(raw.repeat, raw.until, date),
     unsure: raw.unsure === true || raw.confidence === 'niedrig' || raw.confidence === 'low',
   };

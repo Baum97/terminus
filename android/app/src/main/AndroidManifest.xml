@@ -46,6 +46,13 @@
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_today_info" />
         </receiver>
 
+        <!-- Morgen-Überblick: Wecker und Neustart -->
+        <receiver android:name=".MorningBrief" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -59,6 +66,7 @@
 
     <!-- Mail-Apps finden (Android 11+) -->
     <queries>
+        <package android:name="at.bitfire.icsdroid" />
         <intent>
             <action android:name="android.intent.action.SENDTO" />
             <data android:scheme="mailto" />
@@ -73,4 +81,7 @@
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <!-- Nur zum Einladen: E-Mail-Adressen aus dem Adressbuch vorschlagen -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Morgen-Überblick -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 </manifest>
