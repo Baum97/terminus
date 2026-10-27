@@ -36,6 +36,30 @@ Du fotografierst einen Elternbrief, ein Plakat, eine Einladung oder einen Chat-S
 
 Feiertage berechnet die App selbst. Die Schulferien kommen von der [OpenHolidays-API](https://www.openholidaysapi.org) (offene Daten, EU-gefördert) und werden beim Build nach `www/data/ferien.json` geladen (`node scripts/ferien.mjs`), danach liegen sie offline in der App.
 
+## Einrichtungsassistent
+
+Beim ersten Start fragt Terminus, was du vorhast, und zeigt nur die nötigen Schritte:
+
+- **Zettel in den Kalender:** 4 Schritte
+- **Familie organisieren:** 10 Schritte
+- **Komplett weg von Google:** 13 Schritte, dazu eine optionale App-Liste
+
+Jeder Schritt ist eine **Befehls-Karte**: eine kurze Erklärung, ein Code-Fenster „Was passiert“ (z. B. `Kopiere 214 Termine von: anna@gmail.com (Google) nach: „Familie“ (DAVx⁵)`) und ein Knopf **„Ausführen“**. Android fragt höchstens einmal nach, dann erkennt Terminus selbst, dass der Schritt erledigt ist.
+
+| Schritt | Was Terminus selbst macht |
+|---|---|
+| Anbieter und Konto | findet die Server-Adressen und prüft Name und Passwort |
+| DAVx⁵ | führt zur Installation (F-Droid, sonst Play Store) und erkennt sie |
+| Verbinden | öffnet DAVx⁵ mit Server, Name und Passwort vorausgefüllt |
+| Termine umziehen | kopiert Google-Termine direkt auf dem Gerät in den neuen Kalender, mit Serien, Ausnahmen und Erinnerungen, ohne Doppelte |
+| Kontakte umziehen | kopiert Google-Kontakte in das DAVx⁵-Adressbuch (mit Fotos, Nummern, Adressen, Geburtstagen) |
+| Google-Sync abschalten | springt direkt in die richtige Einstellung |
+| Familie dazuholen | QR-Code oder Link ohne Passwort. Auf dem **iPhone** richtet ein Profil Kalender und Kontakte ein, auf **Android** führt Terminus durch den Beitritt und übernimmt Familie, Bundesland und Kalender. Oma und Opa bekommen den Einfach-Modus vorgeschlagen |
+| Akku, Morgen-Überblick, Widget | je ein Tipp, Stand wird geprüft |
+| Weitere Apps | Signal, Organic Maps, Thunderbird, Bitwarden … mit „✓ installiert“ oder direktem Link |
+
+Was Android nicht erlaubt, macht Terminus auch nicht heimlich: Apps installiert, bestätigt und meldet sich der Nutzer selbst an. Das Konto beim Anbieter legt man einmal selbst an. Der Assistent bleibt jederzeit über „Familie“ oder die Einstellungen erreichbar, auf dem Startbildschirm zeigt ein Hinweis den Stand („6 von 10 erledigt“).
+
 ## Kalender, Aufgaben und Familie (ohne Google und Apple)
 
 Terminus ersetzt Google Kalender, ohne eigene Cloud. Synchronisiert wird über den offenen Standard **CalDAV**: Ein EU-Anbieter (mailbox.org, Posteo, Nextcloud, GMX …) speichert den Kalender, **DAVx⁵** bringt ihn auf Android-Handys, iPhones können CalDAV von Haus aus. Terminus liest und schreibt über den Android-Kalender und sieht damit alle Konten.
@@ -145,6 +169,8 @@ www/                      Web-App, wird auch in die Android-App gepackt
   js/unzip.js             ZIP-Leser für den Google-Export
   js/quick.js             Schnelleingabe
   js/backup.js            Sicherung
+  js/setup.js             Einrichtungsassistent und Beitritt
+  js/setupdata.js         Anbieter, App-Empfehlungen, Beitrittslinks, iPhone-Profil
   data/ferien.json        Schulferien, beim Build erzeugt
   js/native.js            Brücke zur Android-App
   js/config.js            öffentliche Adressen (Web-Version, Server)
@@ -152,6 +178,7 @@ android/                  Android-Projekt (Capacitor)
   …/TerminusPlugin.java   Teilen-Menü, Kalender lesen/schreiben, Adressbuch, Geburtstage, Einladungs-Mail
   …/TerminusWidget.java   Startbildschirm-Widget
   …/MorningBrief.java     Morgen-Überblick (Wecker, Neustart, Benachrichtigung)
+  …/Setup.java            Umzug von Kalendern und Kontakten auf dem Gerät, Zugangsprüfung
 docs/ROADMAP.md           Merkzettel für spätere Ausbaustufen (Listen über VTODO)
 proxy/server.mjs          Server: liefert die Web-App aus und reicht KI-Anfragen weiter
 scripts/ferien.mjs        lädt die Schulferien aller Bundesländer

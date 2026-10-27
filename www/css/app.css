@@ -400,3 +400,40 @@ html.simple #paste-box, html.simple .mode, html.simple #home-migrate, html.simpl
 html.simple .segmented, html.simple #cal-people, html.simple #cal-month, html.simple .card-actions .invite,
 html.simple .edit, html.simple .saved-head .linkish { display: none !important; }
 html.simple .agenda-list li > button { padding: 14px; }
+
+/* Einrichtungsassistent: Befehls-Karten */
+.goals { display: grid; gap: 8px; }
+.goals button { display: grid; gap: 2px; text-align: left; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); border-radius: var(--r); padding: 12px 14px; cursor: pointer; font: inherit; }
+.goals button strong { font-size: var(--step-0); }
+.goals button small { color: var(--ink-soft); }
+.goals button[aria-pressed="true"] { border-color: var(--pen); box-shadow: inset 0 0 0 1px var(--pen); }
+.setup-progress { display: grid; gap: 6px; font-weight: 700; }
+.setup-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.step details { background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow); }
+.step summary { list-style: none; display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: center; padding: 12px 14px; cursor: pointer; font-weight: 700; }
+.step summary::-webkit-details-marker { display: none; }
+.step .num { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--line); color: var(--ink); font: 700 0.85rem/1 var(--font-body); }
+.step.done .num { background: var(--ok); color: #fff; }
+.step .state { font: 600 0.75rem var(--font-body); color: var(--ink-soft); }
+.step.done .t { color: var(--ink-soft); }
+.step-body { display: grid; gap: 10px; padding: 0 14px 14px; }
+.step-body > p { color: var(--ink-soft); font-size: 0.95rem; }
+pre.cmd {
+  position: relative; margin: 0; padding: 26px 14px 12px; border-radius: 10px;
+  background: #121a2e; color: #dfe6f7; font: 0.82rem/1.55 var(--font-data); white-space: pre-wrap; overflow-wrap: anywhere;
+}
+pre.cmd::before { content: attr(data-label); position: absolute; top: 7px; left: 14px; font: 700 0.62rem/1 var(--font-body); letter-spacing: 0.1em; text-transform: uppercase; color: #8ea4ff; }
+.step-msg { font-weight: 600; color: var(--ok); }
+.step-msg.bad { color: var(--warn); }
+.apps { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; background: var(--line); border-radius: var(--r); overflow: hidden; }
+.apps li { display: flex; align-items: center; gap: 10px; background: var(--surface); padding: 10px 12px; }
+.apps .x { display: grid; margin-right: auto; min-width: 0; }
+.apps small { color: var(--ink-soft); }
+.apps .ok { color: var(--ok); font-weight: 700; font-size: var(--step--1); white-space: nowrap; }
+.chips-row { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.chips-row .chip { padding: 4px 10px; }
+.members-inline { display: grid; gap: 8px; }
+.setup-banner { text-align: left; border: 1.5px solid var(--pen); background: color-mix(in srgb, var(--pen) 8%, var(--surface)); color: var(--ink); border-radius: var(--r); padding: 12px 14px; font: 600 var(--step-0) var(--font-body); cursor: pointer; }
+.join-body { display: grid; gap: 14px; }
+.invite-ready { display: grid; gap: 10px; }
+#invite-family-qr { max-width: 15rem; }

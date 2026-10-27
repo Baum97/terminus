@@ -12,6 +12,7 @@ import { CONFIG } from './config.js';
 import { isNative, Native } from './native.js';
 import { initHub, onShow, invalidateBirthdays } from './hub.js';
 import { quickParse } from './quick.js';
+import { initSetup, renderSetup, setupNeeded, setupSummary, openInvite as openFamilyInvite, handleJoinCode, handleJoinLink } from './setup.js';
 import { berlinUtcStamp } from './icsimport.js';
 import { buildBackup, parseBackup, backupFileName } from './backup.js';
 
@@ -42,7 +43,7 @@ const state = {
 
 /* ---------- Ansichten ---------- */
 
-const TAB_OF = { home: 'home', busy: 'home', review: 'home', calendar: 'calendar', tasks: 'tasks', family: 'family', migrate: 'family' };
+const TAB_OF = { home: 'home', busy: 'home', review: 'home', calendar: 'calendar', tasks: 'tasks', family: 'family', migrate: 'family', setup: 'family', join: 'family' };
 
 function show(view) {
   for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== `view-${view}`;
@@ -81,6 +82,16 @@ function show(view) {
   }
   window.scrollTo({ top: 0 });
   onShow(view);
+  if (view === 'setup') renderSetup();
+  if (view === 'home') renderSetupBanner();
+}
+
+async function renderSetupBanner() {
+  const b = $('#home-setup');
+  if (!isNative) return;
+  const p = await setupSummary().catch(() => null);
+  b.hidden = !p || !p.next;
+  if (p?.next) b.textContent = `Einrichtung: ${p.done} von ${p.total} erledigt · weiter ›`;
 }
 
 // Leerer Termin zum Ausfüllen, z. B. über "+" im Kalender
@@ -1017,6 +1028,10 @@ async function takeSharedFile() {
 async function takeNativeShare() {
   try {
     const shared = await Native.takeShared();
+    if (shared.action === 'join') {
+      handleJoinLink(shared.link);
+      return true;
+    }
     if (shared.action === 'calendar') {
       show('calendar');
       return true;
@@ -1227,6 +1242,12 @@ function bind() {
     });
   }
   for (const id of ['#home-migrate', '#open-migrate']) $(id).addEventListener('click', () => show('migrate'));
+  for (const id of ['#home-setup', '#open-setup']) $(id).addEventListener('click', () => show('setup'));
+  $('#s-open-setup').addEventListener('click', () => {
+    $('#dlg-settings').close();
+    show('setup');
+  });
+  $('#open-invite').addEventListener('click', openFamilyInvite);
   $('#s-open-migrate').addEventListener('click', () => {
     $('#dlg-settings').close();
     show('migrate');
@@ -1270,6 +1291,8 @@ function bind() {
 }
 
 async function route() {
+  const j = location.hash.match(/^#j=([\w-]+)/);
+  if (j && handleJoinCode(j[1])) return;
   const m = location.hash.match(/^#t=([\w-]+)/);
   if (m) {
     const ev = decodeEvent(m[1]);
@@ -1277,6 +1300,7 @@ async function route() {
     toast('Dieser Termin-Link ist unvollständig.');
   }
   if (isNative && (await takeNativeShare())) return;
+  if (setupNeeded()) return show('setup');
   if (new URLSearchParams(location.search).has('shared') && (await takeSharedFile())) return;
   renderSaved();
   show('home');
@@ -1289,6 +1313,14 @@ async function init() {
   bind();
   initHub({
     state, store, Native, isNative, toast, show, openShare, openMap, startManual,
+    saveSettings: (s) => {
+      state.settings = s;
+      store.setSettings(s);
+    },
+  });
+  initSetup({
+    state, store, Native, isNative, toast, show, applySimple,
+    publicUrl: () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname),
     saveSettings: (s) => {
       state.settings = s;
       store.setSettings(s);

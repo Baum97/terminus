@@ -1,7 +1,7 @@
 // Alles bleibt im Browser dieses Geräts (localStorage). Kein Konto, keine Cloud.
 import { normalizeEvents } from './events.js';
 
-const KEY = { settings: 'terminus.settings', people: 'terminus.people', saved: 'terminus.saved', family: 'terminus.family' };
+const KEY = { settings: 'terminus.settings', people: 'terminus.people', saved: 'terminus.saved', family: 'terminus.family', setup: 'terminus.setup' };
 
 function read(key, fallback) {
   try {
@@ -41,3 +41,7 @@ export const clearSaved = () => write(KEY.saved, []);
 // Familienmitglieder: [{ id, name, role: 'kind' | 'erw' }]
 export const getFamily = () => read(KEY.family, []);
 export const setFamily = (f) => write(KEY.family, f);
+
+// Stand des Einrichtungsassistenten (ohne Passwörter)
+export const getSetup = () => read(KEY.setup, {});
+export const setSetup = (v) => write(KEY.setup, v);
