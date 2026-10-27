@@ -62,6 +62,7 @@ import org.json.JSONObject;
     permissions = {
         @Permission(alias = "calendar", strings = { Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR }),
         @Permission(alias = "contacts", strings = { Manifest.permission.READ_CONTACTS }),
+        @Permission(alias = "contactsWrite", strings = { Manifest.permission.READ_CONTACTS, Manifest.permission.WRITE_CONTACTS }),
         @Permission(alias = "notifications", strings = { "android.permission.POST_NOTIFICATIONS" })
     }
 )
@@ -101,6 +102,13 @@ public class TerminusPlugin extends Plugin {
             intent.setAction(null);
             return true;
         }
+        // Beitritt zur Familie: terminus://join?…
+        if (Intent.ACTION_VIEW.equals(a) && intent.getData() != null && "terminus".equals(intent.getData().getScheme())) {
+            pendingAction = "join";
+            pendingText = intent.getData().toString();
+            intent.setAction(null);
+            return true;
+        }
         if (!Intent.ACTION_SEND.equals(intent.getAction())) return false;
         String type = intent.getType();
         if (type != null && type.startsWith("image/")) {
@@ -128,7 +136,10 @@ public class TerminusPlugin extends Plugin {
         JSObject result = new JSObject();
         try {
             if (pendingImage != null) result.put("image", imageDataUrl(pendingImage));
-            else if (pendingText != null) result.put("text", pendingText);
+            else if ("join".equals(pendingAction)) {
+                result.put("action", "join");
+                result.put("link", pendingText);
+            } else if (pendingText != null) result.put("text", pendingText);
             else if (pendingAction != null) result.put("action", pendingAction);
         } catch (Exception e) {
             pendingImage = null;
@@ -881,5 +892,172 @@ public class TerminusPlugin extends Plugin {
                 call.reject("Entsperren ist auf diesem Gerät nicht möglich.", e);
             }
         });
+    }
+
+    /* ---------- Einrichtungsassistent ---------- */
+
+    @PluginMethod
+    public void isInstalled(PluginCall call) {
+        JSObject installed = new JSObject();
+        try {
+            JSArray pkgs = call.getArray("packages", new JSArray());
+            for (int i = 0; i < pkgs.length(); i++) {
+                String p = pkgs.getString(i);
+                boolean ok;
+                try {
+                    getContext().getPackageManager().getPackageInfo(p, 0);
+                    ok = true;
+                } catch (android.content.pm.PackageManager.NameNotFoundException e) {
+                    ok = false;
+                }
+                installed.put(p, ok);
+            }
+        } catch (Exception ignored) {}
+        JSObject r = new JSObject();
+        r.put("installed", installed);
+        call.resolve(r);
+    }
+
+    @PluginMethod
+    public void checkLogin(PluginCall call) {
+        call.resolve(Setup.checkLogin(call.getString("url", ""), call.getString("user", ""), call.getString("password", "")));
+    }
+
+    // Öffnet die Anmeldung von DAVx⁵ mit Server und Name (und Passwort, falls angegeben) vorausgefüllt
+    @PluginMethod
+    public void openDavx5(PluginCall call) {
+        JSObject r = new JSObject();
+        try {
+            Intent i = new Intent(Intent.ACTION_VIEW);
+            i.setClassName("at.bitfire.davdroid", "at.bitfire.davdroid.ui.setup.LoginActivity");
+            i.putExtra("url", call.getString("url", ""));
+            i.putExtra("username", call.getString("username", ""));
+            if (call.getString("password") != null) i.putExtra("password", call.getString("password"));
+            getActivity().startActivity(i);
+            r.put("prefilled", true);
+            call.resolve(r);
+        } catch (Exception e) {
+            Intent launch = getContext().getPackageManager().getLaunchIntentForPackage("at.bitfire.davdroid");
+            if (launch == null) {
+                call.reject("DAVx⁵ ist nicht installiert.", "not_found");
+                return;
+            }
+            getActivity().startActivity(launch);
+            r.put("prefilled", false);
+            call.resolve(r);
+        }
+    }
+
+    private static long[] longs(JSArray arr) throws Exception {
+        long[] out = new long[arr.length()];
+        for (int i = 0; i < arr.length(); i++) out[i] = Long.parseLong(arr.getString(i));
+        return out;
+    }
+
+    @PluginMethod
+    public void countEvents(PluginCall call) {
+        if (getPermissionState("calendar") != PermissionState.GRANTED) {
+            call.reject("Kein Zugriff auf den Kalender.", "denied");
+            return;
+        }
+        try {
+            call.resolve(Setup.countEvents(getContext(), longs(call.getArray("calendars", new JSArray()))));
+        } catch (Exception e) {
+            call.reject("Zählen hat nicht geklappt.", e);
+        }
+    }
+
+    @PluginMethod
+    public void copyCalendars(PluginCall call) {
+        if (getPermissionState("calendar") != PermissionState.GRANTED) {
+            call.reject("Kein Zugriff auf den Kalender.", "denied");
+            return;
+        }
+        try {
+            call.resolve(Setup.copyCalendars(getContext(), longs(call.getArray("from", new JSArray())), Long.parseLong(call.getString("to"))));
+        } catch (Exception e) {
+            call.reject("Der Umzug der Termine hat nicht geklappt: " + e.getMessage(), e);
+        }
+    }
+
+    @PluginMethod
+    public void addressBooks(PluginCall call) {
+        if (getPermissionState("contactsWrite") != PermissionState.GRANTED) {
+            requestPermissionForAlias("contactsWrite", call, "addressBooksAfterPermission");
+            return;
+        }
+        call.resolve(Setup.addressBooks(getContext()));
+    }
+
+    @PermissionCallback
+    private void addressBooksAfterPermission(PluginCall call) {
+        if (getPermissionState("contactsWrite") == PermissionState.GRANTED) call.resolve(Setup.addressBooks(getContext()));
+        else call.reject("Ohne Zugriff auf die Kontakte geht der Umzug nicht.", "denied");
+    }
+
+    @PluginMethod
+    public void copyContacts(PluginCall call) {
+        if (getPermissionState("contactsWrite") != PermissionState.GRANTED) {
+            call.reject("Kein Zugriff auf die Kontakte.", "denied");
+            return;
+        }
+        try {
+            call.resolve(Setup.copyContacts(getContext(), call.getString("fromName"), call.getString("fromType"), call.getString("toName"), call.getString("toType")));
+        } catch (Exception e) {
+            call.reject("Der Umzug der Kontakte hat nicht geklappt: " + e.getMessage(), e);
+        }
+    }
+
+    // Springt in die passende Android-Einstellung: Konten (Google-Sync), Akku, App-Info
+    @PluginMethod
+    public void openSettings(PluginCall call) {
+        String which = call.getString("which", "app");
+        Intent i;
+        if ("sync".equals(which)) i = new Intent(android.provider.Settings.ACTION_SYNC_SETTINGS);
+        else if ("battery".equals(which)) i = new Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+        else if ("notifications".equals(which) && Build.VERSION.SDK_INT >= 26) {
+            i = new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, getContext().getPackageName());
+        } else {
+            i = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + call.getString("package", getContext().getPackageName())));
+        }
+        try {
+            getActivity().startActivity(i);
+            call.resolve();
+        } catch (ActivityNotFoundException e) {
+            call.reject("Diese Einstellung gibt es auf dem Gerät nicht.", "not_found");
+        }
+    }
+
+    @PluginMethod
+    public void deviceStatus(PluginCall call) {
+        JSObject r = new JSObject();
+        android.os.PowerManager pm = (android.os.PowerManager) getContext().getSystemService(android.content.Context.POWER_SERVICE);
+        JSObject battery = new JSObject();
+        try {
+            JSArray pkgs = call.getArray("packages", new JSArray());
+            for (int i = 0; i < pkgs.length(); i++) battery.put(pkgs.getString(i), pm.isIgnoringBatteryOptimizations(pkgs.getString(i)));
+        } catch (Exception ignored) {}
+        r.put("batteryFree", battery);
+        r.put("notifications", androidx.core.app.NotificationManagerCompat.from(getContext()).areNotificationsEnabled());
+        r.put("calendar", getPermissionState("calendar") == PermissionState.GRANTED);
+        r.put("contacts", getPermissionState("contacts") == PermissionState.GRANTED);
+        android.appwidget.AppWidgetManager wm = android.appwidget.AppWidgetManager.getInstance(getContext());
+        r.put("widgets", wm.getAppWidgetIds(new android.content.ComponentName(getContext(), TerminusWidget.class)).length);
+        r.put("widgetPinSupported", Build.VERSION.SDK_INT >= 26 && wm.isRequestPinAppWidgetSupported());
+        call.resolve(r);
+    }
+
+    // Legt das Widget auf den Startbildschirm (Android fragt einmal nach)
+    @PluginMethod
+    public void pinWidget(PluginCall call) {
+        JSObject r = new JSObject();
+        if (Build.VERSION.SDK_INT < 26) {
+            r.put("requested", false);
+            call.resolve(r);
+            return;
+        }
+        android.appwidget.AppWidgetManager wm = android.appwidget.AppWidgetManager.getInstance(getContext());
+        r.put("requested", wm.isRequestPinAppWidgetSupported() && wm.requestPinAppWidget(new android.content.ComponentName(getContext(), TerminusWidget.class), null, null));
+        call.resolve(r);
     }
 }

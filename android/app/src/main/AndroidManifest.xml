@@ -24,6 +24,14 @@
 
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
 
+            <!-- Familie beitreten: terminus://join?… aus QR-Code oder Nachricht -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="terminus" android:host="join" />
+            </intent-filter>
+
             <!-- Teilen an Terminus: Fotos, Screenshots und Text (z. B. aus WhatsApp) -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
@@ -67,6 +75,23 @@
     <!-- Mail-Apps finden (Android 11+) -->
     <queries>
         <package android:name="at.bitfire.icsdroid" />
+        <package android:name="at.bitfire.davdroid" />
+        <package android:name="org.thoughtcrime.securesms" />
+        <package android:name="ch.threema.app" />
+        <package android:name="im.vector.app" />
+        <package android:name="app.organicmaps" />
+        <package android:name="net.osmand.plus" />
+        <package android:name="net.thunderbird.android" />
+        <package android:name="com.fsck.k9" />
+        <package android:name="com.x8bit.bitwarden" />
+        <package android:name="com.kunzisoft.keepass.libre" />
+        <package android:name="com.beemdevelopment.aegis" />
+        <package android:name="com.nextcloud.client" />
+        <package android:name="io.ente.photos" />
+        <package android:name="org.mozilla.firefox" />
+        <package android:name="org.fdroid.fdroid" />
+        <package android:name="org.tasks" />
+        <package android:name="de.schildbach.oeffi" />
         <intent>
             <action android:name="android.intent.action.SENDTO" />
             <data android:scheme="mailto" />
@@ -81,6 +106,8 @@
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <!-- Nur zum Einladen: E-Mail-Adressen aus dem Adressbuch vorschlagen -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Nur für den Umzug der Kontakte (Google → DAVx⁵) -->
+    <uses-permission android:name="android.permission.WRITE_CONTACTS" />
     <!-- Morgen-Überblick -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
