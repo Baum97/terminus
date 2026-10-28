@@ -64,6 +64,26 @@ Jeder Schritt ist eine **Befehls-Karte**: eine kurze Erklärung, ein Code-Fenste
 
 Was Android nicht erlaubt, macht Terminus auch nicht heimlich: Apps installiert, bestätigt und meldet sich der Nutzer selbst an. Das Konto beim Anbieter legt man einmal selbst an. Der Assistent bleibt jederzeit über „Familie“ oder die Einstellungen erreichbar, auf dem Startbildschirm zeigt ein Hinweis den Stand („6 von 10 erledigt“).
 
+## Kalender teilen: abonnieren oder mitbearbeiten
+
+Jeder Kalender lässt sich im Kalender-Menü (⋯ → „Teilen“) auf zwei Arten teilen:
+
+| | **Abonnieren** (nur lesen) | **Mitbearbeiten** |
+|---|---|---|
+| Für | Studiengang, Verein, Klasse, Kita | Familie, kleines Orga-Team |
+| Andere bekommen | nur diesen Kalender und nur die freigegebenen Felder | Zugang zum gemeinsamen Konto beim Anbieter |
+| Konto nötig | nein: iPhone, Android (ICSx⁵), Outlook, Google Kalender | ja, beim selben Anbieter |
+| Änderungen | kommen automatisch an | kommen automatisch an |
+| Beenden | „Link widerrufen“, dann ist der Link tot | Passwort ändern |
+
+**Datensparsam:** Titel und Zeit (mit Serien und Ausfällen) werden immer geteilt. Ort, Notizen und Mitbringliste nur, wenn du sie anhakst. **Nie** geteilt werden „Für“, „Zuständig“, Häkchen, Erinnerungen und Gäste.
+
+Beispiel: Die Fachschaft trägt die Termine für das Semester in einen Kalender „Informatik WiSe 26/27“ ein, erstellt einen Abo-Link und zeigt den QR-Code in der Erstsemester-Gruppe. Jede Kommilitonin hat die Termine danach in ihrer eigenen Kalender-App, Raumänderungen inklusive, und niemand sieht etwas von den anderen Kalendern der Fachschaft.
+
+**Technik:** Der Terminus-Server (`proxy/server.mjs`) speichert je Abo nur die freigegebene .ics-Datei unter einer zufälligen Adresse (128 Bit). Ändern und widerrufen darf nur, wer den Bearbeitungsschlüssel hat. Der bleibt auf dem Handy (und in der Sicherung), der Server kennt nur einen Hash davon. Terminus aktualisiert das Abo, sobald du in Terminus etwas änderst, und beim Öffnen der App höchstens stündlich, um Änderungen aus anderen Apps nachzuziehen. Ohne Server gibt es „Als Kalenderdatei senden“: ein Schnappschuss, der sich nicht aktualisiert.
+
+Server-Einstellungen: `ABO_DIR` (Speicherort, Standard `data/abo`), `PUBLIC_URL` (öffentliche Adresse, z. B. `https://terminus.beispiel.de`), `ABO_DAILY` (neue Abos pro IP und Tag, Standard 20). In der App trägt man die Adresse unter Einstellungen → „Terminus-Server für Abo-Links“ ein.
+
 ## Kalender, Aufgaben und Familie (ohne Big Tech)
 
 Terminus ersetzt Google Kalender, ohne eigene Cloud. Synchronisiert wird über den offenen Standard **CalDAV**: Ein EU-Anbieter (mailbox.org, Posteo, Nextcloud, GMX …) speichert den Kalender, **DAVx⁵** bringt ihn auf Android-Handys, iPhones können CalDAV von Haus aus. Terminus liest und schreibt über den Android-Kalender und sieht damit alle Konten.
@@ -175,6 +195,8 @@ www/                      Web-App, wird auch in die Android-App gepackt
   js/backup.js            Sicherung
   js/setup.js             Einrichtungsassistent und Beitritt
   js/setupdata.js         Anbieter, App-Empfehlungen, Beitrittslinks, iPhone-Profil
+  js/abo.js               Kalender teilen, Abo-Seite, automatisches Aktualisieren
+  js/aboexport.js         Abo-Datei mit Feldauswahl
   data/ferien.json        Schulferien, beim Build erzeugt
   js/native.js            Brücke zur Android-App
   js/config.js            öffentliche Adressen (Web-Version, Server)
@@ -184,7 +206,8 @@ android/                  Android-Projekt (Capacitor)
   …/MorningBrief.java     Morgen-Überblick (Wecker, Neustart, Benachrichtigung)
   …/Setup.java            Umzug von Kalendern und Kontakten auf dem Gerät, Zugangsprüfung
 docs/ROADMAP.md           Merkzettel für spätere Ausbaustufen (Listen über VTODO)
-proxy/server.mjs          Server: liefert die Web-App aus und reicht KI-Anfragen weiter
+proxy/server.mjs          Server: liefert die Web-App aus, reicht KI-Anfragen weiter, hostet Kalender-Abos
+proxy/abo.mjs             Speicher für Abo-Links (zufällige Adressen, Bearbeitungsschlüssel als Hash)
 scripts/ferien.mjs        lädt die Schulferien aller Bundesländer
 .github/workflows/        APK bauen, Web-Version veröffentlichen
 ```
