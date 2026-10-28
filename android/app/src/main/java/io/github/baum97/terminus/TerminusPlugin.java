@@ -314,7 +314,8 @@ public class TerminusPlugin extends Plugin {
     private JSObject calendars() {
         JSArray list = new JSArray();
         String[] projection = {
-            Calendars._ID, Calendars.CALENDAR_DISPLAY_NAME, Calendars.ACCOUNT_NAME, Calendars.IS_PRIMARY, Calendars.CALENDAR_COLOR, Calendars.ACCOUNT_TYPE
+            Calendars._ID, Calendars.CALENDAR_DISPLAY_NAME, Calendars.ACCOUNT_NAME, Calendars.IS_PRIMARY, Calendars.CALENDAR_COLOR, Calendars.ACCOUNT_TYPE,
+            Calendars.NAME
         };
         String where = Calendars.CALENDAR_ACCESS_LEVEL + ">=? AND " + Calendars.VISIBLE + "=1";
         String[] args = { String.valueOf(Calendars.CAL_ACCESS_CONTRIBUTOR) };
@@ -328,6 +329,9 @@ public class TerminusPlugin extends Plugin {
                 cal.put("color", String.format("#%06X", 0xFFFFFF & c.getInt(4)));
                 // z. B. "bitfire.at.davdroid" (DAVx⁵), "com.google", "LOCAL"
                 cal.put("accountType", c.getString(5));
+                // DAVx⁵ legt hier die Adresse des Kalenders auf dem Server ab (für Einladungen)
+                String name = c.getString(6);
+                if (name != null && name.startsWith("https://")) cal.put("url", name);
                 list.put(cal);
             }
         }

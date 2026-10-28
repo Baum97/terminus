@@ -1247,7 +1247,8 @@ function bind() {
     $('#dlg-settings').close();
     show('setup');
   });
-  $('#open-invite').addEventListener('click', openFamilyInvite);
+  $('#open-invite').addEventListener('click', () => openFamilyInvite());
+  $('#btn-invite-top').addEventListener('click', () => openFamilyInvite());
   $('#s-open-migrate').addEventListener('click', () => {
     $('#dlg-settings').close();
     show('migrate');
@@ -1312,7 +1313,7 @@ async function init() {
   if (isNative && state.settings.lock) lock();
   bind();
   initHub({
-    state, store, Native, isNative, toast, show, openShare, openMap, startManual,
+    state, store, Native, isNative, toast, show, openShare, openMap, startManual, openInvite: (id) => openFamilyInvite(id),
     saveSettings: (s) => {
       state.settings = s;
       store.setSettings(s);

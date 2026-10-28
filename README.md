@@ -1,6 +1,6 @@
 # Terminus
 
-**Zettel knipsen. Termin steht.**
+**Zettel knipsen. Termin steht.** Damit deine Daten deine bleiben.
 
 Du fotografierst einen Elternbrief, ein Plakat, eine Einladung oder einen Chat-Screenshot, oder teilst ihn direkt aus WhatsApp an Terminus. Die App findet Datum, Uhrzeit, Ort, Mitbringliste und Kosten und trägt die Termine in deinen Kalender ein. Mit einem Tipp schickst du sie an andere (Oma, Partner, Tagesmutter). Wer den Link öffnet, übernimmt den Termin in den eigenen Kalender, auch ohne Terminus.
 
@@ -42,7 +42,7 @@ Beim ersten Start fragt Terminus, was du vorhast, und zeigt nur die nötigen Sch
 
 - **Zettel in den Kalender:** 4 Schritte
 - **Familie organisieren:** 10 Schritte
-- **Komplett weg von Google:** 13 Schritte, dazu eine optionale App-Liste
+- **Unabhängig von Big Tech:** 13 Schritte, dazu eine optionale App-Liste
 
 Jeder Schritt ist eine **Befehls-Karte**: eine kurze Erklärung, ein Code-Fenster „Was passiert“ (z. B. `Kopiere 214 Termine von: anna@gmail.com (Google) nach: „Familie“ (DAVx⁵)`) und ein Knopf **„Ausführen“**. Android fragt höchstens einmal nach, dann erkennt Terminus selbst, dass der Schritt erledigt ist.
 
@@ -58,9 +58,13 @@ Jeder Schritt ist eine **Befehls-Karte**: eine kurze Erklärung, ein Code-Fenste
 | Akku, Morgen-Überblick, Widget | je ein Tipp, Stand wird geprüft |
 | Weitere Apps | Signal, Organic Maps, Thunderbird, Bitwarden … mit „✓ installiert“ oder direktem Link |
 
+**Wiederholbar:** Jeder Schritt lässt sich jederzeit erneut ausführen, auch erledigte. **„Alles neu prüfen“** schaut direkt auf dem Handy nach, statt gespeicherten Häkchen zu vertrauen, und nennt je Schritt den Stand, z. B. „✗ 2 Google-Kalender synchronisieren noch“ oder „✓ 214 Termine im neuen Kalender“. Erreichbar über den Assistenten, die Einstellungen, „Familie“ und das Kalender-Menü („Einrichtung prüfen“).
+
+**Leute einladen geht immer:** Der Knopf mit der Personenfigur oben öffnet sofort einen QR-Code. Kalender (alle, die DAVx⁵ synchronisiert) und Person sind wählbar, den Link gibt es auf Wunsch. Im Kalender-Menü (⋯) hat jeder teilbare Kalender seinen eigenen „Einladen“-Knopf. Ohne geteilten Kalender empfiehlt der Code einfach Terminus weiter, ein QR-Code ist also immer da.
+
 Was Android nicht erlaubt, macht Terminus auch nicht heimlich: Apps installiert, bestätigt und meldet sich der Nutzer selbst an. Das Konto beim Anbieter legt man einmal selbst an. Der Assistent bleibt jederzeit über „Familie“ oder die Einstellungen erreichbar, auf dem Startbildschirm zeigt ein Hinweis den Stand („6 von 10 erledigt“).
 
-## Kalender, Aufgaben und Familie (ohne Google und Apple)
+## Kalender, Aufgaben und Familie (ohne Big Tech)
 
 Terminus ersetzt Google Kalender, ohne eigene Cloud. Synchronisiert wird über den offenen Standard **CalDAV**: Ein EU-Anbieter (mailbox.org, Posteo, Nextcloud, GMX …) speichert den Kalender, **DAVx⁵** bringt ihn auf Android-Handys, iPhones können CalDAV von Haus aus. Terminus liest und schreibt über den Android-Kalender und sieht damit alle Konten.
 

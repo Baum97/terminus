@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Terminus</title>
-  <meta name="description" content="Zettel, Plakat oder Screenshot fotografieren und daraus Kalendertermine machen. Open Source, ohne Konto, ohne Tracking.">
+  <meta name="description" content="Zettel fotografieren, Termin steht. Familienkalender ohne Big Tech, damit deine Daten deine bleiben. Open Source, ohne Konto, ohne Tracking.">
   <meta name="theme-color" content="#f3f5f9" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0e1422" media="(prefers-color-scheme: dark)">
   <link rel="manifest" href="manifest.webmanifest">
@@ -18,7 +18,10 @@
 <body>
   <header class="top">
     <a class="brand" href="./" aria-label="Terminus Startseite">Termin<span>us</span></a>
-    <button class="btn ghost small" id="btn-settings" type="button">Einstellungen</button>
+    <div class="top-actions">
+      <button class="btn ghost small icon invite" id="btn-invite-top" type="button" aria-label="Leute einladen" title="Leute einladen"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 1.5v6M9 4.5h6"/><circle cx="12" cy="12.4" r="3.4"/><path d="M5 22c.6-3.9 3.4-6 7-6s6.4 2.1 7 6"/></svg></button>
+      <button class="btn ghost small" id="btn-settings" type="button">Einstellungen</button>
+    </div>
   </header>
 
   <main>
@@ -58,7 +61,7 @@
 
       <p class="mode"><span class="dot" id="mode-dot"></span><span id="mode-line">Erkennung: …</span></p>
       <button class="setup-banner" type="button" id="home-setup" hidden></button>
-      <button class="linkish" type="button" id="home-migrate">Von Google oder Apple umziehen</button>
+      <button class="linkish" type="button" id="home-migrate">Unabhängig von Big Tech werden</button>
 
       <section class="saved" aria-labelledby="saved-h">
         <div class="saved-head">
@@ -116,6 +119,7 @@
         <h2 id="cal-title">Kalender</h2>
         <button class="btn ghost small icon" type="button" id="cal-next" aria-label="Weiter">›</button>
         <button class="btn small" type="button" id="cal-today">Heute</button>
+        <button class="btn ghost small icon" type="button" id="cal-menu" aria-label="Kalender verwalten" title="Kalender verwalten">⋯</button>
       </div>
       <div class="segmented" role="tablist" aria-label="Ansicht">
         <button type="button" role="tab" data-mode="day">Tag</button>
@@ -152,7 +156,7 @@
     <section id="view-family" class="view" hidden>
       <div>
         <h2 class="page-h">Familie</h2>
-        <p class="hint">Ein gemeinsamer Kalender für alle, auch mit iPhone. Ohne Google, ohne Apple.</p>
+        <p class="hint">Ein gemeinsamer Kalender für alle, auch mit iPhone. Ohne Big Tech, damit eure Daten eure bleiben.</p>
       </div>
       <section class="panel">
         <h3>Wer gehört dazu?</h3>
@@ -199,14 +203,15 @@
         <button class="btn primary" type="button" id="open-setup">Einrichtungsassistent</button>
         <button class="btn" type="button" id="open-invite">Familie einladen (QR)</button>
       </div>
-      <button class="btn ghost" type="button" id="open-migrate">Umzugshelfer: Google oder Apple verlassen</button>
+      <button class="btn ghost" type="button" id="open-migrate">Umzugshelfer: raus aus Big Tech</button>
     </section>
 
     <!-- Umzugshelfer -->
     <section id="view-migrate" class="view" hidden>
       <div>
         <button class="btn ghost small" type="button" id="migrate-back">‹ Zurück</button>
-        <h2 class="page-h">Umzug ohne Google und Apple</h2>
+        <h2 class="page-h">Raus aus Big Tech</h2>
+        <p class="claim">Damit deine Daten deine bleiben.</p>
         <p class="hint">Schritt für Schritt. Dauert etwa 20 Minuten, die Daten bleiben in Europa.</p>
       </div>
       <div class="status" id="migrate-status" hidden></div>
@@ -259,7 +264,7 @@
             <tr><th>Karten</th><td>Organic Maps, OsmAnd</td></tr>
             <tr><th>Fotos und Dateien</th><td>Nextcloud</td></tr>
             <tr><th>Apps</th><td>F-Droid</td></tr>
-            <tr><th>Ganz ohne Google</th><td>/e/OS, GrapheneOS</td></tr>
+            <tr><th>Handy ohne Big Tech</th><td>/e/OS, GrapheneOS</td></tr>
           </table>
         </li>
       </ol>
@@ -275,13 +280,15 @@
       <div class="goals" role="group" aria-label="Was hast du vor?">
         <button type="button" data-goal="zettel"><strong>Zettel in den Kalender</strong><small>Fotos und Termine, sonst bleibt alles, wie es ist</small></button>
         <button type="button" data-goal="familie"><strong>Familie organisieren</strong><small>Gemeinsamer Kalender für alle, auch mit iPhone</small></button>
-        <button type="button" data-goal="komplett"><strong>Komplett weg von Google</strong><small>Familie plus Umzug von Terminen und Kontakten</small></button>
+        <button type="button" data-goal="komplett"><strong>Unabhängig von Big Tech</strong><small>Damit deine Daten deine bleiben: Familie plus Umzug von Terminen und Kontakten</small></button>
       </div>
       <div class="setup-progress">
         <p id="setup-progress-text"></p>
         <progress id="setup-progress" max="1" value="0"></progress>
       </div>
+      <button class="btn" type="button" id="setup-verify">Alles neu prüfen</button>
       <ol class="setup-steps" id="setup-steps"></ol>
+      <p class="hint">Etwas klappt nicht mehr? Jeden Schritt kannst du hier jederzeit erneut ausführen. „Alles neu prüfen“ schaut direkt auf dem Handy nach.</p>
       <button class="btn ghost" type="button" id="setup-close">Später weitermachen</button>
     </section>
 
@@ -321,19 +328,37 @@
   <dialog id="dlg-join-invite" aria-labelledby="ji-h">
     <form method="dialog" class="dlg">
       <div class="dlg-head">
-        <h2 id="ji-h">Familie einladen</h2>
+        <h2 id="ji-h">Leute einladen</h2>
         <button class="btn ghost small" value="close" aria-label="Schließen">Schließen</button>
       </div>
-      <label class="field"><span>Für wen?</span><select id="invite-family-member"></select></label>
-      <p class="error" id="invite-family-missing" hidden>Erledige zuerst im Einrichtungsassistenten den Schritt „Zuhause für Kalender und Kontakte“. Die Einladung braucht Server und Benutzernamen.</p>
-      <div id="invite-family-ready" class="invite-ready">
-        <figure class="qr-figure"><canvas id="invite-family-qr" width="520" height="520" aria-label="QR-Code der Einladung"></canvas></figure>
-        <p class="hint">Mit der Kamera des anderen Handys scannen, oder den Link schicken. Das Passwort sagst du persönlich, es steht nicht im Link.</p>
+      <div class="grid2">
+        <label class="field"><span>Kalender</span><select id="invite-family-cal"></select></label>
+        <label class="field"><span>Für wen?</span><select id="invite-family-member"></select></label>
+      </div>
+      <figure class="qr-figure"><canvas id="invite-family-qr" width="520" height="520" aria-label="QR-Code der Einladung"></canvas></figure>
+      <p class="hint" id="invite-family-hint"></p>
+      <button class="btn primary" type="button" id="invite-family-share">Einladung als Nachricht senden</button>
+      <details class="invite-link" id="invite-link-box">
+        <summary>Link anzeigen</summary>
         <pre class="cmd" data-label="Link" id="invite-family-link"></pre>
-        <div class="row">
-          <button class="btn primary" type="button" id="invite-family-share">Einladung senden</button>
-          <button class="btn" type="button" id="invite-family-copy">Link kopieren</button>
-        </div>
+        <button class="btn small" type="button" id="invite-family-copy">Link kopieren</button>
+      </details>
+    </form>
+  </dialog>
+
+  <!-- Kalender-Menü -->
+  <dialog id="dlg-calendars" aria-labelledby="calm-h">
+    <form method="dialog" class="dlg">
+      <div class="dlg-head">
+        <h2 id="calm-h">Kalender</h2>
+        <button class="btn ghost small" value="close" aria-label="Schließen">Schließen</button>
+      </div>
+      <ul class="cal-list" id="calm-list"></ul>
+      <p class="hint" id="calm-hint"></p>
+      <div class="row">
+        <button class="btn" type="button" id="calm-new">Neuer Termin</button>
+        <button class="btn" type="button" id="calm-subscribe">Kalender abonnieren</button>
+        <button class="btn" type="button" id="calm-check">Einrichtung prüfen</button>
       </div>
     </form>
   </dialog>
@@ -388,7 +413,7 @@
   </dialog>
 
   <footer class="foot">
-    <p>Open Source unter EUPL-1.2 · Kein Konto, keine Werbung, keine Tracker · Termine und Kontakte bleiben auf diesem Gerät</p>
+    <p><strong>Damit deine Daten deine bleiben.</strong> Open Source unter EUPL-1.2 · Kein Konto, keine Werbung, keine Tracker · Ohne Big Tech</p>
   </footer>
 
   <!-- Teilen -->

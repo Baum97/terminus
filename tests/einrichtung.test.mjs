@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DAV_PROVIDERS, providerById, davUrls, APPS, storeLink, encodeJoin, decodeJoin, joinWebLink, joinAppLink, mobileconfig, stepsFor, progress } from '../www/js/setupdata.js';
+import { DAV_PROVIDERS, providerById, davUrls, APPS, storeLink, encodeJoin, decodeJoin, joinWebLink, joinAppLink, mobileconfig, stepsFor, progress, inviteTarget } from '../www/js/setupdata.js';
 
 test('Anbieter: Adressen, eigene Server', () => {
   assert.deepEqual(davUrls(providerById('posteo')), { caldav: 'https://posteo.de:8443/', carddav: 'https://posteo.de:8843/' });
@@ -17,7 +17,7 @@ test('App-Empfehlungen verlinken F-Droid oder Play Store', () => {
 });
 
 test('Beitrittslink: ohne Passwort, mit Familie und Bundesland', () => {
-  const info = { family: 'Familie Becker', from: 'Anna', provider: 'mailbox', caldav: 'https://dav.mailbox.org/', carddav: 'https://dav.mailbox.org/', user: 'familie.becker@mailbox.org', member: 'Oma Gisela', members: [{ name: 'Mia', role: 'kind' }, { name: 'Papa', role: 'erw' }], state: 'NI' };
+  const info = { family: 'Familie Becker', from: 'Anna', provider: 'mailbox', caldav: 'https://dav.mailbox.org/', carddav: 'https://dav.mailbox.org/', user: 'familie.becker@mailbox.org', calendar: 'Familie', member: 'Oma Gisela', members: [{ name: 'Mia', role: 'kind' }, { name: 'Papa', role: 'erw' }], state: 'NI' };
   const code = encodeJoin(info);
   const back = decodeJoin(code);
   assert.deepEqual(back, info);
@@ -47,4 +47,13 @@ test('Schritte je Ziel und Fortschritt', () => {
   assert.equal(stepsFor('komplett').length, 14);
   const p = progress(stepsFor('familie'), { calendar: true, state: true, provider: true });
   assert.deepEqual(p, { done: 3, total: 10, next: 'davx5' });
+});
+
+test('Einladung für einen Kalender des Handys', () => {
+  const setup = { caldav: 'https://posteo.de:8443/', carddav: 'https://posteo.de:8843/', user: 'familie@posteo.de', provider: 'posteo' };
+  assert.deepEqual(inviteTarget({ url: 'https://posteo.de:8443/calendars/familie/default/', account: 'familie@posteo.de' }, setup), { caldav: 'https://posteo.de:8443/', carddav: 'https://posteo.de:8843/', user: 'familie@posteo.de', provider: 'posteo' });
+  assert.deepEqual(inviteTarget({ url: 'https://cloud.example.de/remote.php/dav/calendars/anna/familie/', account: 'anna' }, setup), { caldav: 'https://cloud.example.de/remote.php/dav/', carddav: 'https://cloud.example.de/remote.php/dav/', user: 'anna', provider: '' });
+  assert.deepEqual(inviteTarget({ url: 'https://dav.mailbox.org/caldav/Y2FsOi8vMC8z', account: 'a@mailbox.org' }), { caldav: 'https://dav.mailbox.org/', carddav: 'https://dav.mailbox.org/', user: 'a@mailbox.org', provider: '' });
+  assert.equal(inviteTarget({ name: 'Google', account: 'a@gmail.com' }), null);
+  assert.deepEqual(inviteTarget(null, setup).user, 'familie@posteo.de');
 });

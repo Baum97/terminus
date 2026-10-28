@@ -8,6 +8,7 @@ import { publicHolidays, schoolHolidays } from './holidays.js';
 import { normalizeEvent, newId } from './events.js';
 import { parseICS, simpleRepeat } from './icsimport.js';
 import { readZip } from './unzip.js';
+import { inviteTarget } from './setupdata.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
@@ -37,6 +38,21 @@ export function initHub(c) {
     renderCalendar();
   });
   $('#cal-add').addEventListener('click', () => ctx.startManual(cal.selected));
+  $('#cal-menu').addEventListener('click', openCalendarMenu);
+  $('#calm-new').addEventListener('click', () => {
+    $('#dlg-calendars').close();
+    ctx.startManual(cal.selected);
+  });
+  $('#calm-subscribe').addEventListener('click', () => {
+    $('#dlg-calendars').close();
+    ctx.show('family');
+    $('#sub-url').focus();
+  });
+  $('#calm-check').addEventListener('click', () => {
+    $('#dlg-calendars').close();
+    ctx.show('setup');
+    $('#setup-verify').click();
+  });
   $('#cal-grant').addEventListener('click', async () => {
     try {
       await ctx.Native.listCalendars();
@@ -234,6 +250,39 @@ function agendaDay(iso, holidays) {
   }
   wrap.append(ul);
   return wrap;
+}
+
+/* ---------- Kalender-Menü: Kalender des Handys, Leute einladen ---------- */
+
+async function openCalendarMenu() {
+  const list = $('#calm-list');
+  let cals = [];
+  if (ctx.isNative && cal.granted) cals = (await ctx.Native.listCalendars().catch(() => ({ calendars: [] }))).calendars || [];
+  const setup = ctx.store.getSetup();
+  list.replaceChildren(...cals.map((c) => {
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="c"></span><span class="x"><strong></strong><small></small></span>';
+    $('.c', li).style.background = c.color || '#2443C4';
+    $('strong', li).textContent = c.name;
+    $('small', li).textContent = `${c.account}${c.id === ctx.state.settings.familyCalendarId ? ' · Familienkalender' : ''}`;
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'btn small', textContent: 'Einladen' });
+    if (inviteTarget(c, setup)) {
+      b.addEventListener('click', () => {
+        $('#dlg-calendars').close();
+        ctx.openInvite(c.id);
+      });
+    } else {
+      b.textContent = 'nicht teilbar';
+      b.disabled = true;
+      b.title = 'Nur Kalender, die DAVx⁵ synchronisiert, lassen sich teilen.';
+    }
+    li.append(b);
+    return li;
+  }));
+  $('#calm-hint').textContent = ctx.isNative
+    ? cals.length ? 'Einladen geht für Kalender, die DAVx⁵ synchronisiert. Google-Kalender teilt Terminus nicht.' : 'Gib Terminus Zugriff auf den Kalender, dann erscheinen hier deine Kalender.'
+    : 'In der Web-Version gibt es nur die gemerkten Termine. Den vollen Kalender zeigt die Android-App.';
+  $('#dlg-calendars').showModal();
 }
 
 /* ---------- Termin-Detail ---------- */
@@ -546,7 +595,7 @@ function bindFamily() {
     renderFamilyHint();
   });
   $('#family-send').addEventListener('click', () => {
-    const text = `Wir nutzen ab jetzt einen gemeinsamen Familienkalender, ohne Google und Apple.
+    const text = `Wir nutzen ab jetzt einen gemeinsamen Familienkalender, ohne Big Tech. Damit unsere Daten unsere bleiben.
 
 So kommst du dran:
 Android: App „DAVx⁵“ installieren, mit den Zugangsdaten anmelden, die ich dir gebe, und den Kalender „Familie“ anhaken. Dazu die App „Terminus“, damit du Zettel fotografieren und Häkchen setzen kannst.

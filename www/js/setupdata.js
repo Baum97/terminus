@@ -27,7 +27,7 @@ export function davUrls(provider, custom = '') {
   return { caldav: url, carddav: url };
 }
 
-// Empfohlene Apps: was Google und Apple ersetzt
+// Empfohlene Apps: Ersatz für die Dienste von Big Tech
 export const APPS = [
   { pkg: 'at.bitfire.davdroid', name: 'DAVx⁵', why: 'bringt Kalender und Kontakte vom Anbieter aufs Handy', fdroid: true, core: true },
   { pkg: 'at.bitfire.icsdroid', name: 'ICSx⁵', why: 'Kalender abonnieren: Müllabfuhr, Schule, Verein', fdroid: true },
@@ -58,8 +58,10 @@ const b64url = (str) => {
 };
 const unb64url = (s) => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)));
 
-export function encodeJoin({ family = 'Familie', from = '', provider = '', caldav, carddav, user, member = '', members = [], state = '' }) {
-  const data = { v: 1, f: family, by: from, p: provider, c: caldav, d: carddav, u: user, m: member, ms: members.map((x) => [x.name, x.role === 'kind' ? 'k' : 'e']), s: state };
+export function encodeJoin({ family = 'Familie', from = '', provider = '', caldav, carddav, user, calendar = '', member = '', members = [], state = '' }) {
+  const full = { v: 1, f: family, by: from, p: provider, c: caldav, d: carddav === caldav ? '' : carddav, u: user, k: calendar, m: member, ms: members.map((x) => [x.name, x.role === 'kind' ? 'k' : 'e']), s: state };
+  // Leere Angaben weglassen: kürzerer Link, gröberer und leichter scanbarer QR-Code
+  const data = Object.fromEntries(Object.entries(full).filter(([, v]) => v !== '' && !(Array.isArray(v) && !v.length)));
   if ('password' in arguments[0]) throw new Error('Passwörter gehören nicht in einen Beitrittslink.');
   return b64url(JSON.stringify(data));
 }
@@ -70,13 +72,32 @@ export function decodeJoin(code) {
     if (d.v !== 1 || !/^https:\/\//.test(d.c || '') || typeof d.u !== 'string') return null;
     return {
       family: String(d.f || 'Familie').slice(0, 60), from: String(d.by || '').slice(0, 60), provider: String(d.p || ''),
-      caldav: d.c, carddav: /^https:\/\//.test(d.d || '') ? d.d : d.c, user: d.u.slice(0, 120), member: String(d.m || '').slice(0, 40),
+      caldav: d.c, carddav: /^https:\/\//.test(d.d || '') ? d.d : d.c, user: d.u.slice(0, 120), calendar: String(d.k || '').slice(0, 80), member: String(d.m || '').slice(0, 40),
       members: Array.isArray(d.ms) ? d.ms.filter((x) => Array.isArray(x) && typeof x[0] === 'string').map(([name, r]) => ({ name: name.slice(0, 40), role: r === 'k' ? 'kind' : 'erw' })) : [],
       state: typeof d.s === 'string' ? d.s.slice(0, 2) : '',
     };
   } catch {
     return null;
   }
+}
+
+// Wohin eine Einladung für einen Kalender des Handys zeigt. Kennt der Assistent das Konto schon,
+// nimmt er dessen Adressen, sonst die Server-Adresse, die DAVx⁵ zum Kalender ablegt.
+export function inviteTarget(cal, setup = {}) {
+  const sameHost = (a, b) => {
+    try {
+      return new URL(a).host === new URL(b).host;
+    } catch {
+      return false;
+    }
+  };
+  if (setup.caldav && setup.user && (!cal?.url || sameHost(cal.url, setup.caldav))) {
+    return { caldav: setup.caldav, carddav: setup.carddav || setup.caldav, user: setup.user, provider: setup.provider || '' };
+  }
+  if (!cal?.url) return null;
+  const u = new URL(cal.url);
+  const base = `${u.origin}${/\/remote\.php\/dav\//.test(u.pathname) ? '/remote.php/dav/' : '/'}`;
+  return { caldav: base, carddav: base, user: cal.account || '', provider: '' };
 }
 
 export const joinWebLink = (code, base) => `${base}#j=${code}`;
@@ -129,7 +150,7 @@ export function mobileconfig({ family, caldav, carddav, user }, uuid = () => cry
 }
 
 /* ---------- Schritte ---------- */
-// goal: 'zettel' (nur Zettel → Kalender), 'familie' (gemeinsamer Kalender), 'komplett' (weg von Google)
+// goal: 'zettel' (nur Zettel → Kalender), 'familie' (gemeinsamer Kalender), 'komplett' (unabhängig von Big Tech)
 export const STEPS = [
   { id: 'calendar', goals: ['zettel', 'familie', 'komplett'], title: 'Kalender freigeben' },
   { id: 'state', goals: ['zettel', 'familie', 'komplett'], title: 'Bundesland für Ferien und Feiertage' },
@@ -137,14 +158,14 @@ export const STEPS = [
   { id: 'davx5', goals: ['familie', 'komplett'], title: 'DAVx⁵ installieren' },
   { id: 'connect', goals: ['familie', 'komplett'], title: 'Konto mit dem Handy verbinden' },
   { id: 'familycal', goals: ['familie', 'komplett'], title: 'Familienkalender wählen' },
-  { id: 'movecal', goals: ['komplett'], title: 'Termine von Google umziehen' },
-  { id: 'movecontacts', goals: ['komplett'], title: 'Kontakte von Google umziehen' },
-  { id: 'googleoff', goals: ['komplett'], title: 'Google-Sync abschalten' },
+  { id: 'movecal', goals: ['komplett'], title: 'Termine von Google mitnehmen' },
+  { id: 'movecontacts', goals: ['komplett'], title: 'Kontakte von Google mitnehmen' },
+  { id: 'googleoff', goals: ['komplett'], title: 'Google den Zugriff entziehen' },
   { id: 'members', goals: ['familie', 'komplett'], title: 'Familie dazuholen' },
   { id: 'battery', goals: ['familie', 'komplett'], title: 'Akku-Sparen für Terminus und DAVx⁵ abschalten' },
   { id: 'brief', goals: ['zettel', 'familie', 'komplett'], title: 'Morgen-Überblick' },
   { id: 'widget', goals: ['zettel', 'familie', 'komplett'], title: 'Widget auf den Startbildschirm' },
-  { id: 'apps', goals: ['komplett'], title: 'Weitere Apps ohne Google', optional: true },
+  { id: 'apps', goals: ['komplett'], title: 'Weitere Apps ohne Big Tech', optional: true },
 ];
 
 export function stepsFor(goal) {

@@ -1,7 +1,7 @@
 // Einrichtungsassistent: jeder Schritt ist eine Befehls-Karte mit Erklärung, einem Code-Fenster,
 // das genau zeigt, was passiert, und einem Knopf "Ausführen". Terminus erkennt selbst, was erledigt ist.
 import { STATES } from './holidays.js';
-import { DAV_PROVIDERS, providerById, davUrls, APPS, storeLink, stepsFor, progress, encodeJoin, decodeJoin, joinWebLink, joinAppLink, mobileconfig } from './setupdata.js';
+import { DAV_PROVIDERS, providerById, davUrls, APPS, storeLink, stepsFor, progress, encodeJoin, decodeJoin, joinWebLink, joinAppLink, mobileconfig, inviteTarget } from './setupdata.js';
 import { newId } from './events.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -10,7 +10,7 @@ const SELF = 'io.github.baum97.terminus';
 
 let ctx;
 // Nur im Speicher, nie gespeichert: das Passwort für die Übergabe an DAVx⁵
-const mem = { password: '', books: null, status: null, open: null, counts: null };
+const mem = { password: '', books: null, status: null, open: null, counts: null, msgs: {}, verify: null, render: 0 };
 
 export function initSetup(c) {
   ctx = c;
@@ -18,9 +18,23 @@ export function initSetup(c) {
     b.addEventListener('click', () => {
       ctx.store.setSetup({ ...ctx.store.getSetup(), goal: b.dataset.goal });
       mem.open = null;
+      mem.verify = null;
       renderSetup();
     });
   }
+  $('#setup-verify').addEventListener('click', async () => {
+    const b = $('#setup-verify');
+    b.disabled = true;
+    b.textContent = 'Prüfe …';
+    mem.books = null;
+    mem.counts = null;
+    try {
+      await renderSetup({ verify: true });
+    } finally {
+      b.disabled = false;
+      b.textContent = 'Alles neu prüfen';
+    }
+  });
   $('#setup-close').addEventListener('click', () => {
     ctx.store.setSetup({ ...ctx.store.getSetup(), later: true });
     ctx.show('home');
@@ -28,6 +42,7 @@ export function initSetup(c) {
   $('#invite-family-share').addEventListener('click', shareInvite);
   $('#invite-family-copy').addEventListener('click', () => copy($('#invite-family-link').textContent));
   $('#invite-family-member').addEventListener('change', drawInvite);
+  $('#invite-family-cal').addEventListener('change', drawInvite);
   // Zurück aus Play Store, DAVx⁵ oder Einstellungen: Stand neu prüfen
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && !$('#view-setup').hidden) renderSetup();
@@ -86,9 +101,48 @@ async function computeDone(s, st) {
   };
 }
 
+// "Alles neu prüfen": schaut auf dem Gerät nach, statt gespeicherten Häkchen zu vertrauen.
+// Liefert je Schritt { ok, note }.
+async function verifyChecks(s, st) {
+  const set = ctx.state.settings;
+  const dav = davCals(st), google = googleCals(st);
+  const r = {};
+  const put = (id, ok, note) => (r[id] = { ok, note });
+  put('calendar', !!st.calendar, st.calendar ? 'Zugriff erlaubt' : 'Zugriff fehlt');
+  put('state', !!set.state, set.state ? STATES[set.state] : 'kein Bundesland gewählt');
+  put('provider', dav.length > 0 || !!s.loginOk, dav.length ? `über DAVx⁵ verbunden (${dav[0].account})` : s.loginOk ? 'Zugang geprüft, DAVx⁵ fehlt noch' : 'Zugang noch nicht geprüft');
+  put('davx5', !!st.installed[DAVX], st.installed[DAVX] ? 'installiert' : 'nicht installiert');
+  put('connect', dav.length > 0, dav.length ? `${dav.length} Kalender über DAVx⁵` : 'kein DAVx⁵-Kalender auf dem Handy');
+  const fam = st.cals.find((c) => c.id === set.familyCalendarId);
+  put('familycal', !!fam, fam ? `„${fam.name}“` : set.familyCalendarId ? 'gewählter Kalender fehlt (in DAVx⁵ abgewählt?)' : 'nicht gewählt');
+  if (!google.length) put('movecal', true, 'keine Google-Kalender mehr auf dem Handy');
+  else if (s.movedCal && fam) {
+    const n = (await ctx.Native.countEvents({ calendars: [fam.id] }).catch(() => ({ count: 0 }))).count;
+    put('movecal', n >= s.movedCal.copied, n >= s.movedCal.copied ? `${n} Termine im neuen Kalender` : `nur ${n} von ${s.movedCal.copied} Terminen im neuen Kalender`);
+  } else put('movecal', false, s.movedCal ? 'Ziel-Kalender fehlt' : 'noch nicht umgezogen');
+  if (st.contacts) {
+    const books = (await ctx.Native.addressBooks().catch(() => ({ books: [] }))).books || [];
+    mem.books = books;
+    const g = books.filter((b) => b.type === 'com.google').reduce((n, b) => n + b.count, 0);
+    const d = books.filter((b) => b.type.includes('davdroid')).reduce((n, b) => n + b.count, 0);
+    put('movecontacts', g === 0 || d >= g, g === 0 ? 'keine Google-Kontakte' : `${d} Kontakte im neuen Adressbuch, ${g} bei Google`);
+  } else put('movecontacts', !!s.movedContacts, s.movedContacts ? 'umgezogen (Kontakte-Zugriff zum Prüfen fehlt)' : 'noch nicht umgezogen');
+  put('googleoff', google.length === 0, google.length ? `${google.length} Google-Kalender ${google.length === 1 ? 'synchronisiert' : 'synchronisieren'} noch` : 'Google synchronisiert keine Kalender mehr');
+  const family = ctx.store.getFamily();
+  put('members', family.length > 0, family.length ? `${family.length} ${family.length === 1 ? 'Person' : 'Personen'}` : 'noch niemand eingetragen');
+  const bat = !!st.batteryFree?.[SELF] && (!st.installed[DAVX] || !!st.batteryFree?.[DAVX]);
+  put('battery', bat, bat ? 'Akku-Sparen aus' : 'Android darf Terminus oder DAVx⁵ noch bremsen');
+  put('brief', !!set.brief && st.notifications !== false, !set.brief ? 'ausgeschaltet' : st.notifications === false ? 'Benachrichtigungen sind blockiert' : `täglich ${set.briefTime || '07:00'} Uhr`);
+  put('widget', (st.widgets || 0) > 0, st.widgets ? 'auf dem Startbildschirm' : 'nicht auf dem Startbildschirm');
+  put('apps', true, `${APPS.filter((a) => isInstalled(st, a)).length} von ${APPS.length} installiert`);
+  return r;
+}
+
 /* ---------- Darstellung ---------- */
 
-export async function renderSetup() {
+export async function renderSetup({ verify = false } = {}) {
+  // Nur die neueste Darstellung zählt (Prüfen und Zurückkehren können sich überholen)
+  const token = ++mem.render;
   const s = ctx.store.getSetup();
   for (const b of document.querySelectorAll('#view-setup [data-goal]')) b.setAttribute('aria-pressed', String(b.dataset.goal === s.goal));
   $('#setup-web-note').hidden = ctx.isNative;
@@ -99,11 +153,24 @@ export async function renderSetup() {
     $('#setup-progress').value = 0;
     return;
   }
-  const st = (mem.status = await deviceInfo());
-  const done = await computeDone(s, st);
+  const st = await deviceInfo();
   const steps = stepsFor(s.goal);
+  let done;
+  if (verify) {
+    const checks = await verifyChecks(s, st);
+    if (token !== mem.render) return;
+    mem.verify = checks;
+  }
+  if (token !== mem.render) return;
+  mem.status = st;
+  // Nach einer Prüfung gilt deren Ergebnis, bis wieder etwas ausgeführt wird
+  if (mem.verify) done = Object.fromEntries(Object.entries(mem.verify).map(([k, v]) => [k, v.ok]));
+  else done = await computeDone(s, st);
+  if (token !== mem.render) return;
   const p = progress(steps, done);
-  $('#setup-progress-text').textContent = p.next ? `${p.done} von ${p.total} erledigt` : `Fertig: alle ${p.total} Schritte erledigt.`;
+  $('#setup-progress-text').textContent = p.next
+    ? `${p.done} von ${p.total} erledigt${mem.verify ? ' (geprüft)' : ''}`
+    : `Fertig: alle ${p.total} Schritte erledigt${mem.verify ? ' und geprüft' : ''}.`;
   $('#setup-progress').value = p.total ? p.done / p.total : 1;
   const open = mem.open && steps.some((x) => x.id === mem.open && !done[x.id]) ? mem.open : p.next;
   list.replaceChildren(...steps.map((step, i) => card(step, i + 1, done[step.id], step.id === open, st, s)));
@@ -119,7 +186,9 @@ function card(step, n, done, open, st, s) {
   sum.innerHTML = '<span class="num" aria-hidden="true"></span><span class="t"></span><span class="state"></span>';
   $('.num', sum).textContent = done ? '✓' : n;
   $('.t', sum).textContent = step.title;
-  $('.state', sum).textContent = done ? 'erledigt' : step.optional ? 'optional' : '';
+  const note = mem.verify?.[step.id]?.note;
+  $('.state', sum).textContent = note ? `${done ? '✓' : '✗'} ${note}` : done ? 'erledigt' : step.optional ? 'optional' : '';
+  if (note && !done) li.classList.add('problem');
   det.append(sum);
   const body = document.createElement('div');
   body.className = 'step-body';
@@ -133,19 +202,24 @@ function card(step, n, done, open, st, s) {
     pre.textContent = view.cmd;
     body.append(pre);
   }
-  const msg = Object.assign(document.createElement('p'), { className: 'step-msg', hidden: true });
-  if (view.actions?.length) {
+  const msg = Object.assign(document.createElement('p'), { className: 'step-msg', hidden: !mem.msgs[step.id] });
+  if (mem.msgs[step.id]) msg.textContent = mem.msgs[step.id];
+  // Erledigte Schritte lassen sich jederzeit wiederholen
+  const actions = (view.actions || []).map((a) => (done && a.primary !== false && !a.keep ? { ...a, label: a.again || 'Erneut ausführen', primary: false } : a));
+  if (actions.length) {
     const row = document.createElement('div');
     row.className = 'row';
-    for (const a of view.actions) {
+    for (const a of actions) {
       const b = Object.assign(document.createElement('button'), { type: 'button', className: `btn ${a.primary === false ? '' : 'primary'}`, textContent: a.label });
       b.addEventListener('click', async () => {
+        mem.verify = null;
         b.disabled = true;
         msg.hidden = true;
         msg.classList.remove('bad');
         let failed = false;
         try {
           const text = await a.run(msg);
+          mem.msgs[step.id] = text || '';
           if (text) {
             msg.textContent = text;
             msg.hidden = false;
@@ -201,7 +275,10 @@ const STEP_VIEWS = {
   calendar: (st) => ({
     explain: 'Damit Terminus Termine anzeigen, eintragen und mit der Familie abgleichen kann.',
     cmd: 'Android-Berechtigung anfragen\n→ Terminus darf Kalender lesen und schreiben',
-    actions: st.calendar ? [] : [{ label: 'Ausführen', run: async () => { await ctx.Native.listCalendars(); } }],
+    actions: [{ label: 'Ausführen', run: async () => {
+      await ctx.Native.listCalendars();
+      return 'Zugriff ist erlaubt. Falls Android nicht gefragt hat: Einstellungen → Apps → Terminus → Berechtigungen → Kalender.';
+    } }],
   }),
 
   state: () => {
@@ -212,7 +289,7 @@ const STEP_VIEWS = {
       explain: 'Für Schulferien, Feiertage und damit Kurse in den Ferien automatisch ausfallen.',
       extra: field('Bundesland', sel),
       cmd: `Bundesland = ${STATES[ctx.state.settings.state] || '…'}\n→ Ferien und Feiertage im Kalender\n→ Serien pausieren in den Ferien`,
-      actions: [{ label: 'Übernehmen', run: async () => {
+      actions: [{ keep: true, label: 'Übernehmen', run: async () => {
         if (!sel.value) throw new Error('Bitte ein Bundesland wählen.');
         ctx.saveSettings({ ...ctx.state.settings, state: sel.value });
       } }],
@@ -241,7 +318,7 @@ const STEP_VIEWS = {
     box.append(wide(field('E-Mail bzw. Benutzername', user)), wide(field('Passwort (bleibt nur kurz im Speicher)', pass)));
     const actions = [];
     if (p.signup) actions.push({ label: `Konto bei ${p.name} anlegen`, primary: false, stay: true, run: async () => openUrl(p.signup) });
-    actions.push({ label: 'Verbindung prüfen', run: async () => {
+    actions.push({ keep: true, label: 'Verbindung prüfen', run: async () => {
       const u = davUrls(p, server.value);
       if (!u) throw new Error('Bitte die Server-Adresse eintragen.');
       if (!user.value.trim() || !pass.value) throw new Error('Bitte Benutzername und Passwort eintragen.');
@@ -256,7 +333,7 @@ const STEP_VIEWS = {
       return 'Verbindung klappt.';
     } });
     return {
-      explain: `Hier liegen Kalender und Kontakte, in Europa statt bei Google. Am einfachsten für Familien: ein gemeinsames Konto, z. B. „familie.becker@…“. ${p.share}`,
+      explain: `Hier liegen Kalender und Kontakte: in Europa, bei einem Anbieter, der von deinem Geld lebt und nicht von deinen Daten. Am einfachsten für Familien: ein gemeinsames Konto, z. B. „familie.becker@…“. ${p.share}`,
       extra: box,
       cmd: `Anbieter: ${p.name}${p.where ? ` (${p.where})` : ''}\nKalender: ${urls?.caldav || '…'}\nKontakte: ${urls?.carddav || '…'}\nKonto:    ${s.user || '…'}\n→ Anmeldung testen`,
       actions,
@@ -268,14 +345,14 @@ const STEP_VIEWS = {
     return {
       explain: 'DAVx⁵ (Open Source, aus Österreich) hält Kalender und Kontakte zwischen Handy und Anbieter aktuell. Bei F-Droid kostenlos, im Play Store kostet es einmalig ein paar Euro.',
       cmd: `Installiere DAVx⁵ (${DAVX})\nQuelle: ${preferFdroid(st) ? 'F-Droid' : 'Play Store'}\n→ danach automatisch erkannt`,
-      actions: st.installed[DAVX] ? [] : [{ label: 'Ausführen', run: async () => openUrl(storeLink(app, preferFdroid(st))) }],
+      actions: [{ label: 'Ausführen', again: 'Store-Seite öffnen', run: async () => openUrl(storeLink(app, preferFdroid(st))) }],
     };
   },
 
   connect: (st, s) => ({
     explain: 'DAVx⁵ öffnet sich mit Server und Name. Dort „Anmelden“ tippen, dann die Kalender und Adressbücher anhaken, die aufs Handy sollen (vor allem „Familie“). Danach hierher zurück.',
     cmd: `Öffne DAVx⁵ → Neues Konto\nServer:   ${s.caldav || '(Schritt „Zuhause“ zuerst)'}\nName:     ${s.user || '…'}\nPasswort: ${mem.password ? '•••••• (wird übergeben)' : 'in DAVx⁵ eingeben'}`,
-    actions: davCals(st).length ? [] : [{ label: 'Ausführen', run: async () => {
+    actions: [{ label: 'Ausführen', again: 'DAVx⁵ erneut öffnen', run: async () => {
       if (!s.caldav) throw new Error('Bitte zuerst Schritt „Zuhause für Kalender und Kontakte“ erledigen.');
       const r = await ctx.Native.openDavx5({ url: s.caldav, username: s.user, ...(mem.password ? { password: mem.password } : {}) });
       return r.prefilled ? '' : `DAVx⁵ ist offen. Trag dort ein: Server ${s.caldav}, Name ${s.user}.`;
@@ -292,7 +369,7 @@ const STEP_VIEWS = {
       explain: 'In diesen Kalender trägt Terminus neue Termine ein. Alle, die ihn abonniert haben, sehen sie.',
       extra: field('Familienkalender', sel),
       cmd: `Neue Termine → ${chosen ? `„${chosen.name}“` : '…'} (DAVx⁵)\nHäkchen, „Für“, „Zuständig“ → für alle sichtbar`,
-      actions: [{ label: 'Übernehmen', run: async () => {
+      actions: [{ keep: true, label: 'Übernehmen', run: async () => {
         const c = cals.find((x) => x.id === sel.value);
         if (!c) throw new Error('Bitte einen Kalender wählen. Fehlt er, in DAVx⁵ anhaken.');
         ctx.saveSettings({ ...ctx.state.settings, familyCalendarId: c.id, calendarId: c.id, calendarName: c.name });
@@ -316,7 +393,7 @@ const STEP_VIEWS = {
       cmd: s.movedCal
         ? `Erledigt: ${s.movedCal.copied} Termine kopiert, ${s.movedCal.skipped} übersprungen`
         : `Kopiere ${mem.counts ?? '…'} Termine\nvon:  ${google.map((c) => c.name).join(', ') || '–'} (Google)\nnach: ${target ? `„${target.name}“ (DAVx⁵)` : '(Schritt „Familienkalender“ zuerst)'}`,
-      actions: !google.length || s.movedCal ? [] : [{ label: 'Ausführen', run: async () => {
+      actions: !google.length ? [] : [{ label: 'Ausführen', again: 'Erneut kopieren (Doppelte werden übersprungen)', run: async () => {
         if (!target) throw new Error('Bitte zuerst den Familienkalender wählen.');
         const r = await ctx.Native.copyCalendars({ from: google.map((c) => c.id), to: target.id });
         saveSetup({ movedCal: r });
@@ -338,17 +415,17 @@ const STEP_VIEWS = {
     if (dav.length > 1) box.append(field('Nach (DAVx⁵)', to));
     const g = google[0], d = dav[0];
     let cmd;
-    if (s.movedContacts) cmd = `Erledigt: ${s.movedContacts.copied} Kontakte kopiert, ${s.movedContacts.skipped} übersprungen`;
+    if (s.movedContacts && !books) cmd = `Erledigt: ${s.movedContacts.copied} Kontakte kopiert, ${s.movedContacts.skipped} übersprungen\n→ „Adressbücher suchen“, um es zu wiederholen`;
     else if (!books) cmd = 'Adressbücher auf dem Handy suchen\n→ Android fragt nach Zugriff auf Kontakte';
     else cmd = `Kopiere ${g?.count ?? 0} Kontakte\nvon:  ${g ? g.name : '– (kein Google-Adressbuch)'} (Google)\nnach: ${d ? d.name : '– (in DAVx⁵ Adressbuch anhaken)'} (DAVx⁵)\nGleiche Namen werden übersprungen.`;
     const actions = [];
-    if (!s.movedContacts && !books) {
+    if (!books) {
       actions.push({ label: 'Adressbücher suchen', run: async () => {
         mem.books = (await ctx.Native.addressBooks()).books;
         if (!mem.books.some((b) => b.type === 'com.google')) saveSetup({ noGoogleContacts: true });
       } });
-    } else if (!s.movedContacts && g && d) {
-      actions.push({ label: 'Ausführen', run: async () => {
+    } else if (g && d) {
+      actions.push({ label: 'Ausführen', again: 'Erneut kopieren (Doppelte werden übersprungen)', run: async () => {
         const src = google[+from.value || 0], dst = dav[+to.value || 0];
         const r = await ctx.Native.copyContacts({ fromName: src.name, fromType: src.type, toName: dst.name, toType: dst.type });
         saveSetup({ movedContacts: r });
@@ -366,9 +443,9 @@ const STEP_VIEWS = {
   googleoff: (st, s, done) => ({
     explain: 'Erst wenn die beiden Umzüge erledigt sind: In den Android-Einstellungen beim Google-Konto „Kalender“ und „Kontakte“ ausschalten. Das Google-Konto selbst kann bleiben, etwa für den Play Store.',
     cmd: 'Öffne Einstellungen → Konten → Google\n→ Synchronisieren: Kalender AUS, Kontakte AUS',
-    actions: done ? [] : [
-      { label: 'Ausführen', run: async () => ctx.Native.openSettings({ which: 'sync' }) },
-      { label: 'Erledigt', primary: false, run: async () => saveSetup({ googleOff: true }) },
+    actions: [
+      { label: 'Ausführen', again: 'Einstellungen öffnen', run: async () => ctx.Native.openSettings({ which: 'sync' }) },
+      ...(done ? [] : [{ label: 'Erledigt', primary: false, run: async () => saveSetup({ googleOff: true }) }]),
     ],
   }),
 
@@ -400,7 +477,7 @@ const STEP_VIEWS = {
           ctx.store.setFamily([...ctx.store.getFamily(), { id: newId(), name: name.value.trim(), role: role.value }]);
           document.documentElement.classList.add('has-family');
         } },
-        { label: 'Einladen', stay: true, run: async () => openInvite() },
+        { keep: true, label: 'Einladen', stay: true, run: async () => openInvite() },
       ],
     };
   },
@@ -411,17 +488,20 @@ const STEP_VIEWS = {
     actions: [{ label: 'Ausführen', run: async () => ctx.Native.openSettings({ which: 'battery' }) }],
   }),
 
-  brief: () => {
+  brief: (st) => {
     const time = el('input', { type: 'time', value: ctx.state.settings.briefTime || '07:00' });
     return {
       explain: 'Jeden Morgen eine Benachrichtigung: Termine von heute, offene Mitbringsachen, Fristen.',
       extra: field('Uhrzeit', time),
       cmd: `Jeden Tag ${ctx.state.settings.briefTime || '07:00'} Uhr → Benachrichtigung „Heute in Terminus“`,
-      actions: [{ label: ctx.state.settings.brief ? 'Uhrzeit ändern' : 'Ausführen', run: async () => {
-        const [hour, minute] = time.value.split(':').map(Number);
-        await ctx.Native.setMorningBrief({ enabled: true, hour, minute });
-        ctx.saveSettings({ ...ctx.state.settings, brief: true, briefTime: time.value });
-      } }],
+      actions: [
+        { keep: true, label: ctx.state.settings.brief ? 'Uhrzeit ändern' : 'Ausführen', run: async () => {
+          const [hour, minute] = time.value.split(':').map(Number);
+          await ctx.Native.setMorningBrief({ enabled: true, hour, minute });
+          ctx.saveSettings({ ...ctx.state.settings, brief: true, briefTime: time.value });
+        } },
+        ...(st.notifications === false ? [{ keep: true, label: 'Benachrichtigungen erlauben', run: async () => ctx.Native.openSettings({ which: 'notifications' }) }] : []),
+      ],
     };
   },
 
@@ -452,7 +532,7 @@ const STEP_VIEWS = {
     }
     const missing = APPS.filter((a) => !isInstalled(st, a)).length;
     return {
-      explain: 'Ersatz für die übrigen Google-Dienste. Jede Installation bestätigt Android einzeln, Terminus führt dich direkt zur richtigen Seite.',
+      explain: 'Ersatz für die übrigen Dienste von Big Tech. Jede Installation bestätigt Android einzeln, Terminus führt dich direkt zur richtigen Seite.',
       extra: ul,
       cmd: `${APPS.length - missing} von ${APPS.length} installiert${preferFdroid(st) ? '\nQuelle: F-Droid (wo möglich)' : ''}`,
       actions: [],
@@ -462,30 +542,55 @@ const STEP_VIEWS = {
 
 /* ---------- Einladen ---------- */
 
-function inviteCode(memberName) {
+const APP_ONLY = '__app';
+
+// Kalender, für die sich eine Einladung erzeugen lässt (DAVx⁵ bzw. das Konto aus dem Assistenten).
+// "Nur Terminus weiterempfehlen" gibt es immer, damit immer ein QR-Code da ist.
+async function inviteOptions() {
   const s = ctx.store.getSetup();
-  if (!s.caldav || !s.user) return null;
-  return encodeJoin({
-    family: ctx.state.settings.familyName || 'Familie', from: ctx.state.settings.ownerName || '', provider: s.provider || '',
-    caldav: s.caldav, carddav: s.carddav || s.caldav, user: s.user, member: memberName || '',
-    members: ctx.store.getFamily(), state: ctx.state.settings.state || '',
-  });
+  const st = ctx.isNative ? mem.status || (mem.status = await deviceInfo()) : { cals: [] };
+  const out = [];
+  for (const c of st.cals) {
+    const target = inviteTarget(c, s);
+    if (target) out.push({ id: c.id, label: `${c.name} (${c.account})`, name: c.name, target });
+  }
+  if (!out.length && s.caldav && s.user) out.push({ id: 'setup', label: `${ctx.state.settings.familyName || 'Familie'} (${s.user})`, name: 'Familie', target: inviteTarget(null, s) });
+  out.push({ id: APP_ONLY, label: 'Nur Terminus weiterempfehlen', name: '' });
+  return out;
 }
 
-export function openInvite() {
+let inviteOpts = [];
+
+export async function openInvite(calendarId) {
+  inviteOpts = await inviteOptions();
+  const calSel = $('#invite-family-cal');
+  calSel.replaceChildren(...inviteOpts.map((o) => new Option(o.label, o.id)));
+  const preferred = [calendarId, ctx.state.settings.familyCalendarId, 'setup'].find((id) => id && inviteOpts.some((o) => o.id === id));
+  calSel.value = preferred || inviteOpts[0].id;
   const sel = $('#invite-family-member');
   sel.replaceChildren(new Option('jemand anderes', ''), ...ctx.store.getFamily().map((m) => new Option(m.name, m.name)));
+  $('#invite-link-box').open = false;
   drawInvite();
   $('#dlg-join-invite').showModal();
 }
 
+function currentInvite() {
+  const opt = inviteOpts.find((o) => o.id === $('#invite-family-cal').value) || inviteOpts[inviteOpts.length - 1];
+  const member = $('#invite-family-member').value;
+  if (opt.id === APP_ONLY) return { opt, member, link: ctx.publicUrl() };
+  const code = encodeJoin({
+    family: ctx.state.settings.familyName || 'Familie', from: ctx.state.settings.ownerName || '', ...opt.target,
+    calendar: opt.name, member, members: ctx.store.getFamily(), state: ctx.state.settings.state || '',
+  });
+  return { opt, member, link: joinWebLink(code, ctx.publicUrl()) };
+}
+
 function drawInvite() {
-  const code = inviteCode($('#invite-family-member').value);
-  $('#invite-family-missing').hidden = !!code;
-  $('#invite-family-ready').hidden = !code;
-  if (!code) return;
-  const link = joinWebLink(code, ctx.publicUrl());
+  const { opt, link } = currentInvite();
   $('#invite-family-link').textContent = link;
+  $('#invite-family-hint').textContent = opt.id === APP_ONLY
+    ? 'Der Code öffnet Terminus. Für einen gemeinsamen Kalender wähle oben einen Kalender, den DAVx⁵ synchronisiert.'
+    : `Scannen mit der Kamera: Auf dem iPhone richtet ein Profil „${opt.name}“ ein, auf Android führt Terminus durch den Beitritt. Das Passwort sagst du persönlich, es steht nicht im Code.`;
   const canvas = $('#invite-family-qr');
   const qr = window.qrcode(0, 'L');
   qr.addData(link);
@@ -496,13 +601,15 @@ function drawInvite() {
   g.fillRect(0, 0, canvas.width, canvas.height);
   g.fillStyle = '#15203a';
   for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) g.fillRect(off + c * cell, off + r * cell, cell, cell);
-  saveSetup({ invited: true });
+  if (opt.id !== APP_ONLY) saveSetup({ invited: true });
 }
 
 function shareInvite() {
-  const who = $('#invite-family-member').value;
-  const link = $('#invite-family-link').textContent;
-  const text = `${who ? `Hallo ${who.split(' ')[0]}, ` : ''}ich lade dich in unseren Familienkalender ein, ohne Google und Apple.\n\nÖffne diesen Link auf deinem Handy und folge den Schritten:\n${link}\n\nDas Passwort sage ich dir persönlich.`;
+  const { opt, member, link } = currentInvite();
+  const hello = member ? `Hallo ${member.split(' ')[0]}, ` : '';
+  const text = opt.id === APP_ONLY
+    ? `${hello}schau dir Terminus an: Zettel fotografieren, Termin steht. Ohne Big Tech, damit deine Daten deine bleiben.\n${link}`
+    : `${hello}ich lade dich in unseren Kalender „${opt.name}“ ein. Ohne Big Tech, damit unsere Daten unsere bleiben.\n\nÖffne diesen Link auf deinem Handy und folge den Schritten:\n${link}\n\nDas Passwort sage ich dir persönlich.`;
   if (ctx.isNative) ctx.Native.shareText({ text, title: 'Einladung senden' }).catch(() => copy(text));
   else if (navigator.share) navigator.share({ text }).catch(() => {});
   else copy(text);
@@ -600,7 +707,7 @@ async function renderJoin(info) {
   add('Kalender freigeben', !!st.calendar, { explain: 'Damit Terminus die Familientermine zeigen kann.', cmd: 'Android-Berechtigung: Kalender lesen und schreiben', run: () => ctx.Native.listCalendars() });
   add('DAVx⁵ installieren', !!st.installed[DAVX], { explain: 'Hält den Familienkalender auf diesem Handy aktuell.', cmd: `Installiere DAVx⁵ (${DAVX})`, run: async () => openUrl(storeLink(APPS[0], preferFdroid(st))) });
   add('Mit dem Familienkonto verbinden', cals.length > 0, {
-    explain: 'DAVx⁵ öffnet sich mit Server und Name. Passwort eingeben, „Anmelden“, dann den Kalender „Familie“ anhaken.',
+    explain: `DAVx⁵ öffnet sich mit Server und Name. Passwort eingeben, „Anmelden“, dann den Kalender „${info.calendar || 'Familie'}“ anhaken.`,
     cmd: `Öffne DAVx⁵ → Neues Konto\nServer: ${info.caldav}\nName:   ${info.user}\nPasswort: bekommst du persönlich`,
     run: async () => {
       const r = await ctx.Native.openDavx5({ url: info.caldav, username: info.user });
@@ -609,6 +716,8 @@ async function renderJoin(info) {
   });
   const sel = el('select');
   sel.append(new Option('bitte wählen', ''), ...cals.map((c) => new Option(`${c.name} (${c.account})`, c.id)));
+  const invited = cals.find((c) => info.calendar && c.name === info.calendar);
+  if (invited) sel.value = invited.id;
   const simple = el('label', { className: 'check' });
   simple.innerHTML = '<input type="checkbox"> <span>Einfach-Modus: große Schrift, nur das Wichtigste</span>';
   $('input', simple).checked = /oma|opa/i.test(info.member);
