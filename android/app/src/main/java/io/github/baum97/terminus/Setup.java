@@ -268,6 +268,43 @@ final class Setup {
         return r;
     }
 
+    /* ---------- Kalender veröffentlichen (Abo-Link) ---------- */
+
+    /** Alle Termine eines Kalenders mit Serien und Ausnahmen, als Rohdaten für die .ics-Datei. */
+    static JSObject exportCalendar(Context ctx, long calendarId) {
+        JSArray list = new JSArray();
+        String[] cols = {
+            Events._ID, Events.TITLE, Events.DESCRIPTION, Events.EVENT_LOCATION, Events.DTSTART, Events.DTEND, Events.DURATION,
+            Events.ALL_DAY, Events.EVENT_TIMEZONE, Events.RRULE, Events.EXDATE, Events.ORIGINAL_ID, Events.ORIGINAL_INSTANCE_TIME, Events.STATUS,
+        };
+        try (Cursor c = ctx.getContentResolver().query(Events.CONTENT_URI, cols,
+                Events.CALENDAR_ID + "=? AND " + Events.DELETED + "=0", new String[] { String.valueOf(calendarId) }, null)) {
+            while (c != null && c.moveToNext() && list.length() < 5000) {
+                JSObject e = new JSObject();
+                e.put("id", String.valueOf(c.getLong(0)));
+                e.put("title", c.getString(1));
+                e.put("description", c.getString(2));
+                e.put("location", c.getString(3));
+                e.put("start", c.getLong(4));
+                if (!c.isNull(5)) e.put("end", c.getLong(5));
+                e.put("duration", c.getString(6));
+                e.put("allDay", c.getInt(7) == 1);
+                e.put("tz", c.getString(8));
+                e.put("rrule", c.getString(9));
+                e.put("exdate", c.getString(10));
+                if (!c.isNull(11)) {
+                    e.put("originalId", String.valueOf(c.getLong(11)));
+                    e.put("originalTime", c.getLong(12));
+                }
+                e.put("cancelled", !c.isNull(13) && c.getInt(13) == Events.STATUS_CANCELED);
+                list.put(e);
+            }
+        }
+        JSObject r = new JSObject();
+        r.put("events", list);
+        return r;
+    }
+
     private static String inClause(long[] ids) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < ids.length; i++) sb.append(i == 0 ? "" : ",").append(ids[i]);

@@ -1,8 +1,8 @@
 // Offline-Fähigkeit und "Teilen an Terminus" unter Android.
-const VERSION = 'terminus-v7';
+const VERSION = 'terminus-v8';
 const SHELL = [
   './', 'index.html', 'css/app.css', 'manifest.webmanifest', 'icons/icon.svg',
-  'js/app.js', 'js/dates.js', 'js/events.js', 'js/parse.js', 'js/llm.js', 'js/ics.js', 'js/share.js', 'js/store.js', 'js/ocr.js', 'js/config.js', 'js/native.js', 'js/contacts.js', 'js/holidays.js', 'js/hub.js', 'js/calendar.js', 'js/desc.js', 'js/icsimport.js', 'js/unzip.js', 'js/quick.js', 'js/backup.js', 'js/setup.js', 'js/setupdata.js', 'vendor/qrcode/qrcode.js', 'data/ferien.json', 'vendor/capacitor/capacitor.js',
+  'js/app.js', 'js/dates.js', 'js/events.js', 'js/parse.js', 'js/llm.js', 'js/ics.js', 'js/share.js', 'js/store.js', 'js/ocr.js', 'js/config.js', 'js/native.js', 'js/contacts.js', 'js/holidays.js', 'js/hub.js', 'js/calendar.js', 'js/desc.js', 'js/icsimport.js', 'js/unzip.js', 'js/quick.js', 'js/backup.js', 'js/setup.js', 'js/setupdata.js', 'js/abo.js', 'js/aboexport.js', 'vendor/qrcode/qrcode.js', 'data/ferien.json', 'vendor/capacitor/capacitor.js',
 ];
 
 self.addEventListener('install', (e) => {

@@ -12,6 +12,7 @@ import { CONFIG } from './config.js';
 import { isNative, Native } from './native.js';
 import { initHub, onShow, invalidateBirthdays } from './hub.js';
 import { quickParse } from './quick.js';
+import { initAbo, openShareCalendar, getAbos, setAbos, republishSoon, republishStale, handleAboCode } from './abo.js';
 import { initSetup, renderSetup, setupNeeded, setupSummary, openInvite as openFamilyInvite, handleJoinCode, handleJoinLink } from './setup.js';
 import { berlinUtcStamp } from './icsimport.js';
 import { buildBackup, parseBackup, backupFileName } from './backup.js';
@@ -43,7 +44,7 @@ const state = {
 
 /* ---------- Ansichten ---------- */
 
-const TAB_OF = { home: 'home', busy: 'home', review: 'home', calendar: 'calendar', tasks: 'tasks', family: 'family', migrate: 'family', setup: 'family', join: 'family' };
+const TAB_OF = { abo: 'calendar', home: 'home', busy: 'home', review: 'home', calendar: 'calendar', tasks: 'tasks', family: 'family', migrate: 'family', setup: 'family', join: 'family' };
 
 function show(view) {
   for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== `view-${view}`;
@@ -586,7 +587,8 @@ function nativeEvent(ev) {
 async function addToCalendar(events) {
   if (!isNative) return downloadICS(events);
   try {
-    const { count } = await Native.insertEvents({ events: events.map(nativeEvent), calendarId: state.settings.calendarId || undefined });
+    const { count, calendarId } = await Native.insertEvents({ events: events.map(nativeEvent), calendarId: state.settings.calendarId || undefined });
+    republishSoon(calendarId);
     toast(count === 1 ? `Eingetragen${state.settings.calendarName ? ` in „${state.settings.calendarName}“` : ''}.` : `${count} Termine eingetragen.`);
   } catch (e) {
     if (e.code === 'denied' && events.length === 1) {
@@ -918,6 +920,7 @@ function openSettings() {
   $('#s-lock').checked = !!state.settings.lock;
   $('#backup-confirm').hidden = true;
   $('#s-owner-name').value = state.settings.ownerName || '';
+  $('#s-abo-server').value = state.settings.aboServer || '';
   $('#s-owner-email').value = state.settings.ownerEmail || '';
   if (isNative) {
     const sel = $('#s-calendar');
@@ -963,6 +966,7 @@ function saveSettings() {
     briefTime: $('#s-brief-time').value || '07:00',
     lock: $('#s-lock').checked,
     ownerName: $('#s-owner-name').value.trim(),
+    aboServer: $('#s-abo-server').value.trim(),
     ownerEmail: $('#s-owner-email').value.trim().toLowerCase(),
   };
   if (s.ownerEmail && !isEmail(s.ownerEmail)) {
@@ -1093,7 +1097,7 @@ function applySimple() {
 let pendingBackup = null;
 
 function saveBackup() {
-  const json = buildBackup({ settings: state.settings, people: store.getPeople(), family: store.getFamily(), saved: store.getSaved() });
+  const json = buildBackup({ settings: state.settings, people: store.getPeople(), family: store.getFamily(), saved: store.getSaved(), abos: getAbos() });
   const name = backupFileName();
   if (isNative) {
     const base64 = btoa(String.fromCharCode(...new TextEncoder().encode(json)));
@@ -1127,6 +1131,7 @@ function applyBackup() {
   const b = pendingBackup;
   store.setPeople(b.people);
   store.setFamily(b.family);
+  if (b.abos) setAbos(b.abos);
   store.clearSaved();
   store.addSaved(b.saved);
   state.settings = { ...state.settings, ...b.settings, apiKey: state.settings.apiKey };
@@ -1214,6 +1219,7 @@ function bind() {
   $('#btn-ics-all').addEventListener('click', () => addToCalendar(state.drafts.filter((d) => d.picked !== false)));
   $('#btn-save').addEventListener('click', () => {
     const picked = state.drafts.filter((d) => d.picked !== false);
+    republishSoon('local');
     if (store.addSaved(picked)) toast(picked.length > 1 ? `${picked.length} Termine gemerkt.` : 'Termin gemerkt.');
     else toast('Speichern ist in diesem Browser nicht möglich (privater Modus?).');
     renderSaved();
@@ -1294,6 +1300,8 @@ function bind() {
 async function route() {
   const j = location.hash.match(/^#j=([\w-]+)/);
   if (j && handleJoinCode(j[1])) return;
+  const abo = location.hash.match(/^#abo=([\w-]+)/);
+  if (abo && handleAboCode(abo[1])) return;
   const m = location.hash.match(/^#t=([\w-]+)/);
   if (m) {
     const ev = decodeEvent(m[1]);
@@ -1314,10 +1322,16 @@ async function init() {
   bind();
   initHub({
     state, store, Native, isNative, toast, show, openShare, openMap, startManual, openInvite: (id) => openFamilyInvite(id),
+    shareCalendar: (cal) => openShareCalendar(cal), isAbo: (id) => !!getAbos()[id], republish: (id) => republishSoon(id),
     saveSettings: (s) => {
       state.settings = s;
       store.setSettings(s);
     },
+  });
+  initAbo({
+    state, store, Native, isNative, toast, show, config: CONFIG,
+    openInvite: (id) => openFamilyInvite(id),
+    publicUrl: () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname),
   });
   initSetup({
     state, store, Native, isNative, toast, show, applySimple,
@@ -1335,6 +1349,7 @@ async function init() {
   renderProviders();
   renderMode();
   await route();
+  republishStale().catch(() => {});
   if (!isNative && 'serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }

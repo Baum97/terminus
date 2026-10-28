@@ -1064,4 +1064,17 @@ public class TerminusPlugin extends Plugin {
         r.put("requested", wm.isRequestPinAppWidgetSupported() && wm.requestPinAppWidget(new android.content.ComponentName(getContext(), TerminusWidget.class), null, null));
         call.resolve(r);
     }
+
+    @PluginMethod
+    public void exportCalendar(PluginCall call) {
+        if (getPermissionState("calendar") != PermissionState.GRANTED) {
+            call.reject("Kein Zugriff auf den Kalender.", "denied");
+            return;
+        }
+        try {
+            call.resolve(Setup.exportCalendar(getContext(), Long.parseLong(call.getString("id"))));
+        } catch (Exception e) {
+            call.reject("Der Kalender konnte nicht gelesen werden.", e);
+        }
+    }
 }

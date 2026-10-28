@@ -301,6 +301,36 @@
       <div id="join-body" class="join-body"></div>
     </section>
 
+    <!-- Kalender abonnieren (Empfänger) -->
+    <section id="view-abo" class="view" hidden>
+      <div>
+        <p class="eyebrow">Kalender-Abo</p>
+        <h2 class="page-h" id="abo-title">Kalender abonnieren</h2>
+        <p class="hint"><span id="abo-by"></span>Die Termine erscheinen in deiner eigenen Kalender-App und aktualisieren sich von selbst. Du brauchst kein Konto, und niemand sieht deine anderen Termine.</p>
+      </div>
+      <section class="panel">
+        <h3>In der Kalender-App des Handys</h3>
+        <div class="row">
+          <button class="btn primary" type="button" id="abo-terminus">Mit Terminus abonnieren</button>
+          <a class="btn primary web-only" id="abo-webcal">iPhone, Mac, Android (ICSx⁵)</a>
+        </div>
+        <p class="hint">Android: Abonnieren übernimmt die App ICSx⁵ (Open Source, kostenlos bei F-Droid).</p>
+        <div class="row" id="abo-icsx">
+          <a class="btn small" href="https://f-droid.org/packages/at.bitfire.icsdroid/" target="_blank" rel="noopener">ICSx⁵ bei F-Droid</a>
+          <a class="btn small" href="https://play.google.com/store/apps/details?id=at.bitfire.icsdroid" target="_blank" rel="noopener">im Play Store</a>
+        </div>
+      </section>
+      <section class="panel">
+        <h3>Andere Kalender</h3>
+        <div class="row">
+          <a class="btn" id="abo-outlook" target="_blank" rel="noopener">Outlook</a>
+          <a class="btn" id="abo-google" target="_blank" rel="noopener">Google Kalender</a>
+          <button class="btn" type="button" id="abo-copy">Adresse kopieren</button>
+        </div>
+        <pre class="cmd" data-label="Abo-Adresse" id="abo-url"></pre>
+      </section>
+    </section>
+
     <!-- Empfänger eines geteilten Termins -->
     <section id="view-received" class="view" hidden>
       <p class="eyebrow">Dir wurde ein Termin geschickt</p>
@@ -343,6 +373,61 @@
         <pre class="cmd" data-label="Link" id="invite-family-link"></pre>
         <button class="btn small" type="button" id="invite-family-copy">Link kopieren</button>
       </details>
+    </form>
+  </dialog>
+
+  <!-- Kalender teilen -->
+  <dialog id="dlg-share-cal" aria-labelledby="sc-title">
+    <form method="dialog" class="dlg">
+      <div class="dlg-head">
+        <h2 id="sc-title">Kalender teilen</h2>
+        <button class="btn ghost small" value="close" aria-label="Schließen">Schließen</button>
+      </div>
+      <div class="segmented two" role="tablist" aria-label="Art des Teilens">
+        <button type="button" role="tab" data-share-mode="abo">Abonnieren (nur lesen)</button>
+        <button type="button" role="tab" data-share-mode="edit">Mitbearbeiten</button>
+      </div>
+
+      <div id="sc-abo" class="sc-panel">
+        <p class="hint">Andere sehen nur diesen Kalender, in ihrer eigenen Kalender-App, ohne Konto. Änderungen kommen automatisch an. Ideal für Studiengang, Verein oder Klasse.</p>
+        <fieldset class="me">
+          <legend>Was wird geteilt?</legend>
+          <label class="check"><input type="checkbox" checked disabled> <span>Titel und Zeit (auch Serien und Ausfälle)</span></label>
+          <label class="check"><input type="checkbox" id="sc-location"> <span>Ort</span></label>
+          <label class="check"><input type="checkbox" id="sc-notes"> <span>Notizen</span></label>
+          <label class="check"><input type="checkbox" id="sc-bring"> <span>Mitbringliste (ohne Häkchen)</span></label>
+          <p class="hint">Nie geteilt: Für, Zuständig, Häkchen, Erinnerungen, Gäste.</p>
+        </fieldset>
+        <div id="sc-new">
+          <button class="btn primary" type="button" id="sc-create">Abo-Link erstellen</button>
+          <div class="error" id="sc-noserver" hidden>
+            <p>Für Abo-Links, die sich selbst aktualisieren, braucht Terminus einen Server. Trag ihn in den Einstellungen ein (Terminus-Server für Abo-Links).</p>
+            <p class="hint">Bis dahin kannst du die Termine als Datei schicken. Das ist ein Schnappschuss: spätere Änderungen kommen nicht an.</p>
+          </div>
+        </div>
+        <div id="sc-published" class="sc-published">
+          <figure class="qr-figure"><canvas id="sc-qr" width="520" height="520" aria-label="QR-Code zum Abonnieren"></canvas></figure>
+          <p class="hint" id="sc-updated"></p>
+          <button class="btn primary" type="button" id="sc-send">Abo-Link senden</button>
+          <details class="invite-link">
+            <summary>Link anzeigen</summary>
+            <pre class="cmd" data-label="Abo-Seite" id="sc-link"></pre>
+            <pre class="cmd" data-label="Direkt für Kalender-Apps" id="sc-direct"></pre>
+            <button class="btn small" type="button" id="sc-copy">Link kopieren</button>
+          </details>
+          <div class="row">
+            <button class="btn small" type="button" id="sc-update">Jetzt aktualisieren</button>
+            <button class="btn ghost small danger" type="button" id="sc-revoke">Link widerrufen</button>
+          </div>
+        </div>
+        <button class="btn small" type="button" id="sc-file">Als Kalenderdatei senden (Schnappschuss)</button>
+      </div>
+
+      <div id="sc-edit" class="sc-panel" hidden>
+        <p class="hint" id="sc-edit-hint"></p>
+        <button class="btn primary" type="button" id="sc-edit-invite">Zum Mitbearbeiten einladen</button>
+      </div>
+      <p class="step-msg" id="sc-msg" hidden></p>
     </form>
   </dialog>
 
@@ -530,6 +615,7 @@
         </div>
         <label class="check native-only"><input type="checkbox" id="s-lock"> <span>App-Sperre mit Fingerabdruck oder Display-Sperre</span></label>
       </fieldset>
+      <label class="field"><span>Terminus-Server für Abo-Links (optional)</span><input id="s-abo-server" type="url" inputmode="url" autocomplete="off" placeholder="https://terminus.beispiel.de"></label>
       <fieldset class="me">
         <legend>Sicherung</legend>
         <p class="hint">Personen, Familie, gemerkte Termine und Einstellungen als Datei, z. B. für ein neues Handy. Termine im Kalender sichert dein Kalender-Anbieter.</p>

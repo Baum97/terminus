@@ -8,7 +8,6 @@ import { publicHolidays, schoolHolidays } from './holidays.js';
 import { normalizeEvent, newId } from './events.js';
 import { parseICS, simpleRepeat } from './icsimport.js';
 import { readZip } from './unzip.js';
-import { inviteTarget } from './setupdata.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
@@ -258,29 +257,24 @@ async function openCalendarMenu() {
   const list = $('#calm-list');
   let cals = [];
   if (ctx.isNative && cal.granted) cals = (await ctx.Native.listCalendars().catch(() => ({ calendars: [] }))).calendars || [];
-  const setup = ctx.store.getSetup();
+  if (!ctx.isNative) cals = [{ id: 'local', name: 'Gemerkte Termine', account: 'auf diesem Gerät', color: '#2443C4' }];
   list.replaceChildren(...cals.map((c) => {
     const li = document.createElement('li');
     li.innerHTML = '<span class="c"></span><span class="x"><strong></strong><small></small></span>';
     $('.c', li).style.background = c.color || '#2443C4';
     $('strong', li).textContent = c.name;
     $('small', li).textContent = `${c.account}${c.id === ctx.state.settings.familyCalendarId ? ' · Familienkalender' : ''}`;
-    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'btn small', textContent: 'Einladen' });
-    if (inviteTarget(c, setup)) {
-      b.addEventListener('click', () => {
-        $('#dlg-calendars').close();
-        ctx.openInvite(c.id);
-      });
-    } else {
-      b.textContent = 'nicht teilbar';
-      b.disabled = true;
-      b.title = 'Nur Kalender, die DAVx⁵ synchronisiert, lassen sich teilen.';
-    }
+    // Teilen geht für jeden Kalender (Abonnieren); Mitbearbeiten nur für Kalender in einem teilbaren Konto
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'btn small', textContent: ctx.isAbo(c.id) ? 'Geteilt ✓' : 'Teilen' });
+    b.addEventListener('click', () => {
+      $('#dlg-calendars').close();
+      ctx.shareCalendar(c);
+    });
     li.append(b);
     return li;
   }));
   $('#calm-hint').textContent = ctx.isNative
-    ? cals.length ? 'Einladen geht für Kalender, die DAVx⁵ synchronisiert. Google-Kalender teilt Terminus nicht.' : 'Gib Terminus Zugriff auf den Kalender, dann erscheinen hier deine Kalender.'
+    ? cals.length ? 'Teilen: Andere abonnieren einen Kalender (nur lesen) oder bearbeiten ihn mit (gemeinsames Konto).' : 'Gib Terminus Zugriff auf den Kalender, dann erscheinen hier deine Kalender.'
     : 'In der Web-Version gibt es nur die gemerkten Termine. Den vollen Kalender zeigt die Android-App.';
   $('#dlg-calendars').showModal();
 }
@@ -308,6 +302,7 @@ function bindEventDialog() {
         ev.exdates = [...(ev.exdates || []), item.occurrence];
         ctx.store.addSaved([ev]);
       }
+      ctx.republish(item.calendarId);
       $('#dlg-event').close();
       ctx.toast('Dieser Termin fällt aus.');
       refresh();
@@ -326,6 +321,7 @@ function bindEventDialog() {
     try {
       if (item.source === 'device') await ctx.Native.deleteEvent({ id: item.id });
       else ctx.store.removeSaved(item.id);
+      ctx.republish(item.calendarId);
       $('#dlg-event').close();
       ctx.toast('Gelöscht.');
       refresh();
@@ -384,6 +380,7 @@ async function saveEdit() {
         ctx.store.addSaved([normalizeEvent({ ...ev, title, start, end, location, date: series ? ev.date : date })]);
       }
     }
+    ctx.republish(item.calendarId);
     $('#dlg-event').close();
     ctx.toast('Gespeichert.');
     refresh();

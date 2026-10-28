@@ -53,7 +53,7 @@ function zonedToMs(y, mo, d, h, mi, s, tz) {
   return ms;
 }
 
-function berlinParts(ms) {
+export function berlinParts(ms) {
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
     timeZone: BERLIN, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
   }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]));

@@ -454,3 +454,10 @@ pre.cmd::before { content: attr(data-label); position: absolute; top: 7px; left:
 #setup-verify { justify-self: start; }
 .claim { font: 800 var(--step-1)/1.2 var(--font-display); color: var(--pen); margin-top: 4px; }
 .foot strong { color: var(--ink); }
+
+/* Kalender teilen */
+.segmented.two { grid-template-columns: 1fr 1fr; }
+.sc-panel { display: grid; gap: 12px; }
+.sc-published { display: grid; gap: 10px; }
+#sc-qr { max-width: 15rem; }
+#sc-noserver { margin-top: 8px; }

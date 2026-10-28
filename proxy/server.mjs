@@ -8,6 +8,7 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createAboStore, AboError, MAX_ICS } from './abo.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('../www', import.meta.url)));
 const PORT = +(process.env.PORT || 8080);
@@ -20,6 +21,11 @@ const DAILY_LIMIT = +(process.env.DAILY_LIMIT || 30);
 const MAX_BODY = 8 * 1024 * 1024;
 const AI_ENABLED = Boolean(LLM_KEY || process.env.LLM_URL);
 // Die Android-App läuft unter https://localhost und darf die KI-Schnittstelle nutzen.
+// Abo-Links für Kalender: Speicherort und öffentliche Adresse (sonst aus dem Host-Header)
+const ABO_DIR = resolve(process.env.ABO_DIR || fileURLToPath(new URL('../data/abo', import.meta.url)));
+const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/+$/, '');
+const ABO_DAILY = +(process.env.ABO_DAILY || 20);
+const abos = createAboStore(ABO_DIR);
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'https://localhost,capacitor://localhost').split(',').map((o) => o.trim()).filter(Boolean);
 
 const TYPES = {
@@ -43,17 +49,75 @@ function allow(ip) {
   return n <= DAILY_LIMIT;
 }
 
+const aboUsage = new Map();
+let aboDay = new Date().toDateString();
+function allowAbo(ip) {
+  const today = new Date().toDateString();
+  if (today !== aboDay) {
+    aboUsage.clear();
+    aboDay = today;
+  }
+  const n = (aboUsage.get(ip) || 0) + 1;
+  aboUsage.set(ip, n);
+  return n <= ABO_DAILY;
+}
+
+function publicBase(req) {
+  if (PUBLIC_URL) return PUBLIC_URL;
+  const proto = (req.headers['x-forwarded-proto'] || '').split(',')[0] || (req.socket.encrypted ? 'https' : 'http');
+  return `${proto}://${req.headers['x-forwarded-host'] || req.headers.host}`;
+}
+
+async function abo(req, res, id) {
+  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress;
+  const key = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  try {
+    if (req.method === 'POST' && !id) {
+      if (!allowAbo(ip)) return send(res, 429, { error: 'Tageslimit für neue Abos erreicht.' });
+      const created = await abos.create(await readBody(req, MAX_ICS + 4096));
+      return send(res, 201, { ...created, url: `${publicBase(req)}/abo/${created.id}.ics` });
+    }
+    if (req.method === 'PUT' && id) {
+      await abos.update(id, key, await readBody(req, MAX_ICS + 4096));
+      return send(res, 200, { id, url: `${publicBase(req)}/abo/${id}.ics` });
+    }
+    if (req.method === 'DELETE' && id) {
+      await abos.remove(id, key);
+      res.writeHead(204);
+      return res.end();
+    }
+    return send(res, 405, { error: 'Methode nicht erlaubt.' });
+  } catch (e) {
+    return send(res, e instanceof AboError ? e.status : e.status || 400, { error: e.message || 'Ungültige Anfrage.' });
+  }
+}
+
+async function aboFile(req, res, id) {
+  try {
+    const { ics, updated } = await abos.get(id);
+    res.writeHead(200, {
+      'Content-Type': 'text/calendar; charset=utf-8',
+      'Cache-Control': 'public, max-age=300',
+      'Last-Modified': new Date(updated).toUTCString(),
+      'X-Content-Type-Options': 'nosniff',
+    });
+    res.end(req.method === 'HEAD' ? undefined : ics);
+  } catch {
+    send(res, 404, 'Dieses Kalender-Abo gibt es nicht (mehr).', 'text/plain; charset=utf-8');
+  }
+}
+
 function send(res, status, body, type = 'application/json') {
   res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store' });
   res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
 
-async function readBody(req) {
+async function readBody(req, max = MAX_BODY) {
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > MAX_BODY) throw Object.assign(new Error('zu groß'), { status: 413 });
+    if (size > max) throw Object.assign(new Error('Zu groß.'), { status: 413 });
     chunks.push(chunk);
   }
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
@@ -119,14 +183,18 @@ createServer(async (req, res) => {
   if (pathname.startsWith('/api/') && CORS_ORIGINS.includes(req.headers.origin)) {
     res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
     res.setHeader('Vary', 'Origin');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
       return res.end();
     }
   }
-  if (pathname === '/api/health') return send(res, 200, { ok: AI_ENABLED });
+  if (pathname === '/api/health') return send(res, 200, { ok: AI_ENABLED, abo: true });
+  const aboApi = pathname.match(/^\/api\/abo(?:\/([A-Za-z0-9_-]{22}))?$/);
+  if (aboApi) return abo(req, res, aboApi[1]);
+  const aboGet = pathname.match(/^\/abo\/([A-Za-z0-9_-]{22})\.ics$/);
+  if (aboGet && (req.method === 'GET' || req.method === 'HEAD')) return aboFile(req, res, aboGet[1]);
   if (pathname === '/api/chat' && req.method === 'POST') return chat(req, res);
   // Android "Teilen an": nur der Service Worker nimmt das an; ohne ihn zurück zur App.
   if (pathname === '/share-target') {

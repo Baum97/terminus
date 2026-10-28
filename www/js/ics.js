@@ -2,7 +2,7 @@
 import { addDays, addMinutes, toMinutes, fromISO } from './dates.js';
 import { describeEvent } from './desc.js';
 
-const VTIMEZONE = [
+export const VTIMEZONE = [
   'BEGIN:VTIMEZONE', 'TZID:Europe/Berlin',
   'BEGIN:DAYLIGHT', 'TZOFFSETFROM:+0100', 'TZOFFSETTO:+0200', 'TZNAME:CEST',
   'DTSTART:19700329T020000', 'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU', 'END:DAYLIGHT',
@@ -11,12 +11,12 @@ const VTIMEZONE = [
   'END:VTIMEZONE',
 ];
 
-const escapeText = (s) => String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+export const escapeText = (s) => String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
 const compactDate = (iso) => iso.replace(/-/g, '');
 const compactTime = (t) => t.replace(':', '') + '00';
 
 // Zeilen auf 75 Byte falten, ohne UTF-8-Zeichen zu zerschneiden.
-function fold(line) {
+export function fold(line) {
   const enc = new TextEncoder();
   if (enc.encode(line).length <= 75) return line;
   const parts = [];

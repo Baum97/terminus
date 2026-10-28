@@ -4,9 +4,10 @@ import { normalizeEvents } from './events.js';
 
 const VERSION = 1;
 
-export function buildBackup({ settings, people, family, saved }, now = new Date()) {
+// abos: veröffentlichte Kalender samt Bearbeitungsschlüssel, damit ein neues Handy sie weiter aktualisieren kann
+export function buildBackup({ settings, people, family, saved, abos = {} }, now = new Date()) {
   const { apiKey, ...safeSettings } = settings || {};
-  return JSON.stringify({ app: 'terminus', version: VERSION, created: now.toISOString(), settings: safeSettings, people, family, saved }, null, 2);
+  return JSON.stringify({ app: 'terminus', version: VERSION, created: now.toISOString(), settings: safeSettings, people, family, saved, abos }, null, 2);
 }
 
 // Liefert die geprüften Daten oder wirft einen Fehler mit verständlicher Meldung
@@ -26,6 +27,7 @@ export function parseBackup(text) {
     people: list(data.people).filter((p) => typeof p.name === 'string'),
     family: list(data.family).filter((m) => typeof m.name === 'string'),
     saved: normalizeEvents(list(data.saved)),
+    abos: data.abos && typeof data.abos === 'object' && !Array.isArray(data.abos) ? data.abos : {},
   };
 }
 
