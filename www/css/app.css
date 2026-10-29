@@ -459,5 +459,10 @@ pre.cmd::before { content: attr(data-label); position: absolute; top: 7px; left:
 .segmented.two { grid-template-columns: 1fr 1fr; }
 .sc-panel { display: grid; gap: 12px; }
 .sc-published { display: grid; gap: 10px; }
-#sc-qr { max-width: 15rem; }
+#sc-qr, #sc-k-qr { max-width: 15rem; }
+.sc-kanal { display: grid; gap: 10px; }
+.sc-kanal h3, #calm-subs-box h3 { margin: 0; }
+#sc-k-send, #sc-k-stop { justify-self: start; }
+#calm-subs-box { display: grid; gap: 8px; }
+.banner { display: block; width: 100%; text-align: left; border: 0; border-radius: var(--r); padding: 10px 12px; background: var(--marker); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
 #sc-noserver { margin-top: 8px; }

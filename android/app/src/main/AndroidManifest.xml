@@ -24,12 +24,13 @@
 
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
 
-            <!-- Familie beitreten: terminus://join?… aus QR-Code oder Nachricht -->
+            <!-- Familie beitreten (terminus://join?…) und Kalender-Pakete (terminus://k?d=…) aus QR-Code oder Nachricht -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="terminus" android:host="join" />
+                <data android:scheme="terminus" android:host="k" />
             </intent-filter>
 
             <!-- Teilen an Terminus: Fotos, Screenshots und Text (z. B. aus WhatsApp) -->
