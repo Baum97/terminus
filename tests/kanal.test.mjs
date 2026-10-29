@@ -47,3 +47,34 @@ test('Neuere Stände ersetzen ältere, alte Links ändern nichts', async () => {
   assert.equal(judge(v1, { publicKey: ch.publicKey, seq: 200 }).action, 'current');
   assert.equal(judge(v2, { publicKey: ch.publicKey, seq: 200 }).reason, 'Du hast diesen Stand schon.');
 });
+
+test('Ausfälle und verschobene Serientermine kommen beim Empfänger an', () => {
+  const start = Date.UTC(2026, 10, 3, 9, 0); // Di 3.11.2026 10:00 Berlin
+  const series = [
+    { id: '1', title: 'Seminar', start, duration: 'P5400S', rrule: 'FREQ=WEEKLY;COUNT=10', allDay: false, location: 'Raum 2', description: '', exdate: '20261110T090000Z' },
+    { id: '2', originalId: '1', originalTime: start + 14 * 86400000, cancelled: true },
+    { id: '3', originalId: '1', originalTime: start + 21 * 86400000, title: 'Seminar (verlegt)', start: start + 22 * 86400000, end: start + 22 * 86400000 + 5400000, allDay: false, location: 'Raum 5', description: '' },
+  ];
+  const ics = aboFromDevice(series, { name: 'S', calendarId: '1' });
+  const { events } = parseICS(ics, { exceptions: true });
+  assert.equal(events.length, 2);
+  const [master, moved] = events;
+  assert.equal(master.rrule, 'FREQ=WEEKLY;COUNT=10');
+  assert.deepEqual(master.exdate.split(',').sort(), ['20261110T090000Z', '20261117T090000Z', '20261124T090000Z']);
+  assert.deepEqual([moved.title, moved.date, moved.start, moved.location, moved.rrule], ['Seminar (verlegt)', '2026-11-25', '10:00', 'Raum 5', '']);
+  // Ohne Option bleibt der Umzugs-Import wie bisher
+  assert.equal(parseICS(ics).events.length, 1);
+  assert.equal(parseICS(ics).events[0].exdate, undefined);
+});
+
+test('Sicherung: eigene Kanäle bleiben, Abos werden auf dem neuen Handy neu angelegt', async () => {
+  const { buildBackup, parseBackup } = await import('../www/js/backup.js');
+  const json = buildBackup({ settings: {}, people: [], family: [], saved: [], kanaele: {
+    own: { 7: { channel: 'abc', publicKey: 'pk', privateJwk: { d: 'x' }, seq: 5 } },
+    subs: { xyz: { publicKey: 'PK', seq: 99, calendarId: '12', name: 'Uni' }, bad: { seq: 1 } },
+  } });
+  const b = parseBackup(json);
+  assert.equal(b.kanaele.own[7].privateJwk.d, 'x');
+  assert.deepEqual(b.kanaele.subs, { xyz: { publicKey: 'PK', seq: 0, calendarId: null, name: 'Uni' } });
+  assert.deepEqual(parseBackup(buildBackup({ settings: {} })).kanaele, { own: {}, subs: {} });
+});

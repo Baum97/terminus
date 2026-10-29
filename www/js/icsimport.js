@@ -86,8 +86,10 @@ const isoAdd = (iso, days) => {
   return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
 };
 
-// Liefert { events, skipped }. events: { title, date, endDate, start, end, location, description, rrule }
-export function parseICS(text) {
+// Liefert { events, skipped }. events: { title, date, endDate, start, end, location, description, rrule, exdate }
+// Mit { exceptions: true } werden verschobene Einzeltermine einer Serie als eigene Termine übernommen
+// und an der Serie ausgelassen (für abonnierte Kalender, die komplett ersetzt werden).
+export function parseICS(text, { exceptions = false } = {}) {
   const events = [];
   let skipped = 0;
   let cur = null;
@@ -101,22 +103,44 @@ export function parseICS(text) {
     if (!cur) continue;
     if (/^BEGIN:/i.test(line)) depth++;
     else if (/^END:VEVENT/i.test(line)) {
-      const ev = finish(cur);
+      const ev = finish(cur, exceptions);
       if (ev) events.push(ev);
       else skipped++;
       cur = null;
     } else if (/^END:/i.test(line)) depth--;
     else if (depth === 0) {
       const p = parseProp(line);
-      if (p && !(p.name in cur)) cur[p.name] = p;
+      if (p?.name === 'EXDATE') (cur.EXDATES ||= []).push(p);
+      else if (p && !(p.name in cur)) cur[p.name] = p;
     }
   }
+  if (exceptions) attachExceptions(events);
   return { events, skipped };
 }
 
-function finish(c) {
-  // Abgesagte Termine und Ausnahmen einzelner Serientermine überspringen wir.
-  if (!c.DTSTART || c['RECURRENCE-ID'] || /CANCELLED/i.test(c.STATUS?.value || '')) return null;
+// Ausnahme → EXDATE an der Serie mit derselben UID, Ausnahme selbst wird ein Einzeltermin.
+function attachExceptions(events) {
+  const masters = new Map(events.filter((e) => e.rrule && e.uid).map((e) => [e.uid, e]));
+  for (const e of events) {
+    if (!e.recurrenceId) continue;
+    const m = masters.get(e.uid);
+    if (m) m.exdate = [m.exdate, e.recurrenceId].filter(Boolean).join(',');
+    delete e.recurrenceId;
+  }
+}
+
+// Zeitpunkte einer EXDATE- oder RECURRENCE-ID-Zeile als UTC-Stempel wie "20261222T150000Z"
+function utcStamps(prop) {
+  return prop.value.split(',').map((v) => {
+    const d = parseDate({ ...prop, value: v });
+    if (!d) return null;
+    return d.allDay ? `${d.date.replace(/-/g, '')}T000000Z` : new Date(d.ms).toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+  }).filter(Boolean);
+}
+
+function finish(c, exceptions) {
+  // Abgesagte Termine überspringen wir, Ausnahmen einzelner Serientermine nur ohne { exceptions }.
+  if (!c.DTSTART || (c['RECURRENCE-ID'] && !exceptions) || /CANCELLED/i.test(c.STATUS?.value || '')) return null;
   const start = parseDate(c.DTSTART);
   if (!start) return null;
   const end = c.DTEND ? parseDate(c.DTEND) : null;
@@ -128,6 +152,11 @@ function finish(c) {
     rrule: c.RRULE ? c.RRULE.value.trim() : '',
     start: null, end: null, endDate: null,
   };
+  if (exceptions) {
+    ev.uid = c.UID?.value || '';
+    if (c['RECURRENCE-ID']) ev.recurrenceId = utcStamps(c['RECURRENCE-ID'])[0];
+    if (ev.rrule && c.EXDATES) ev.exdate = c.EXDATES.flatMap(utcStamps).join(',');
+  }
   if (start.allDay) {
     ev.date = start.date;
     // DTEND ist bei ganztägigen Terminen exklusiv.

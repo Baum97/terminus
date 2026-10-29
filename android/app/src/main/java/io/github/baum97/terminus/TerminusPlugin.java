@@ -102,9 +102,9 @@ public class TerminusPlugin extends Plugin {
             intent.setAction(null);
             return true;
         }
-        // Beitritt zur Familie: terminus://join?…
+        // Beitritt zur Familie: terminus://join?…, Kalender-Paket: terminus://k?d=…
         if (Intent.ACTION_VIEW.equals(a) && intent.getData() != null && "terminus".equals(intent.getData().getScheme())) {
-            pendingAction = "join";
+            pendingAction = "k".equals(intent.getData().getHost()) ? "kanal" : "join";
             pendingText = intent.getData().toString();
             intent.setAction(null);
             return true;
@@ -136,8 +136,8 @@ public class TerminusPlugin extends Plugin {
         JSObject result = new JSObject();
         try {
             if (pendingImage != null) result.put("image", imageDataUrl(pendingImage));
-            else if ("join".equals(pendingAction)) {
-                result.put("action", "join");
+            else if ("join".equals(pendingAction) || "kanal".equals(pendingAction)) {
+                result.put("action", pendingAction);
                 result.put("link", pendingText);
             } else if (pendingText != null) result.put("text", pendingText);
             else if (pendingAction != null) result.put("action", pendingAction);
@@ -367,6 +367,9 @@ public class TerminusPlugin extends Plugin {
             return;
         }
         ContentResolver resolver = getContext().getContentResolver();
+        // Abonnierte Kalender sind schreibgeschützt; nur Terminus selbst füllt sie (als Sync-Adapter).
+        boolean subscribed = isSubscription(calendarId);
+        Uri eventsUri = subscribed ? asSyncAdapter(Events.CONTENT_URI) : Events.CONTENT_URI;
         int count = 0;
         try {
             for (int i = 0; i < events.length(); i++) {
@@ -391,10 +394,10 @@ public class TerminusPlugin extends Plugin {
                 }
                 v.put(Events.ALL_DAY, allDay ? 1 : 0);
                 v.put(Events.EVENT_TIMEZONE, allDay ? "UTC" : BERLIN);
-                Uri uri = resolver.insert(Events.CONTENT_URI, v);
+                Uri uri = resolver.insert(eventsUri, v);
                 if (uri == null) continue;
                 count++;
-                JSONArray reminders = ev.optJSONArray("reminders");
+                JSONArray reminders = subscribed ? null : ev.optJSONArray("reminders");
                 for (int k = 0; reminders != null && k < reminders.length(); k++) {
                     ContentValues r = new ContentValues();
                     r.put(Reminders.EVENT_ID, Long.parseLong(uri.getLastPathSegment()));
@@ -415,6 +418,7 @@ public class TerminusPlugin extends Plugin {
     }
 
     private long pickCalendar(String wanted) {
+        if (wanted != null && wanted.matches("\\d+") && isSubscription(Long.parseLong(wanted))) return Long.parseLong(wanted);
         JSONArray list = calendars().optJSONArray("calendars");
         long first = -1, primary = -1;
         for (int i = 0; list != null && i < list.length(); i++) {
@@ -1075,6 +1079,125 @@ public class TerminusPlugin extends Plugin {
             call.resolve(Setup.exportCalendar(getContext(), Long.parseLong(call.getString("id"))));
         } catch (Exception e) {
             call.reject("Der Kalender konnte nicht gelesen werden.", e);
+        }
+    }
+
+    /* ---------- Abonnierte Kalender (Kalender-Pakete) ---------- */
+
+    // Jedes Abo bekommt einen eigenen, schreibgeschützten Kalender auf dem Gerät. Ein Update ersetzt ihn komplett.
+    private static final String SUB_ACCOUNT = "Terminus";
+    private static final String SUB_PREFIX = "terminus:k:";
+
+    private static Uri asSyncAdapter(Uri uri) {
+        return uri.buildUpon()
+            .appendQueryParameter(CalendarContract.CALLER_IS_SYNCADAPTER, "true")
+            .appendQueryParameter(Calendars.ACCOUNT_NAME, SUB_ACCOUNT)
+            .appendQueryParameter(Calendars.ACCOUNT_TYPE, CalendarContract.ACCOUNT_TYPE_LOCAL)
+            .build();
+    }
+
+    private boolean isSubscription(long id) {
+        String[] projection = { Calendars.NAME, Calendars.ACCOUNT_TYPE, Calendars.ACCOUNT_NAME };
+        try (Cursor c = getContext().getContentResolver().query(ContentUris.withAppendedId(Calendars.CONTENT_URI, id), projection, null, null, null)) {
+            return c != null && c.moveToFirst() && c.getString(0) != null && c.getString(0).startsWith(SUB_PREFIX)
+                && CalendarContract.ACCOUNT_TYPE_LOCAL.equals(c.getString(1)) && SUB_ACCOUNT.equals(c.getString(2));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private long findSubscription(String key) {
+        String where = Calendars.ACCOUNT_TYPE + "=? AND " + Calendars.ACCOUNT_NAME + "=? AND " + Calendars.NAME + "=?";
+        String[] args = { CalendarContract.ACCOUNT_TYPE_LOCAL, SUB_ACCOUNT, SUB_PREFIX + key };
+        try (Cursor c = getContext().getContentResolver().query(Calendars.CONTENT_URI, new String[] { Calendars._ID }, where, args, null)) {
+            return c != null && c.moveToFirst() ? c.getLong(0) : -1;
+        }
+    }
+
+    @PluginMethod
+    public void ensureLocalCalendar(PluginCall call) {
+        if (getPermissionState("calendar") != PermissionState.GRANTED) {
+            requestPermissionForAlias("calendar", call, "ensureLocalAfterPermission");
+            return;
+        }
+        doEnsureLocal(call);
+    }
+
+    @PermissionCallback
+    private void ensureLocalAfterPermission(PluginCall call) {
+        if (getPermissionState("calendar") == PermissionState.GRANTED) doEnsureLocal(call);
+        else call.reject("Ohne Kalenderzugriff kann Terminus den Kalender nicht anlegen.", "denied");
+    }
+
+    private void doEnsureLocal(PluginCall call) {
+        String key = call.getString("key", "");
+        if (!key.matches("[\\w-]{4,64}")) {
+            call.reject("Ungültige Kennung.");
+            return;
+        }
+        String name = call.getString("name", "Abo");
+        int color;
+        try {
+            color = 0xFF000000 | Integer.parseInt(call.getString("color", "#2443C4").replace("#", ""), 16);
+        } catch (Exception e) {
+            color = 0xFF2443C4;
+        }
+        ContentResolver resolver = getContext().getContentResolver();
+        try {
+            long id = findSubscription(key);
+            ContentValues v = new ContentValues();
+            v.put(Calendars.CALENDAR_DISPLAY_NAME, name);
+            v.put(Calendars.CALENDAR_COLOR, color);
+            if (id < 0) {
+                v.put(Calendars.ACCOUNT_NAME, SUB_ACCOUNT);
+                v.put(Calendars.ACCOUNT_TYPE, CalendarContract.ACCOUNT_TYPE_LOCAL);
+                v.put(Calendars.NAME, SUB_PREFIX + key);
+                v.put(Calendars.OWNER_ACCOUNT, SUB_ACCOUNT);
+                v.put(Calendars.CALENDAR_ACCESS_LEVEL, Calendars.CAL_ACCESS_READ);
+                v.put(Calendars.CALENDAR_TIME_ZONE, BERLIN);
+                v.put(Calendars.VISIBLE, 1);
+                v.put(Calendars.SYNC_EVENTS, 1);
+                Uri uri = resolver.insert(asSyncAdapter(Calendars.CONTENT_URI), v);
+                if (uri == null) throw new IllegalStateException("Kalender wurde nicht angelegt");
+                id = Long.parseLong(uri.getLastPathSegment());
+            } else {
+                resolver.update(asSyncAdapter(ContentUris.withAppendedId(Calendars.CONTENT_URI, id)), v, null, null);
+            }
+            JSObject r = new JSObject();
+            r.put("id", String.valueOf(id));
+            call.resolve(r);
+        } catch (Exception e) {
+            call.reject("Der Kalender konnte nicht angelegt werden: " + e.getMessage(), e);
+        }
+    }
+
+    // Leert einen abonnierten Kalender vor dem Einspielen des neuen Stands. Andere Kalender bleiben unberührt.
+    @PluginMethod
+    public void clearCalendar(PluginCall call) {
+        try {
+            long id = Long.parseLong(call.getString("id", "-1"));
+            if (!isSubscription(id)) {
+                call.reject("Nur abonnierte Kalender können geleert werden.");
+                return;
+            }
+            int n = getContext().getContentResolver().delete(asSyncAdapter(Events.CONTENT_URI), Events.CALENDAR_ID + "=?", new String[] { String.valueOf(id) });
+            JSObject r = new JSObject();
+            r.put("count", n);
+            call.resolve(r);
+        } catch (Exception e) {
+            call.reject("Der Kalender konnte nicht geleert werden.", e);
+        }
+    }
+
+    @PluginMethod
+    public void deleteLocalCalendar(PluginCall call) {
+        try {
+            long id = Long.parseLong(call.getString("id", "-1"));
+            if (isSubscription(id)) getContext().getContentResolver().delete(asSyncAdapter(ContentUris.withAppendedId(Calendars.CONTENT_URI, id)), null, null);
+            TerminusWidget.refresh(getContext());
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Der Kalender konnte nicht entfernt werden.", e);
         }
     }
 }

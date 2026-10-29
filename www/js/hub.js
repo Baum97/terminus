@@ -99,12 +99,18 @@ async function loadItems(from, to) {
     try {
       const r = await ctx.Native.findEvents({ from: localMs(from), to: localMs(addDays(to, 1)) });
       cal.granted = r.granted;
-      items.push(...r.events.map(fromDevice));
+      const subscribed = ctx.subscribedCalendarIds();
+      items.push(...r.events.map(fromDevice).map((it) => (subscribed.has(it.calendarId) ? { ...it, readOnly: true } : it)));
     } catch {
       cal.granted = false;
     }
   } else {
     for (const ev of ctx.store.getSaved()) items.push(...fromLocal(ev, from, to));
+    for (const sub of ctx.webSubscriptionEvents()) {
+      for (const ev of sub.events) {
+        items.push(...fromLocal(ev, from, to).map((it) => ({ ...it, key: `k:${sub.channel}:${it.key}`, source: 'abo', calendarId: `k:${sub.channel}`, calendar: sub.name, color: sub.color, readOnly: true })));
+      }
+    }
   }
   if (ctx.state.settings.showBirthdays !== false) items.push(...birthdayItems((await birthdays()) || [], from, to));
   return items;
@@ -273,10 +279,42 @@ async function openCalendarMenu() {
     li.append(b);
     return li;
   }));
+  renderSubscriptions();
   $('#calm-hint').textContent = ctx.isNative
     ? cals.length ? 'Teilen: Andere abonnieren einen Kalender (nur lesen) oder bearbeiten ihn mit (gemeinsames Konto).' : 'Gib Terminus Zugriff auf den Kalender, dann erscheinen hier deine Kalender.'
     : 'In der Web-Version gibt es nur die gemerkten Termine. Den vollen Kalender zeigt die Android-App.';
   $('#dlg-calendars').showModal();
+}
+
+// Per Nachricht abonnierte Kalender: nur lesen, beenden entfernt den Kalender vom Gerät
+function renderSubscriptions() {
+  const subs = Object.entries(ctx.subscriptions());
+  $('#calm-subs-box').hidden = !subs.length;
+  $('#calm-subs').replaceChildren(...subs.map(([channel, s]) => {
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="c"></span><span class="x"><strong></strong><small></small></span>';
+    $('.c', li).style.background = 'var(--ink-soft)';
+    $('strong', li).textContent = s.name;
+    $('small', li).textContent = `${s.by ? `von ${s.by} · ` : ''}${s.count} Termine · Stand ${new Date(s.seq).toLocaleDateString('de-DE')}`;
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'btn ghost small danger', textContent: 'Beenden' });
+    b.addEventListener('click', async () => {
+      if (b.dataset.confirm !== '1') {
+        b.dataset.confirm = '1';
+        b.textContent = 'Wirklich?';
+        return;
+      }
+      try {
+        await ctx.endSubscription(channel);
+        ctx.toast(`„${s.name}“ beendet. Die Termine sind entfernt.`);
+        renderSubscriptions();
+        renderCalendar();
+      } catch (e) {
+        ctx.toast(e.message || 'Das hat nicht geklappt.');
+      }
+    });
+    li.append(b);
+    return li;
+  }));
 }
 
 /* ---------- Termin-Detail ---------- */
@@ -439,9 +477,14 @@ function openEvent(item) {
   }
   $('#ev-series').hidden = !item.recurring;
   fillEdit(item);
-  $('#ev-delete-one').hidden = !item.recurring || item.birthday;
-  const editable = !item.birthday;
-  $('#ev-share').hidden = !editable;
+  const editable = !item.birthday && !item.readOnly;
+  $('#ev-delete-one').hidden = !item.recurring || !editable;
+  $('#ev-edit').hidden = !editable;
+  if (item.readOnly) {
+    $('#ev-family').hidden = true;
+    for (const box of document.querySelectorAll('#ev-bring input, #ev-done')) box.disabled = true;
+  } else for (const box of document.querySelectorAll('#ev-bring input, #ev-done')) box.disabled = false;
+  $('#ev-share').hidden = !!item.birthday;
   $('#ev-open').hidden = item.source !== 'device';
   const del = $('#ev-delete');
   del.hidden = !editable;

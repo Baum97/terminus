@@ -12,7 +12,8 @@ import { CONFIG } from './config.js';
 import { isNative, Native } from './native.js';
 import { initHub, onShow, invalidateBirthdays } from './hub.js';
 import { quickParse } from './quick.js';
-import { initAbo, openShareCalendar, getAbos, setAbos, republishSoon, republishStale, handleAboCode } from './abo.js';
+import { initAbo, openShareCalendar, getAbos, setAbos, republishSoon, republishStale, handleAboCode, buildIcs } from './abo.js';
+import { initKanal, handleKanalCode, getSubscriptions, setSubscriptions, getOwnChannels, setOwnChannels, endSubscription, webSubscriptionEvents, subscribedCalendarIds } from './kanalui.js';
 import { initSetup, renderSetup, setupNeeded, setupSummary, openInvite as openFamilyInvite, handleJoinCode, handleJoinLink } from './setup.js';
 import { berlinUtcStamp } from './icsimport.js';
 import { buildBackup, parseBackup, backupFileName } from './backup.js';
@@ -44,7 +45,7 @@ const state = {
 
 /* ---------- Ansichten ---------- */
 
-const TAB_OF = { abo: 'calendar', home: 'home', busy: 'home', review: 'home', calendar: 'calendar', tasks: 'tasks', family: 'family', migrate: 'family', setup: 'family', join: 'family' };
+const TAB_OF = { abo: 'calendar', kanal: 'calendar', home: 'home', busy: 'home', review: 'home', calendar: 'calendar', tasks: 'tasks', family: 'family', migrate: 'family', setup: 'family', join: 'family' };
 
 function show(view) {
   for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== `view-${view}`;
@@ -1036,6 +1037,10 @@ async function takeNativeShare() {
       handleJoinLink(shared.link);
       return true;
     }
+    if (shared.action === 'kanal') {
+      const d = new URL(shared.link).searchParams.get('d');
+      if (d) return handleKanalCode(d);
+    }
     if (shared.action === 'calendar') {
       show('calendar');
       return true;
@@ -1097,7 +1102,7 @@ function applySimple() {
 let pendingBackup = null;
 
 function saveBackup() {
-  const json = buildBackup({ settings: state.settings, people: store.getPeople(), family: store.getFamily(), saved: store.getSaved(), abos: getAbos() });
+  const json = buildBackup({ settings: state.settings, people: store.getPeople(), family: store.getFamily(), saved: store.getSaved(), abos: getAbos(), kanaele: { own: getOwnChannels(), subs: getSubscriptions() } });
   const name = backupFileName();
   if (isNative) {
     const base64 = btoa(String.fromCharCode(...new TextEncoder().encode(json)));
@@ -1132,6 +1137,8 @@ function applyBackup() {
   store.setPeople(b.people);
   store.setFamily(b.family);
   if (b.abos) setAbos(b.abos);
+  if (Object.keys(b.kanaele.own).length) setOwnChannels({ ...getOwnChannels(), ...b.kanaele.own });
+  if (Object.keys(b.kanaele.subs).length) setSubscriptions({ ...b.kanaele.subs, ...getSubscriptions() });
   store.clearSaved();
   store.addSaved(b.saved);
   state.settings = { ...state.settings, ...b.settings, apiKey: state.settings.apiKey };
@@ -1302,6 +1309,8 @@ async function route() {
   if (j && handleJoinCode(j[1])) return;
   const abo = location.hash.match(/^#abo=([\w-]+)/);
   if (abo && handleAboCode(abo[1])) return;
+  const k = location.hash.match(/^#k=([\w.-]+)/);
+  if (k && (await handleKanalCode(k[1]))) return;
   const m = location.hash.match(/^#t=([\w-]+)/);
   if (m) {
     const ev = decodeEvent(m[1]);
@@ -1323,6 +1332,7 @@ async function init() {
   initHub({
     state, store, Native, isNative, toast, show, openShare, openMap, startManual, openInvite: (id) => openFamilyInvite(id),
     shareCalendar: (cal) => openShareCalendar(cal), isAbo: (id) => !!getAbos()[id], republish: (id) => republishSoon(id),
+    subscriptions: getSubscriptions, endSubscription, webSubscriptionEvents, subscribedCalendarIds,
     saveSettings: (s) => {
       state.settings = s;
       store.setSettings(s);
@@ -1331,6 +1341,10 @@ async function init() {
   initAbo({
     state, store, Native, isNative, toast, show, config: CONFIG,
     openInvite: (id) => openFamilyInvite(id),
+    publicUrl: () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname),
+  });
+  initKanal({
+    state, Native, isNative, show, buildIcs, openShareCalendar,
     publicUrl: () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname),
   });
   initSetup({

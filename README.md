@@ -64,23 +64,36 @@ Jeder Schritt ist eine **Befehls-Karte**: eine kurze Erklärung, ein Code-Fenste
 
 Was Android nicht erlaubt, macht Terminus auch nicht heimlich: Apps installiert, bestätigt und meldet sich der Nutzer selbst an. Das Konto beim Anbieter legt man einmal selbst an. Der Assistent bleibt jederzeit über „Familie“ oder die Einstellungen erreichbar, auf dem Startbildschirm zeigt ein Hinweis den Stand („6 von 10 erledigt“).
 
-## Kalender teilen: abonnieren oder mitbearbeiten
+## Kalender teilen: verschicken, abonnieren oder mitbearbeiten
 
-Jeder Kalender lässt sich im Kalender-Menü (⋯ → „Teilen“) auf zwei Arten teilen:
+Jeder Kalender lässt sich im Kalender-Menü (⋯ → „Teilen“) teilen. Verschickt wird immer **der ganze Kalender**, nicht einzelne Termine:
 
-| | **Abonnieren** (nur lesen) | **Mitbearbeiten** |
-|---|---|---|
-| Für | Studiengang, Verein, Klasse, Kita | Familie, kleines Orga-Team |
-| Andere bekommen | nur diesen Kalender und nur die freigegebenen Felder | Zugang zum gemeinsamen Konto beim Anbieter |
-| Konto nötig | nein: iPhone, Android (ICSx⁵), Outlook, Google Kalender | ja, beim selben Anbieter |
-| Änderungen | kommen automatisch an | kommen automatisch an |
-| Beenden | „Link widerrufen“, dann ist der Link tot | Passwort ändern |
+| | **Per Nachricht verschicken** | **Abo-Link über Server** | **Mitbearbeiten** |
+|---|---|---|---|
+| Für | Studiengang, Verein, Klasse, Kita | wie links, auch für Outlook/Google | Familie, kleines Orga-Team |
+| Server nötig | **nein** | ja (Terminus-Server) | nein (Konto beim Anbieter) |
+| Andere bekommen | nur diesen Kalender und nur die freigegebenen Felder | dasselbe | Zugang zum gemeinsamen Konto |
+| Änderungen | per „Update senden“, ein Tipp beim Empfänger | kommen automatisch an | kommen automatisch an |
+| Empfänger | Terminus (Android, Web); iPhone/Outlook einmalig als Datei | iPhone, Android (ICSx⁵), Outlook, Google | gleiches Konto |
+| Beenden | Empfänger: ⋯ → „Beenden“; Absender: „Nicht mehr verschicken“ | „Link widerrufen“ | Passwort ändern |
 
-**Datensparsam:** Titel und Zeit (mit Serien und Ausfällen) werden immer geteilt. Ort, Notizen und Mitbringliste nur, wenn du sie anhakst. **Nie** geteilt werden „Für“, „Zuständig“, Häkchen, Erinnerungen und Gäste.
+**Datensparsam:** Titel und Zeit (mit Serien, Ausfällen und verschobenen Einzelterminen) werden immer geteilt. Ort, Notizen und Mitbringliste nur, wenn du sie anhakst. **Nie** geteilt werden „Für“, „Zuständig“, Häkchen, Erinnerungen und Gäste.
 
-Beispiel: Die Fachschaft trägt die Termine für das Semester in einen Kalender „Informatik WiSe 26/27“ ein, erstellt einen Abo-Link und zeigt den QR-Code in der Erstsemester-Gruppe. Jede Kommilitonin hat die Termine danach in ihrer eigenen Kalender-App, Raumänderungen inklusive, und niemand sieht etwas von den anderen Kalendern der Fachschaft.
+### Per Nachricht verschicken (ohne Server)
 
-**Technik:** Der Terminus-Server (`proxy/server.mjs`) speichert je Abo nur die freigegebene .ics-Datei unter einer zufälligen Adresse (128 Bit). Ändern und widerrufen darf nur, wer den Bearbeitungsschlüssel hat. Der bleibt auf dem Handy (und in der Sicherung), der Server kennt nur einen Hash davon. Terminus aktualisiert das Abo, sobald du in Terminus etwas änderst, und beim Öffnen der App höchstens stündlich, um Änderungen aus anderen Apps nachzuziehen. Ohne Server gibt es „Als Kalenderdatei senden“: ein Schnappschuss, der sich nicht aktualisiert.
+Beispiel: Die Fachschaft hat einen Kalender „Informatik WiSe 26/27“ und tippt auf „Kalender senden“. Terminus erzeugt einen Link und öffnet das Teilen-Menü; die Fachschaft schickt ihn in die Erstsemester-Gruppe (Signal, Threema, WhatsApp, E-Mail …). Wer ihn antippt, bekommt einen eigenen Kalender „Informatik WiSe 26/27“ mit allen Terminen. Ändert die Fachschaft später einen Raum, zeigt Terminus oben im Kalender „wurde geändert – Update senden“. Ein Tipp, und das Update steht in der Gruppe. Wer es antippt, hat den neuen Stand.
+
+- **Neue Mitglieder** brauchen nur die letzte Nachricht. Jeder Link enthält den kompletten Stand, verpasste Updates sind egal.
+- **Sicher:** Jedes Paket ist digital signiert (ECDSA P-256). Beim ersten Abonnieren merkt sich Terminus die Absender-Kennung (z. B. `EE42-18BA-14C6`). Updates mit anderer Kennung, veränderte Links und ältere Stände werden abgelehnt.
+- **Klein:** Der Kalender wird komprimiert; ein Semester mit 20 Vorlesungsreihen und Klausuren passt in einen Link mit rund 1 300 Zeichen. Kurze Kalender gibt es zusätzlich als QR-Code.
+- **Auf dem Android-Handy** legt Terminus je Abo einen eigenen, schreibgeschützten Kalender an. Ein Update ersetzt ihn komplett, die eigenen Termine bleiben unberührt. Er erscheint auch in jeder anderen Kalender-App.
+- Der Signierschlüssel liegt nur auf dem Handy des Absenders und in seiner Sicherung. Wer die Sicherung auf einem neuen Handy einspielt, kann weiter Updates senden.
+
+Technik: `#k=<Kopf>.<Inhalt>.<Signatur>`; Kopf = Kanal, Name, Absender, öffentlicher Schlüssel, Stand; Inhalt = deflate-komprimierte .ics-Datei (siehe `www/js/kanal.js`).
+
+### Abo-Link über einen Server
+
+Der Terminus-Server (`proxy/server.mjs`) speichert je Abo nur die freigegebene .ics-Datei unter einer zufälligen Adresse (128 Bit). Ändern und widerrufen darf nur, wer den Bearbeitungsschlüssel hat. Der bleibt auf dem Handy (und in der Sicherung), der Server kennt nur einen Hash davon. Terminus aktualisiert das Abo, sobald du in Terminus etwas änderst, und beim Öffnen der App höchstens stündlich, um Änderungen aus anderen Apps nachzuziehen. Zusätzlich gibt es „Als Kalenderdatei senden“: ein Schnappschuss, der sich nicht aktualisiert.
 
 Server-Einstellungen: `ABO_DIR` (Speicherort, Standard `data/abo`), `PUBLIC_URL` (öffentliche Adresse, z. B. `https://terminus.beispiel.de`), `ABO_DAILY` (neue Abos pro IP und Tag, Standard 20). In der App trägt man die Adresse unter Einstellungen → „Terminus-Server für Abo-Links“ ein.
 
@@ -197,6 +210,8 @@ www/                      Web-App, wird auch in die Android-App gepackt
   js/setupdata.js         Anbieter, App-Empfehlungen, Beitrittslinks, iPhone-Profil
   js/abo.js               Kalender teilen, Abo-Seite, automatisches Aktualisieren
   js/aboexport.js         Abo-Datei mit Feldauswahl
+  js/kanal.js             Kalender-Pakete: komprimieren, signieren, prüfen
+  js/kanalui.js           Kalender per Nachricht senden, empfangen, Update-Hinweis
   data/ferien.json        Schulferien, beim Build erzeugt
   js/native.js            Brücke zur Android-App
   js/config.js            öffentliche Adressen (Web-Version, Server)
@@ -217,6 +232,7 @@ scripts/ferien.mjs        lädt die Schulferien aller Bundesländer
 - Die APK ist mit einem öffentlichen Test-Schlüssel signiert. Für Play Store und F-Droid braucht es einen eigenen, geheimen Schlüssel.
 - **iPhone**: Die Web-Version kann nicht im iOS-Teilen-Menü erscheinen. Dort Screenshot machen und in Terminus „Bild oder Screenshot“ wählen.
 - **WhatsApp** öffnet sich mit fertiger Nachricht, absenden muss man selbst.
+- **Per Nachricht verschickte Kalender** aktualisieren sich erst, wenn man das Update antippt. iPhone-Nutzer ohne Terminus bekommen nur einen Schnappschuss als Datei; für automatische Updates dort braucht es einen Abo-Link über einen Server.
 - Die Erkennung ohne KI kann keine Handschrift lesen, versteht keine relativen Angaben wie „nächsten Freitag“ und übersetzt nicht.
 - Feiertage einzelner Gemeinden (z. B. Fronleichnam in Teilen Sachsens) fehlen.
 

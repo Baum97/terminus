@@ -2,6 +2,7 @@
 // Ein Abo-Link enthält nur diesen einen Kalender und nur die freigegebenen Felder.
 import { aboFromDevice, aboFromLocal, DEFAULT_FIELDS, encodeAbo, decodeAbo, subscribeLinks } from './aboexport.js';
 import { inviteTarget } from './setupdata.js';
+import { channelState, sendCalendar, markDirty, stopSending } from './kanalui.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const KEY = 'terminus.abos';
@@ -56,6 +57,8 @@ export function initAbo(c) {
     return 'Aktualisiert. Abonnenten sehen die Änderung beim nächsten Abgleich ihres Kalenders.';
   }));
   $('#sc-revoke').addEventListener('click', revoke);
+  $('#sc-k-send').addEventListener('click', () => run($('#sc-k-send'), sendKanal));
+  $('#sc-k-stop').addEventListener('click', stopKanal);
   $('#sc-send').addEventListener('click', sendAbo);
   $('#sc-copy').addEventListener('click', () => copy($('#sc-link').textContent));
   $('#sc-file').addEventListener('click', () => run($('#sc-file'), sendSnapshot));
@@ -93,6 +96,8 @@ export function openShareCalendar(cal, mode = 'abo') {
   $('#sc-msg').hidden = true;
   $('#sc-revoke').dataset.confirm = '';
   $('#sc-revoke').textContent = 'Link widerrufen';
+  $('#sc-k-stop').dataset.confirm = '';
+  $('#sc-k-qrbox').hidden = true;
   renderShare();
   $('#dlg-share-cal').showModal();
 }
@@ -115,6 +120,8 @@ async function renderShare() {
     ? 'Mitbearbeiten heißt: Zugang zum Konto, in dem der Kalender liegt. Gut für die Familie oder ein kleines Orga-Team, das sich das Konto teilt.'
     : 'Dieser Kalender liegt nicht in einem Konto, das Terminus teilen kann (z. B. Google oder nur auf dem Handy). Abonnieren geht trotzdem.';
 
+  renderKanal();
+  $('#sc-server').open = !!abo;
   $('#sc-published').hidden = !abo;
   $('#sc-new').hidden = !!abo;
   if (abo) {
@@ -142,9 +149,47 @@ function drawQR(canvas, text) {
   for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) g.fillRect(off + c * cell, off + r * cell, cell, cell);
 }
 
+/* ---------- Per Nachricht verschicken (ohne Server) ---------- */
+
+async function renderKanal() {
+  const cal = share.cal;
+  const state = await channelState(cal.id, cal.name, currentFields()).catch(() => null);
+  const info = $('#sc-k-state');
+  $('#sc-k-send').textContent = state ? 'Update senden' : 'Kalender senden';
+  $('#sc-k-stop').hidden = !state;
+  info.hidden = !state;
+  if (!state) return;
+  const sent = new Date(state.sent).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
+  info.textContent = state.changed ? `Seit dem letzten Senden (${sent}) geändert. Schick ein Update, damit alle den neuen Stand haben.` : `✓ Alle, die den letzten Link (${sent}) angetippt haben, sind aktuell.`;
+  info.classList.toggle('bad', state.changed);
+}
+
+async function sendKanal() {
+  const r = await sendCalendar(share.cal, currentFields());
+  $('#sc-k-qrbox').hidden = !r.qr;
+  if (r.qr) drawQR($('#sc-k-qr'), r.link);
+  await renderKanal();
+  return r.qr ? 'Gesendet. Wer danebensteht, kann auch den QR-Code scannen.' : 'Gesendet.';
+}
+
+function stopKanal() {
+  const b = $('#sc-k-stop');
+  if (b.dataset.confirm !== '1') {
+    b.dataset.confirm = '1';
+    b.textContent = 'Wirklich? Bisherige Abonnenten bekommen keine Updates mehr.';
+    return;
+  }
+  stopSending(share.cal.id);
+  b.dataset.confirm = '';
+  b.textContent = 'Nicht mehr verschicken';
+  $('#sc-k-qrbox').hidden = true;
+  renderKanal();
+}
+
 const currentFields = () => ({ location: $('#sc-location').checked, notes: $('#sc-notes').checked, bring: $('#sc-bring').checked });
 
 async function fieldsChanged() {
+  renderKanal();
   const abos = getAbos();
   const abo = abos[share.cal.id];
   if (!abo) return;
@@ -158,7 +203,7 @@ async function fieldsChanged() {
 
 /* ---------- Veröffentlichen ---------- */
 
-async function buildIcs(calId, name, fields) {
+export async function buildIcs(calId, name, fields) {
   if (calId === 'local') return aboFromLocal(ctx.store.getSaved(), { name, fields });
   const { events } = await ctx.Native.exportCalendar({ id: calId });
   return aboFromDevice(events, { name, calendarId: calId, fields });
@@ -248,6 +293,7 @@ const timers = new Map();
 
 // Nach Änderungen durch Terminus: kurz warten, dann einmal veröffentlichen
 export function republishSoon(calId) {
+  if (calId) markDirty(calId);
   if (!calId || !getAbos()[calId]) return;
   clearTimeout(timers.get(calId));
   timers.set(calId, setTimeout(() => publish(calId).catch(() => {}), 3000));
