@@ -17,6 +17,7 @@ import { initKanal, handleKanalCode, getSubscriptions, setSubscriptions, getOwnC
 import { initSetup, renderSetup, setupNeeded, setupSummary, openInvite as openFamilyInvite, handleJoinCode, handleJoinLink } from './setup.js';
 import { berlinUtcStamp, parseICS, simpleRepeat } from './icsimport.js';
 import { parseTicket, readEmail } from './dokument.js';
+import { initListen, renderListen, handleListCode, getLocalLists, setLocalLists } from './listenui.js';
 import { initUmfrage, handlePollCode, handleAnswerCode, handleRsvpCode, rsvpButtons, rsvpSummary } from './umfrageui.js';
 import { buildBackup, parseBackup, backupFileName } from './backup.js';
 
@@ -60,6 +61,7 @@ function show(view) {
   onShow(view);
   if (view === 'setup') renderSetup();
   if (view === 'home') renderSetupBanner();
+  if (view === 'tasks') renderListen();
 }
 
 async function renderSetupBanner() {
@@ -1130,7 +1132,7 @@ function applySimple() {
 let pendingBackup = null;
 
 function saveBackup() {
-  const json = buildBackup({ settings: state.settings, people: store.getPeople(), family: store.getFamily(), saved: store.getSaved(), abos: getAbos(), kanaele: { own: getOwnChannels(), subs: getSubscriptions() } });
+  const json = buildBackup({ settings: state.settings, people: store.getPeople(), family: store.getFamily(), saved: store.getSaved(), abos: getAbos(), kanaele: { own: getOwnChannels(), subs: getSubscriptions() }, listen: getLocalLists() });
   const name = backupFileName();
   if (isNative) {
     const base64 = btoa(String.fromCharCode(...new TextEncoder().encode(json)));
@@ -1166,6 +1168,7 @@ function applyBackup() {
   store.setFamily(b.family);
   if (b.abos) setAbos(b.abos);
   if (Object.keys(b.kanaele.own).length) setOwnChannels({ ...getOwnChannels(), ...b.kanaele.own });
+  if (b.listen.length) setLocalLists([...getLocalLists().filter((l) => !b.listen.some((x) => x.id === l.id)), ...b.listen]);
   if (Object.keys(b.kanaele.subs).length) setSubscriptions({ ...b.kanaele.subs, ...getSubscriptions() });
   store.clearSaved();
   store.addSaved(b.saved);
@@ -1365,8 +1368,8 @@ async function route() {
   if (j && handleJoinCode(j[1])) return;
   const abo = location.hash.match(/^#abo=([\w-]+)/);
   if (abo && handleAboCode(abo[1])) return;
-  const u = location.hash.match(/^#(u|ua|z)=([\w-]+)/);
-  if (u && { u: handlePollCode, ua: handleAnswerCode, z: handleRsvpCode }[u[1]](u[2])) return;
+  const u = location.hash.match(/^#(u|ua|z|l)=([\w-]+)/);
+  if (u && { u: handlePollCode, ua: handleAnswerCode, z: handleRsvpCode, l: handleListCode }[u[1]](u[2])) return;
   const k = location.hash.match(/^#k=([\w.-]+)/);
   if (k && (await handleKanalCode(k[1]))) return;
   const m = location.hash.match(/^#t=([\w-]+)/);
@@ -1399,6 +1402,10 @@ async function init() {
   initAbo({
     state, store, Native, isNative, toast, show, config: CONFIG,
     openInvite: (id) => openFamilyInvite(id),
+    publicUrl: () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname),
+  });
+  initListen({
+    Native, isNative, toast, show, openUrl: (url) => window.open(url, '_blank', 'noopener'),
     publicUrl: () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname),
   });
   initUmfrage({

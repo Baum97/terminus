@@ -63,7 +63,9 @@ import org.json.JSONObject;
         @Permission(alias = "calendar", strings = { Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR }),
         @Permission(alias = "contacts", strings = { Manifest.permission.READ_CONTACTS }),
         @Permission(alias = "contactsWrite", strings = { Manifest.permission.READ_CONTACTS, Manifest.permission.WRITE_CONTACTS }),
-        @Permission(alias = "notifications", strings = { "android.permission.POST_NOTIFICATIONS" })
+        @Permission(alias = "notifications", strings = { "android.permission.POST_NOTIFICATIONS" }),
+        @Permission(alias = "tasksOrg", strings = { "org.tasks.permission.READ_TASKS", "org.tasks.permission.WRITE_TASKS" }),
+        @Permission(alias = "tasksDmfs", strings = { "org.dmfs.permission.READ_TASKS", "org.dmfs.permission.WRITE_TASKS" })
     }
 )
 public class TerminusPlugin extends Plugin {
@@ -1236,6 +1238,114 @@ public class TerminusPlugin extends Plugin {
             call.resolve();
         } catch (Exception e) {
             call.reject("Der Kalender konnte nicht entfernt werden.", e);
+        }
+    }
+
+    /* ---------- Listen (OpenTasks-Schnittstelle) ---------- */
+
+    // { available, app, granted } – welche Aufgaben-App die Listen bereitstellt
+    @PluginMethod
+    public void taskProvider(PluginCall call) {
+        String[] p = Tasks.find(getContext());
+        JSObject r = new JSObject();
+        r.put("available", p != null);
+        if (p != null) {
+            r.put("app", p[2]);
+            r.put("granted", getPermissionState(p[1]) == PermissionState.GRANTED);
+        }
+        call.resolve(r);
+    }
+
+    @PluginMethod
+    public void requestTasks(PluginCall call) {
+        String[] p = Tasks.find(getContext());
+        if (p == null) {
+            call.reject("Keine Aufgaben-App gefunden. Installiere Tasks.org oder OpenTasks.", "missing");
+            return;
+        }
+        if (getPermissionState(p[1]) == PermissionState.GRANTED) {
+            taskListsResolve(call, p);
+            return;
+        }
+        requestPermissionForAlias(p[1], call, "tasksAfterPermission");
+    }
+
+    @PermissionCallback
+    private void tasksAfterPermission(PluginCall call) {
+        String[] p = Tasks.find(getContext());
+        if (p != null && getPermissionState(p[1]) == PermissionState.GRANTED) taskListsResolve(call, p);
+        else call.reject("Ohne Zugriff auf die Aufgaben kann Terminus die Listen nicht zeigen.", "denied");
+    }
+
+    private void taskListsResolve(PluginCall call, String[] p) {
+        try {
+            JSObject r = new JSObject();
+            r.put("app", p[2]);
+            r.put("lists", Tasks.taskLists(getContext(), p[0]));
+            call.resolve(r);
+        } catch (Exception e) {
+            call.reject("Die Listen konnten nicht gelesen werden: " + e.getMessage(), e);
+        }
+    }
+
+    private String[] tasksReady(PluginCall call) {
+        String[] p = Tasks.find(getContext());
+        if (p == null || getPermissionState(p[1]) != PermissionState.GRANTED) {
+            call.reject("Kein Zugriff auf die Aufgaben.", "denied");
+            return null;
+        }
+        return p;
+    }
+
+    @PluginMethod
+    public void listTasks(PluginCall call) {
+        String[] p = tasksReady(call);
+        if (p == null) return;
+        try {
+            JSObject r = new JSObject();
+            r.put("items", Tasks.items(getContext(), p[0], Long.parseLong(call.getString("listId", "-1"))));
+            call.resolve(r);
+        } catch (Exception e) {
+            call.reject("Die Liste konnte nicht gelesen werden.", e);
+        }
+    }
+
+    @PluginMethod
+    public void addTask(PluginCall call) {
+        String[] p = tasksReady(call);
+        if (p == null) return;
+        try {
+            Long due = call.getData().has("due") ? call.getLong("due") : null;
+            long id = Tasks.add(getContext(), p[0], Long.parseLong(call.getString("listId", "-1")), call.getString("text", ""), due);
+            JSObject r = new JSObject();
+            r.put("id", String.valueOf(id));
+            call.resolve(r);
+        } catch (Exception e) {
+            call.reject("Der Eintrag konnte nicht gespeichert werden.", e);
+        }
+    }
+
+    @PluginMethod
+    public void setTaskDone(PluginCall call) {
+        String[] p = tasksReady(call);
+        if (p == null) return;
+        try {
+            Tasks.setDone(getContext(), p[0], Long.parseLong(call.getString("id", "-1")), Boolean.TRUE.equals(call.getBoolean("done", false)));
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Das Häkchen konnte nicht gespeichert werden.", e);
+        }
+    }
+
+    @PluginMethod
+    public void deleteTask(PluginCall call) {
+        String[] p = tasksReady(call);
+        if (p == null) return;
+        try {
+            Tasks.delete(getContext(), p[0], Long.parseLong(call.getString("id", "-1")));
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Der Eintrag konnte nicht gelöscht werden.", e);
         }
     }
 }

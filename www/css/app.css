@@ -491,3 +491,9 @@ pre.cmd::before { content: attr(data-label); position: absolute; top: 7px; left:
 .rsvp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .rsvp-ja { color: var(--ok); }
 .rsvp-nein { color: var(--warn); }
+
+/* Listen */
+.ls-head { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.ls-items li { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.ls-items li label { font-size: 1.05rem; }
+.ls-items li.done span { text-decoration: line-through; color: var(--ink-soft); }

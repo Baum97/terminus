@@ -6,9 +6,9 @@ const VERSION = 1;
 
 // abos: veröffentlichte Kalender samt Bearbeitungsschlüssel, damit ein neues Handy sie weiter aktualisieren kann
 // kanaele: per Nachricht verschickte Kalender (mit Schlüssel zum Signieren) und abonnierte Absender
-export function buildBackup({ settings, people, family, saved, abos = {}, kanaele = {} }, now = new Date()) {
+export function buildBackup({ settings, people, family, saved, abos = {}, kanaele = {}, listen = [] }, now = new Date()) {
   const { apiKey, ...safeSettings } = settings || {};
-  return JSON.stringify({ app: 'terminus', version: VERSION, created: now.toISOString(), settings: safeSettings, people, family, saved, abos, kanaele }, null, 2);
+  return JSON.stringify({ app: 'terminus', version: VERSION, created: now.toISOString(), settings: safeSettings, people, family, saved, abos, kanaele, listen }, null, 2);
 }
 
 // Liefert die geprüften Daten oder wirft einen Fehler mit verständlicher Meldung
@@ -30,6 +30,7 @@ export function parseBackup(text) {
     saved: normalizeEvents(list(data.saved)),
     abos: obj(data.abos),
     kanaele: { own: obj(data.kanaele?.own), subs: restoreSubs(obj(data.kanaele?.subs)) },
+    listen: list(data.listen).filter((l) => typeof l.name === 'string' && Array.isArray(l.items)),
   };
 }
 

@@ -148,8 +148,31 @@
     <section id="view-tasks" class="view" hidden>
       <div>
         <h2 class="page-h">Aufgaben</h2>
-        <p class="hint">Fristen und Mitbringlisten aus deinen Terminen. Häkchen werden in den Kalender geschrieben, im Familienkalender sehen sie alle.</p>
       </div>
+      <section class="panel listen">
+        <div class="ls-head">
+          <label class="sr" for="ls-list">Liste</label>
+          <select id="ls-list"></select>
+          <button class="btn small" type="button" id="ls-send">Schicken</button>
+        </div>
+        <form class="quick" id="ls-form">
+          <label class="sr" for="ls-input">Eintrag</label>
+          <input id="ls-input" autocomplete="off" enterkeyhint="done" placeholder="Milch, Eier, Brot">
+          <button class="btn small primary" type="submit">Dazu</button>
+        </form>
+        <ul class="checklist ls-items" id="ls-items"></ul>
+        <p class="hint" id="ls-count"></p>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="ls-hide"> <span>Erledigte ausblenden</span></label>
+          <button class="btn ghost small" type="button" id="ls-clear" hidden>Erledigte löschen</button>
+        </div>
+        <div id="ls-connect-box" class="sc-kanal" hidden>
+          <p class="hint" id="ls-connect-hint"></p>
+          <button class="btn small" type="button" id="ls-connect">Verbinden</button>
+        </div>
+      </section>
+      <h3>Fristen und Mitbringen</h3>
+      <p class="hint">Aus deinen Terminen. Häkchen werden in den Kalender geschrieben, im Familienkalender sehen sie alle.</p>
       <ul class="person-filter" id="tasks-people" aria-label="Nach Person filtern"></ul>
       <div id="tasks-list" class="tasks"></div>
       <p class="empty" id="tasks-empty" hidden>Keine offenen Fristen oder Mitbringlisten in den nächsten drei Monaten.</p>

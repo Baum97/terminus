@@ -81,3 +81,15 @@ test('Terminfindung: Abstimmung, Antworten, bester Termin, Zusagen', async () =>
   assert.deepEqual([r.key, r.name, r.status], [u.eventKey(ev), 'Ömer', 'vielleicht']);
   assert.equal(u.decodeRsvp(u.encodeRsvp({ ev, name: 'X', status: 'egal' })), null);
 });
+
+test('Listen: Schnelleingabe, Text, Link, keine Doppelten', async () => {
+  const l = await import('../www/js/listen.js');
+  assert.deepEqual(l.splitItems('Milch, 2 Eier und Brot; - Käse\n☐ Äpfel'), ['Milch', '2 Eier', 'Brot', 'Käse', 'Äpfel']);
+  let items = [];
+  for (const t of ['Milch', 'Brot', 'milch']) items = l.mergeItem(items, t).items;
+  assert.equal(items.length, 2);
+  items[0].done = true;
+  assert.equal(l.mergeItem(items, 'Milch').items[0].done, false);
+  assert.equal(l.listText('Einkauf', items), '📝 Einkauf\n☐ Brot\n\n☑ Milch');
+  assert.deepEqual(l.decodeList(l.encodeList('Einkauf', items)), { name: 'Einkauf', items: ['Brot'] });
+});
