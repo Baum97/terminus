@@ -1,0 +1,10 @@
+<p><b>Terminus macht aus Zetteln, Screenshots, PDFs, E-Mails und Bahntickets Kalendertermine.</b> Damit deine Daten deine bleiben: Open Source, kein Konto, keine Werbung, keine Tracker.</p>
+<ul>
+<li><b>Foto, PDF, E-Mail, Sprache:</b> Elternbrief fotografieren, Bahnticket teilen, „Donnerstag 15 Uhr Zahnarzt“ sagen – Terminus trägt ein. Die Texterkennung läuft auf dem Handy.</li>
+<li><b>Fristen und Serien:</b> Rückmeldefristen, wöchentliche Termine, Ausfälle in Ferien und an Feiertagen (alle Bundesländer).</li>
+<li><b>Teilen ohne Server:</b> Termine, ganze Kalender, Listen und Abstimmungen („Wann können alle?“) als Link über Signal, Threema, WhatsApp oder E-Mail. Zusagen kommen genauso zurück.</li>
+<li><b>Familie:</b> gemeinsamer Kalender und Einkaufsliste über DAVx⁵ mit mailbox.org, Posteo oder Nextcloud – auch mit iPhone.</li>
+<li><b>Alltag:</b> Morgen-Überblick, Losfahren-Erinnerung, Ablauf-Wächter für Ausweis, TÜV und Verträge, Widget, App-Sperre.</li>
+<li><b>Umzug weg von Google:</b> Einrichtungsassistent übernimmt Kalender und Kontakte.</li>
+</ul>
+<p>KI ist optional: Mit eigenem Schlüssel von Mistral AI (Frankreich) erkennt Terminus auch schwierige Zettel. Ohne KI bleibt alles auf dem Gerät.</p>

@@ -1,0 +1,7 @@
+<p><b>Terminus turns notes, screenshots, PDFs, e-mails and train tickets into calendar events.</b> Open source, no account, no ads, no trackers. The app is designed for Germany (German UI, school holidays of all federal states).</p>
+<ul>
+<li>On-device text recognition for photos and PDFs, voice input, ticket parsing</li>
+<li>Share events, whole calendars, lists and date polls as links – no server needed</li>
+<li>Family calendar and shopping list via DAVx⁵ (CalDAV)</li>
+<li>Morning brief, departure reminders, expiry watcher, widget, app lock</li>
+</ul>

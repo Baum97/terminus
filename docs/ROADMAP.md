@@ -2,7 +2,7 @@
 
 ## Paket B: Listen und echte Aufgaben (ersetzt Google Keep)
 
-**Stand:** zurückgestellt (Oktober 2026), nach Paket A und C.
+**Stand:** umgesetzt (Oktober 2026): Listen über die OpenTasks-Schnittstelle (Tasks.org, OpenTasks) bzw. lokal. Noch offen: Test auf echten Handys, Fristen wahlweise als echte Aufgabe, Mitbringlisten als Aufgabenliste je Termin.
 
 **Ziel:** Aufgaben und eine geteilte Einkaufsliste, die sich in der Familie synchronisieren. Wer im Supermarkt „Milch“ abhakt, sieht das bei allen sofort.
 

@@ -13,7 +13,8 @@ Du fotografierst einen Elternbrief, ein Plakat, eine Einladung oder einen Chat-S
 
 | Bereich | Android-App | Web-Version |
 |---|---|---|
-| Eingabe | Kamera, Galerie, **Teilen-Menü** (Bilder und Text, z. B. aus WhatsApp) | Kamera, Bild, Text, Strg+V, Drag & Drop |
+| Eingabe | Kamera, Galerie, **Teilen-Menü** (Bilder, Text, **PDFs, E-Mails, .ics**), **Spracheingabe** | Kamera, Bild, PDF, E-Mail (.eml), Text, Strg+V, Drag & Drop |
+| Dokumente | **PDFs** (Elternbrief, Rechnung, Konzertkarte) werden auf dem Gerät gelesen, eingescannte PDFs per Texterkennung. **E-Mails**: Betreff und Text, Kalender-Anhänge direkt. **Bahntickets**: Zug, Gleis, Wagen/Platz, Umstiege, Hin- und Rückfahrt | gleich |
 | Erkennung | viele Termine pro Dokument, mehrtägige Termine, Kalenderwoche, Prüfung von Wochentag und Datum | gleich |
 | Kalender | einzelner Termin: Kalender-App öffnet sich ausgefüllt. Mehrere: **direkt eingetragen**, Kalender wählbar | `.ics`-Datei oder Google-Kalender-Link |
 | Teilen | Android-Teilen-Menü, WhatsApp, E-Mail, gespeicherte Personen | WhatsApp, E-Mail, Teilen-Menü des Browsers |
@@ -33,6 +34,20 @@ Du fotografierst einen Elternbrief, ein Plakat, eine Einladung oder einen Chat-S
 | **Schnellstart** | App-Icon lange drücken: „Zettel knipsen“ oder „Screenshot wählen“ |
 | **Sprache** | Mit KI kommen Titel und Hinweise auf Deutsch, Englisch, Türkisch, Arabisch, Ukrainisch, Russisch, Polnisch, Rumänisch oder Persisch |
 | **QR-Code** | Im Teilen-Dialog: Code mit Titel und Datum zum Ausdrucken. Wer ihn scannt, übernimmt den Termin |
+| **Losfahren-Erinnerung** | „Wann losfahren?“ auf der Karte: Fahrzeit von der Startadresse (Auto, Rad, zu Fuß über die Routenplaner des FOSSGIS e.V.; Bus und Bahn über Transitous). Die Erinnerung „Losfahren“ kommt mit in den Kalender |
+| **Ablauf-Wächter** | Ausweis, Pass, TÜV, Verträge, Garantie: Erinnerung rechtzeitig vorher, bei Verträgen vor dem letzten Kündigungstag. Datum auf Wunsch vom Foto gelesen (bleibt auf dem Handy) |
+| **Spracheingabe** | Mikrofon neben der Schnelleingabe: „Donnerstag 15 Uhr Zahnarzt“. Nutzt die Spracherkennung des Handys, auch Open-Source-Erkenner wie FUTO Voice Input oder Kõnele |
+
+## Gruppen: Terminfindung, Zusagen, Listen
+
+| Funktion | Was passiert |
+|---|---|
+| **Wann können alle?** | Familie → „Termin abstimmen“: Vorschläge eintragen, Link in die Gruppe. Alle kreuzen an (passt / wenn nötig / geht nicht) und schicken ihre Antwort als Link zurück. Terminus zeigt den besten Termin; ein Tipp, und er steht im Kalender und kann an alle verschickt werden |
+| **Zusagen** | Wer einen Termin-Link öffnet, kann „Ich komme / Vielleicht / Ich kann nicht“ zurückschicken. In der Termin-Ansicht steht dann „3 kommen, 1 vielleicht (Ben, Mia, …)“ |
+| **Listen** | Aufgaben → Einkauf, Packliste, To-dos. Mit Tasks.org oder OpenTasks auf dem Handy über DAVx⁵ mit dem Anbieter abgeglichen, also mit der Familie geteilt. Ohne: lokal in Terminus, als Nachricht verschickbar |
+| **Nur „belegt“ teilen** | Beim Teilen eines Kalenders: andere sehen, wann du keine Zeit hast, aber nicht wofür |
+
+Alles ohne Server: Abstimmungen, Antworten, Zusagen und Listen stecken im `#`-Teil des Links.
 
 Feiertage berechnet die App selbst. Die Schulferien kommen von der [OpenHolidays-API](https://www.openholidaysapi.org) (offene Daten, EU-gefördert) und werden beim Build nach `www/data/ferien.json` geladen (`node scripts/ferien.mjs`), danach liegen sie offline in der App.
 
@@ -212,6 +227,16 @@ www/                      Web-App, wird auch in die Android-App gepackt
   js/aboexport.js         Abo-Datei mit Feldauswahl
   js/kanal.js             Kalender-Pakete: komprimieren, signieren, prüfen
   js/kanalui.js           Kalender per Nachricht senden, empfangen, Update-Hinweis
+  js/dokument.js          E-Mails (.eml) und Bahntickets lesen
+  js/pdf.js               PDFs lesen (pdf.js, liegt in www/vendor/)
+  js/umfrage.js           Terminfindung und Zusagen: Links kodieren, auszählen
+  js/umfrageui.js         Abstimmen, Ergebnisse, Zusagen
+  js/listen.js            Listen: Schnelleingabe, Text, Link
+  js/listenui.js          Listen über Tasks.org/OpenTasks oder lokal
+  js/ablauf.js            Ablauf-Wächter: Vorlauf, Kündigungsfristen
+  js/ablaufui.js          Ablauf-Wächter im Aufgaben-Bereich
+  js/unterwegs.js         Fahrzeit über OpenStreetMap-Dienste
+  datenschutz.html        Datenschutzerklärung (vor Veröffentlichung Namen eintragen)
   data/ferien.json        Schulferien, beim Build erzeugt
   js/native.js            Brücke zur Android-App
   js/config.js            öffentliche Adressen (Web-Version, Server)
@@ -219,7 +244,11 @@ android/                  Android-Projekt (Capacitor)
   …/TerminusPlugin.java   Teilen-Menü, Kalender lesen/schreiben, Adressbuch, Geburtstage, Einladungs-Mail
   …/TerminusWidget.java   Startbildschirm-Widget
   …/MorningBrief.java     Morgen-Überblick (Wecker, Neustart, Benachrichtigung)
+  …/Tasks.java            Listen über die OpenTasks-Schnittstelle (Tasks.org, OpenTasks)
   …/Setup.java            Umzug von Kalendern und Kontakten auf dem Gerät, Zugangsprüfung
+docs/VEROEFFENTLICHEN.md  Anleitung: Schlüssel, Release, F-Droid, Play Store, Rechtliches, Server
+fastlane/                 Store-Texte (F-Droid, IzzyOnDroid, Play Store)
+Dockerfile                optionaler Server als Container
 docs/ROADMAP.md           Merkzettel für spätere Ausbaustufen (Listen über VTODO)
 proxy/server.mjs          Server: liefert die Web-App aus, reicht KI-Anfragen weiter, hostet Kalender-Abos
 proxy/abo.mjs             Speicher für Abo-Links (zufällige Adressen, Bearbeitungsschlüssel als Hash)
@@ -238,8 +267,8 @@ scripts/ferien.mjs        lädt die Schulferien aller Bundesländer
 
 ## Nächste Schritte
 
-1. Veröffentlichung auf F-Droid und im Play Store
-2. Listen und echte Aufgaben über den offenen Standard VTODO (Paket B, siehe docs/ROADMAP.md)
+1. Veröffentlichung: Schritt-für-Schritt-Anleitung in [docs/VEROEFFENTLICHEN.md](docs/VEROEFFENTLICHEN.md)
+2. Test auf echten Handys (Listen über Tasks.org, Spracheingabe, geteilte PDFs)
 3. Mailversand mit echter Einladung über einen EU-Mailanbieter
 4. Unterstützung per Spende (Liberapay, Open Collective) oder Pro-Funktionen für Vereine und Kitas
 
