@@ -52,34 +52,6 @@ const TAB_OF = { abo: 'calendar', kanal: 'calendar', umfrage: 'family', home: 'h
 function show(view) {
   for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== `view-${view}`;
   document.documentElement.classList.toggle('tabbar-off', view === 'busy' || view === 'received');
-  for (const form of document.querySelectorAll('[data-quick]')) {
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      handleQuick($('input', form));
-    });
-  }
-  $('#s-brief-test').addEventListener('click', () => Native.showMorningBrief().then((r) => !r.shown && toast('Benachrichtigungen sind nicht erlaubt.'), () => {}));
-  $('#s-lock').addEventListener('change', async (e) => {
-    if (!e.target.checked) return;
-    const { available } = await Native.lockAvailable().catch(() => ({ available: false }));
-    if (!available) {
-      e.target.checked = false;
-      toast('Richte zuerst in den Android-Einstellungen eine Displaysperre ein.');
-    }
-  });
-  $('#backup-save').addEventListener('click', saveBackup);
-  $('#backup-file').addEventListener('change', async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (file) readBackup(await file.text());
-  });
-  $('#backup-apply').addEventListener('click', applyBackup);
-  $('#backup-cancel').addEventListener('click', () => ($('#backup-confirm').hidden = true));
-  $('#lock-open').addEventListener('click', unlock);
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) lockState.hiddenAt = Date.now();
-    else if (state.settings.lock && isNative && Date.now() - lockState.hiddenAt > 60000) lock();
-  });
   for (const b of document.querySelectorAll('#tabbar [data-tab]')) {
     if (b.dataset.tab === TAB_OF[view]) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
@@ -1228,6 +1200,34 @@ async function unlock() {
 /* ---------- Start ---------- */
 
 function bind() {
+  for (const form of document.querySelectorAll('[data-quick]')) {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      handleQuick($('input', form));
+    });
+  }
+  $('#s-brief-test').addEventListener('click', () => Native.showMorningBrief().then((r) => !r.shown && toast('Benachrichtigungen sind nicht erlaubt.'), () => {}));
+  $('#s-lock').addEventListener('change', async (e) => {
+    if (!e.target.checked) return;
+    const { available } = await Native.lockAvailable().catch(() => ({ available: false }));
+    if (!available) {
+      e.target.checked = false;
+      toast('Richte zuerst in den Android-Einstellungen eine Displaysperre ein.');
+    }
+  });
+  $('#backup-save').addEventListener('click', saveBackup);
+  $('#backup-file').addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) readBackup(await file.text());
+  });
+  $('#backup-apply').addEventListener('click', applyBackup);
+  $('#backup-cancel').addEventListener('click', () => ($('#backup-confirm').hidden = true));
+  $('#lock-open').addEventListener('click', unlock);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) lockState.hiddenAt = Date.now();
+    else if (state.settings.lock && isNative && Date.now() - lockState.hiddenAt > 60000) lock();
+  });
   for (const id of ['#in-camera', '#in-file', '#in-doc']) {
     $(id).addEventListener('change', (e) => {
       const file = e.target.files?.[0];
