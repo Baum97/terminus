@@ -375,7 +375,8 @@ html.tabbar-off .actionbar { bottom: 0; }
 .has-family .fam { display: grid; }
 
 /* Schnelleingabe */
-.quick { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.quick { display: grid; grid-template-columns: 1fr auto; grid-auto-flow: column; grid-auto-columns: auto; gap: 8px; align-items: center; }
+.mic svg { width: 1.3em; height: 1.3em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 .quick input { min-height: 46px; }
 .quick-hint { margin-top: -12px; }
 .skip-row { grid-column: 1 / -1; }
@@ -497,3 +498,8 @@ pre.cmd::before { content: attr(data-label); position: absolute; top: 7px; left:
 .ls-items li { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--line); }
 .ls-items li label { font-size: 1.05rem; }
 .ls-items li.done span { text-decoration: line-through; color: var(--ink-soft); }
+.check.off { opacity: 0.45; }
+.meta.travel { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.meta.travel:empty, .meta.travel:has(button[hidden]):has(.travel-text:empty) { display: none; }
+#ab-list .c { background: var(--warn); }
+#poll-list .c { background: var(--pen); }

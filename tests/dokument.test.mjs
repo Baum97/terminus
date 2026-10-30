@@ -93,3 +93,51 @@ test('Listen: Schnelleingabe, Text, Link, keine Doppelten', async () => {
   assert.equal(l.listText('Einkauf', items), '📝 Einkauf\n☐ Brot\n\n☑ Milch');
   assert.deepEqual(l.decodeList(l.encodeList('Einkauf', items)), { name: 'Einkauf', items: ['Brot'] });
 });
+
+test('Ablauf-Wächter: Vorlauf, Kündigungsfrist, TÜV-Monat, Datum vom Foto', async () => {
+  const a = await import('../www/js/ablauf.js');
+  const today = new Date(2026, 9, 30);
+  const aus = a.reminderFor({ kind: 'ausweis', expires: '2027-03-12' }, today);
+  assert.deepEqual([aus.kind, aus.date, aus.title], ['frist', '2027-01-15', 'Personalausweis läuft am Fr, 12.03.2027 ab']);
+  const v = a.reminderFor({ kind: 'vertrag', name: 'Handyvertrag', expires: '2027-05-31', notice: 3 }, today);
+  assert.equal(v.date, '2027-02-14');
+  assert.match(v.title, /Handyvertrag – kündigen bis So, 28\.02\.\?/);
+  assert.match(v.notes, /Kündigungsfrist 3 Monate/);
+  assert.equal(a.endOfMonth('2027-02'), '2027-02-28');
+  assert.equal(a.reminderFor({ kind: 'tuev', expires: a.endOfMonth('2026-11') }, today).date, '2026-11-02');
+  // Vorlauf schon vorbei: Erinnerung heute
+  assert.equal(a.reminderFor({ kind: 'pass', expires: '2026-11-20' }, today).date, '2026-10-30');
+  assert.equal(a.guessExpiry(['1990-05-01', '2031-03-12', '2021-03-12', 'kaputt'], today), '2031-03-12');
+});
+
+test('Unterwegs: Losfahrzeit und Routendienste (simuliert)', async () => {
+  const u = await import('../www/js/unterwegs.js');
+  assert.equal(u.leaveText('10:00', 25, 'rad'), 'Losfahren um 9:30 (🚲 25 Min.)');
+  assert.equal(u.leaveText('00:10', 20, 'auto'), 'Losfahren um 23:45 (🚗 20 Min.)');
+  const calls = [];
+  const fake = async (url) => {
+    calls.push(url);
+    if (url.includes('nominatim')) return { ok: true, json: async () => [{ lat: '48.1', lon: '11.5', display_name: 'X' }] };
+    if (url.includes('routed-bike')) return { ok: true, json: async () => ({ routes: [{ duration: 1490 }] }) };
+    return { ok: true, json: async () => ({ itineraries: [
+      { startTime: '2026-11-02T08:20:00Z', endTime: '2026-11-02T08:55:00Z', legs: [{ mode: 'WALK' }, { mode: 'SUBWAY', routeShortName: 'U3' }] },
+      { startTime: '2026-11-02T08:40:00Z', endTime: '2026-11-02T09:05:00Z', legs: [] },
+    ] }) };
+  };
+  const p = await u.geocode('Marienplatz München', fake);
+  assert.deepEqual(await u.travelMinutes(p, p, 'rad', new Date(), fake), { minutes: 25 });
+  assert.match(calls.at(-1), /routing\.openstreetmap\.de\/routed-bike\/route\/v1\/driving\/11\.5,48\.1;11\.5,48\.1/);
+  const r = await u.travelMinutes(p, p, 'oepnv', new Date('2026-11-02T09:00:00Z'), fake);
+  assert.deepEqual([r.minutes, r.legs], [40, ['U3']]);
+});
+
+test('Nur belegt teilen: keine Titel, Orte oder Notizen', async () => {
+  const { aboFromDevice, aboFromLocal } = await import('../www/js/aboexport.js');
+  const rows = [{ id: '1', title: 'Therapie Dr. Kunz', start: Date.UTC(2026, 10, 3, 9), end: Date.UTC(2026, 10, 3, 10), allDay: false, location: 'Praxis', description: 'privat' }];
+  const ics = aboFromDevice(rows, { name: 'Anna', calendarId: '1', fields: { location: true, notes: true, bring: true, busy: true } });
+  assert.match(ics, /SUMMARY:Belegt/);
+  assert.doesNotMatch(ics, /Therapie|Praxis|privat/);
+  const local = aboFromLocal([{ id: 'x', title: 'Geheim', date: '2026-11-03', start: '10:00', end: '11:00', location: 'Ort', notes: 'n', bring: [], kind: 'termin', travel: { minutes: 20, mode: 'auto' } }], { name: 'A', fields: { busy: true } });
+  assert.match(local, /SUMMARY:Belegt/);
+  assert.doesNotMatch(local, /Geheim|Ort|Losfahren/);
+});

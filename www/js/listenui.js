@@ -209,7 +209,12 @@ function newLocalList(name = '', items = []) {
   const list = { id: `e${Date.now().toString(36)}`, name: n.slice(0, 60), items: items.map((t) => mergeItem([], t).items[0]) };
   saveLocal([...loadLocal(), list]);
   st.current = `l:${list.id}`;
-  renderListen();
+  try {
+    localStorage.setItem(PREF, st.current);
+  } catch {
+    // egal
+  }
+  if (!$('#view-tasks').hidden) renderListen();
   return list;
 }
 
@@ -235,8 +240,8 @@ export function handleListCode(code) {
     ctx.toast('Dieser Listen-Link ist unvollständig.');
     return false;
   }
-  ctx.show('tasks');
   newLocalList(l.name, l.items);
+  ctx.show('tasks');
   ctx.toast(`Liste „${l.name}“ übernommen (${l.items.length} Einträge).`);
   return true;
 }

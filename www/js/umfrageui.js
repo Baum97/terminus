@@ -102,7 +102,7 @@ function renderPollList() {
   ul.replaceChildren(...polls.map((p) => {
     const li = document.createElement('li');
     const n = Object.keys(p.answers || {}).length;
-    li.innerHTML = '<span class="x"><strong></strong><small></small></span>';
+    li.innerHTML = '<span class="c"></span><span class="x"><strong></strong><small></small></span>';
     $('strong', li).textContent = p.title;
     $('small', li).textContent = p.closed ? `Festgelegt: ${optionText(p.options[p.closed.index])}` : `${n} ${n === 1 ? 'Antwort' : 'Antworten'} · ${p.options.length} Vorschläge`;
     const b = Object.assign(document.createElement('button'), { type: 'button', className: 'btn small', textContent: 'Ansehen' });

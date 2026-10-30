@@ -74,6 +74,10 @@ export function normalizeEvent(raw) {
     exdates: (Array.isArray(raw.exdates) ? raw.exdates : []).filter((d) => isValidISO(d) && d > date).slice(0, 200),
     repeat: kind === 'frist' || endDate ? null : normalizeRepeat(raw.repeat, raw.until, date),
     unsure: raw.unsure === true || raw.confidence === 'niedrig' || raw.confidence === 'low',
+    // Fahrzeit zum Ort (für die Erinnerung „Losfahren“)
+    travel: start && raw.travel && Number.isFinite(raw.travel.minutes) && raw.travel.minutes > 0
+      ? { minutes: Math.min(600, Math.round(raw.travel.minutes)), mode: ['auto', 'rad', 'fuss', 'oepnv'].includes(raw.travel.mode) ? raw.travel.mode : 'auto' }
+      : null,
   };
 }
 

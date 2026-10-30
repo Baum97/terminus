@@ -1348,4 +1348,42 @@ public class TerminusPlugin extends Plugin {
             call.reject("Der Eintrag konnte nicht gelöscht werden.", e);
         }
     }
+
+    /* ---------- Spracheingabe ---------- */
+
+    // Nutzt die Spracherkennung des Handys (z. B. FUTO Voice, Kõnele, Sayboard oder Google).
+    // Terminus selbst nimmt nichts auf.
+    @PluginMethod
+    public void speechAvailable(PluginCall call) {
+        Intent i = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        JSObject r = new JSObject();
+        r.put("available", i.resolveActivity(getContext().getPackageManager()) != null);
+        call.resolve(r);
+    }
+
+    @PluginMethod
+    public void listen(PluginCall call) {
+        Intent i = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        i.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        i.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, call.getString("lang", "de-DE"));
+        i.putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, call.getString("prompt", "Termin sagen, z. B. „Donnerstag 15 Uhr Zahnarzt“"));
+        i.putExtra(android.speech.RecognizerIntent.EXTRA_PREFER_OFFLINE, true);
+        try {
+            startActivityForResult(call, i, "listenResult");
+        } catch (ActivityNotFoundException e) {
+            call.reject("Auf diesem Handy ist keine Spracherkennung eingerichtet. Open Source: FUTO Voice Input oder Kõnele.", "missing");
+        }
+    }
+
+    @ActivityCallback
+    private void listenResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        JSObject r = new JSObject();
+        Intent data = result.getData();
+        if (result.getResultCode() == Activity.RESULT_OK && data != null) {
+            ArrayList<String> texts = data.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS);
+            if (texts != null && !texts.isEmpty()) r.put("text", texts.get(0));
+        }
+        call.resolve(r);
+    }
 }

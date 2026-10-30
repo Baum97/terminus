@@ -50,7 +50,7 @@ export function initAbo(c) {
       renderShare();
     });
   }
-  for (const id of ['#sc-location', '#sc-notes', '#sc-bring']) $(id).addEventListener('change', fieldsChanged);
+  for (const id of ['#sc-location', '#sc-notes', '#sc-bring', '#sc-busy']) $(id).addEventListener('change', fieldsChanged);
   $('#sc-create').addEventListener('click', () => run($('#sc-create'), createAbo));
   $('#sc-update').addEventListener('click', () => run($('#sc-update'), async () => {
     await publish(share.cal.id);
@@ -113,6 +113,8 @@ async function renderShare() {
   $('#sc-location').checked = fields.location;
   $('#sc-notes').checked = fields.notes;
   $('#sc-bring').checked = fields.bring;
+  $('#sc-busy').checked = !!fields.busy;
+  syncBusy();
 
   const canEdit = cal.id !== 'local' && !!inviteTarget(cal, ctx.store.getSetup());
   $('#sc-edit-invite').hidden = !canEdit;
@@ -186,9 +188,17 @@ function stopKanal() {
   renderKanal();
 }
 
-const currentFields = () => ({ location: $('#sc-location').checked, notes: $('#sc-notes').checked, bring: $('#sc-bring').checked });
+const currentFields = () => ({ location: $('#sc-location').checked, notes: $('#sc-notes').checked, bring: $('#sc-bring').checked, busy: $('#sc-busy').checked });
+
+// „Nur belegt“ schließt alle anderen Angaben aus
+function syncBusy() {
+  const busy = $('#sc-busy').checked;
+  for (const id of ['#sc-f-title', '#sc-location', '#sc-notes', '#sc-bring']) $(id).closest('label').classList.toggle('off', busy);
+  for (const id of ['#sc-location', '#sc-notes', '#sc-bring']) $(id).disabled = busy;
+}
 
 async function fieldsChanged() {
+  syncBusy();
   renderKanal();
   const abos = getAbos();
   const abo = abos[share.cal.id];

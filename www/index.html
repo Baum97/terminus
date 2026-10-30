@@ -50,6 +50,7 @@
 <form class="quick" data-quick>
         <label class="sr" for="quick-home">Schnell eintragen</label>
         <input id="quick-home" type="text" autocomplete="off" enterkeyhint="done" placeholder="Schnell eintragen: Mi 16 Uhr Zahnarzt Ben">
+        <button class="btn small icon mic" type="button" data-mic aria-label="Termin sprechen" title="Termin sprechen" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></button>
         <button class="btn primary small" type="submit">Eintragen</button>
       </form>
       <p class="hint quick-hint">Auch: „morgen 8:30 Elterngespräch @ Schule“, „dienstags 16 Uhr Schwimmen Mia“. Das Mikrofon der Tastatur funktioniert auch.</p>
@@ -132,6 +133,7 @@
 <form class="quick" data-quick>
         <label class="sr" for="quick-cal">Schnell eintragen</label>
         <input id="quick-cal" type="text" autocomplete="off" enterkeyhint="done" placeholder="Schnell eintragen: Mi 16 Uhr Zahnarzt Ben">
+        <button class="btn small icon mic" type="button" data-mic aria-label="Termin sprechen" title="Termin sprechen" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></button>
         <button class="btn primary small" type="submit">Eintragen</button>
       </form>
       <ul class="person-filter" id="cal-people" aria-label="Nach Person filtern"></ul>
@@ -170,6 +172,27 @@
           <p class="hint" id="ls-connect-hint"></p>
           <button class="btn small" type="button" id="ls-connect">Verbinden</button>
         </div>
+      </section>
+      <section class="panel">
+        <h3>Läuft ab</h3>
+        <p class="hint">Ausweis, Pass, TÜV, Verträge, Garantie: Terminus erinnert rechtzeitig vorher, nicht erst am Stichtag.</p>
+        <ul class="cal-list" id="ab-list" hidden></ul>
+        <details class="invite-link" id="ab-form">
+          <summary>+ Hinzufügen</summary>
+          <div class="grid2">
+            <label class="field"><span>Was?</span><select id="ab-kind"></select></label>
+            <label class="field"><span>Bezeichnung (optional)</span><input id="ab-name" maxlength="60" placeholder="z. B. Handyvertrag, Mias Pass"></label>
+            <label class="field"><span id="ab-date-label">Gültig bis</span><input id="ab-date" type="date"></label>
+            <label class="field" id="ab-notice-row" hidden><span>Kündigungsfrist (Monate)</span><input id="ab-notice" type="number" min="0" max="24" inputmode="numeric"></label>
+          </div>
+          <div class="row">
+            <label class="btn small" for="ab-photo">Datum vom Foto lesen</label>
+            <input id="ab-photo" type="file" accept="image/*" capture="environment" hidden>
+            <button class="btn primary small" type="button" id="ab-add">Erinnerung eintragen</button>
+          </div>
+          <p class="hint">Das Foto wird nur auf dem Handy gelesen und nicht gespeichert.</p>
+          <p class="step-msg" id="ab-msg" hidden></p>
+        </details>
       </section>
       <h3>Fristen und Mitbringen</h3>
       <p class="hint">Aus deinen Terminen. Häkchen werden in den Kalender geschrieben, im Familienkalender sehen sie alle.</p>
@@ -463,7 +486,9 @@
         <p class="hint">Andere sehen nur diesen Kalender, in ihrer eigenen Kalender-App, ohne Konto. Ideal für Studiengang, Verein oder Klasse.</p>
         <fieldset class="me">
           <legend>Was wird geteilt?</legend>
-          <label class="check"><input type="checkbox" checked disabled> <span>Titel und Zeit (auch Serien und Ausfälle)</span></label>
+          <label class="check"><input type="checkbox" id="sc-busy"> <span><strong>Nur „belegt“ zeigen</strong>: andere sehen, wann du keine Zeit hast, aber nicht wofür</span></label>
+          <label class="check"><input type="checkbox" checked disabled> <span>Zeit (auch Serien und Ausfälle)</span></label>
+          <label class="check"><input type="checkbox" id="sc-f-title" checked disabled> <span>Titel</span></label>
           <label class="check"><input type="checkbox" id="sc-location"> <span>Ort</span></label>
           <label class="check"><input type="checkbox" id="sc-notes"> <span>Notizen</span></label>
           <label class="check"><input type="checkbox" id="sc-bring"> <span>Mitbringliste (ohne Häkchen)</span></label>
@@ -746,6 +771,16 @@
       </div>
       <label class="check"><input type="checkbox" id="s-photo"> <span>Foto an die KI schicken, wenn kein Text erkannt wird (z. B. Handschrift)</span></label>
       <fieldset class="me">
+        <legend>Unterwegs</legend>
+        <div class="grid2">
+          <label class="field"><span>Startadresse (meist zu Hause)</span><input id="s-home" autocomplete="street-address" placeholder="Hauptstr. 1, 80331 München"></label>
+          <label class="field"><span>Unterwegs mit</span>
+            <select id="s-mode"><option value="auto">Auto</option><option value="rad">Rad</option><option value="fuss">zu Fuß</option><option value="oepnv">Bus und Bahn</option></select>
+          </label>
+        </div>
+        <p class="hint">Für „Wann losfahren?“: Die Adressen gehen an OpenStreetMap-Dienste (Ortssuche, Routen vom FOSSGIS e.V.; Bus und Bahn über Transitous). Nur wenn du auf den Knopf tippst.</p>
+      </fieldset>
+      <fieldset class="me">
         <legend>Für Einladungen</legend>
         <div class="grid2">
           <label class="field"><span>Dein Name</span><input id="s-owner-name" autocomplete="name" placeholder="Anna Becker"></label>
@@ -807,6 +842,7 @@
         <p class="meta when"></p>
         <p class="meta repeat" hidden></p>
         <button class="meta loc linkish" type="button" data-act="map" hidden></button>
+        <p class="meta travel"><button class="btn ghost small" type="button" data-act="travel" hidden>Wann losfahren?</button><span class="travel-text"></span></p>
         <p class="meta bring" hidden></p>
         <ul class="notes" hidden></ul>
         <details class="edit">

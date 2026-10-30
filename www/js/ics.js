@@ -48,6 +48,8 @@ export function alarms(ev, { alarmMinutes = null, eveReminder = true } = {}) {
     const what = [ev.bring?.length ? `Mitbringen: ${ev.bring.join(', ')}` : '', ev.cost ? `Kosten: ${ev.cost}` : ''].filter(Boolean).join(' · ');
     out.push({ minutes: startMin + 5 * 60, text: `Morgen: ${ev.title}. ${what}` });
   }
+  // Losfahren: Fahrzeit plus 5 Minuten zum Fertigmachen
+  if (ev.travel && ev.start) out.push({ minutes: ev.travel.minutes + 5, text: `Losfahren: ${ev.title}` });
   if (alarmMinutes != null && alarmMinutes !== '' && !(eve && !ev.start)) {
     const minutes = ev.start ? +alarmMinutes : 6 * 60;
     if (!out.some((a) => a.minutes === minutes)) out.push({ minutes, text: ev.title });

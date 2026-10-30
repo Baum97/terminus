@@ -17,6 +17,8 @@ import { initKanal, handleKanalCode, getSubscriptions, setSubscriptions, getOwnC
 import { initSetup, renderSetup, setupNeeded, setupSummary, openInvite as openFamilyInvite, handleJoinCode, handleJoinLink } from './setup.js';
 import { berlinUtcStamp, parseICS, simpleRepeat } from './icsimport.js';
 import { parseTicket, readEmail } from './dokument.js';
+import { geocode, travelMinutes, leaveText, MODES } from './unterwegs.js';
+import { initAblauf, getExpiries, setExpiries } from './ablaufui.js';
 import { initListen, renderListen, handleListCode, getLocalLists, setLocalLists } from './listenui.js';
 import { initUmfrage, handlePollCode, handleAnswerCode, handleRsvpCode, rsvpButtons, rsvpSummary } from './umfrageui.js';
 import { buildBackup, parseBackup, backupFileName } from './backup.js';
@@ -295,6 +297,11 @@ function fillCard(li, ev) {
   bring.textContent = parts.join(' · ');
   $('.pill.warn', li).hidden = !ev.unsure;
   $('[data-act="google"]', li).href = googleLink(ev, state.settings.defaultMinutes);
+  const travelBtn = $('[data-act="travel"]', li);
+  if (travelBtn) {
+    travelBtn.hidden = !ev.location || !ev.start || !!ev.travel;
+    $('.travel-text', li).textContent = ev.travel ? `${leaveText(ev.start, ev.travel.minutes, ev.travel.mode)} · Erinnerung kommt mit` : '';
+  }
   const guests = $('.guests', li);
   if (guests) {
     guests.hidden = !ev.guests.length;
@@ -309,6 +316,17 @@ function fillCard(li, ev) {
 function applySkip(ev) {
   ev.exdates = ev.skipHolidays && ev.repeat ? holidayExdates(ev, state.settings.state) : [];
   return ev;
+}
+
+async function speak(input) {
+  try {
+    const { text } = await Native.listen({ lang: 'de-DE' });
+    if (!text) return;
+    input.value = text;
+    handleQuick(input);
+  } catch (e) {
+    toast(e.message || 'Die Spracherkennung hat nicht geklappt.');
+  }
 }
 
 function handleQuick(input) {
@@ -550,8 +568,38 @@ function cardFor(ev, { editable = true, onRemove } = {}) {
     if (act === 'send-invite') sendInvite(ev);
     if (act === 'ics') addToCalendar([ev]);
     if (act === 'remove') onRemove?.(ev, li);
+    if (act === 'travel') planTravel(ev, li);
   });
   return li;
+}
+
+// Fahrzeit vom Startort zum Termin, als Erinnerung „Losfahren“ mit eingetragen
+async function planTravel(ev, li) {
+  const home = state.settings.home;
+  if (!home) {
+    toast('Trag zuerst in den Einstellungen deine Startadresse ein.');
+    return openSettings();
+  }
+  const btn = $('[data-act="travel"]', li);
+  btn.disabled = true;
+  btn.textContent = 'Rechne …';
+  const mode = state.settings.mode || 'auto';
+  try {
+    const [a, b] = [await geocode(home), await geocode(ev.location)];
+    if (!a) throw new Error('Die Startadresse wurde nicht gefunden.');
+    if (!b) throw new Error(`„${ev.location}“ wurde nicht gefunden. Ergänze Straße oder Ort.`);
+    const [y, mo, d] = ev.date.split('-').map(Number);
+    const [h, mi] = ev.start.split(':').map(Number);
+    const r = await travelMinutes(a, b, mode, new Date(y, mo - 1, d, h, mi));
+    if (!r) throw new Error(mode === 'oepnv' ? 'Keine passende Verbindung mit Bus und Bahn gefunden.' : 'Keine Route gefunden.');
+    ev.travel = { minutes: r.minutes, mode };
+    fillCard(li, ev);
+  } catch (e) {
+    toast(e.message || 'Die Fahrzeit konnte nicht berechnet werden.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Wann losfahren?';
+  }
 }
 
 function renderReview(rawText) {
@@ -946,6 +994,8 @@ function openSettings() {
   $('#s-owner-name').value = state.settings.ownerName || '';
   $('#s-abo-server').value = state.settings.aboServer || '';
   $('#s-owner-email').value = state.settings.ownerEmail || '';
+  $('#s-home').value = state.settings.home || '';
+  $('#s-mode').value = state.settings.mode || 'auto';
   if (isNative) {
     const sel = $('#s-calendar');
     if (state.settings.calendarId && !sel.querySelector(`option[value="${CSS.escape(state.settings.calendarId)}"]`)) {
@@ -992,6 +1042,8 @@ function saveSettings() {
     ownerName: $('#s-owner-name').value.trim(),
     aboServer: $('#s-abo-server').value.trim(),
     ownerEmail: $('#s-owner-email').value.trim().toLowerCase(),
+    home: $('#s-home').value.trim(),
+    mode: $('#s-mode').value,
   };
   if (s.ownerEmail && !isEmail(s.ownerEmail)) {
     toast('Deine E-Mail-Adresse sieht nicht vollständig aus.');
@@ -1132,7 +1184,7 @@ function applySimple() {
 let pendingBackup = null;
 
 function saveBackup() {
-  const json = buildBackup({ settings: state.settings, people: store.getPeople(), family: store.getFamily(), saved: store.getSaved(), abos: getAbos(), kanaele: { own: getOwnChannels(), subs: getSubscriptions() }, listen: getLocalLists() });
+  const json = buildBackup({ settings: state.settings, people: store.getPeople(), family: store.getFamily(), saved: store.getSaved(), abos: getAbos(), kanaele: { own: getOwnChannels(), subs: getSubscriptions() }, listen: getLocalLists(), ablauf: getExpiries() });
   const name = backupFileName();
   if (isNative) {
     const base64 = btoa(String.fromCharCode(...new TextEncoder().encode(json)));
@@ -1168,6 +1220,7 @@ function applyBackup() {
   store.setFamily(b.family);
   if (b.abos) setAbos(b.abos);
   if (Object.keys(b.kanaele.own).length) setOwnChannels({ ...getOwnChannels(), ...b.kanaele.own });
+  if (b.ablauf.length) setExpiries([...getExpiries().filter((x) => !b.ablauf.some((y) => y.id === x.id)), ...b.ablauf]);
   if (b.listen.length) setLocalLists([...getLocalLists().filter((l) => !b.listen.some((x) => x.id === l.id)), ...b.listen]);
   if (Object.keys(b.kanaele.subs).length) setSubscriptions({ ...b.kanaele.subs, ...getSubscriptions() });
   store.clearSaved();
@@ -1208,6 +1261,13 @@ function bind() {
       e.preventDefault();
       handleQuick($('input', form));
     });
+    $('[data-mic]', form)?.addEventListener('click', () => speak($('input', form)));
+  }
+  // Spracheingabe über die Spracherkennung des Handys (nur in der App)
+  if (isNative) {
+    Native.speechAvailable().then(({ available }) => {
+      for (const b of document.querySelectorAll('[data-mic]')) b.hidden = !available;
+    }, () => {});
   }
   $('#s-brief-test').addEventListener('click', () => Native.showMorningBrief().then((r) => !r.shown && toast('Benachrichtigungen sind nicht erlaubt.'), () => {}));
   $('#s-lock').addEventListener('change', async (e) => {
@@ -1407,6 +1467,10 @@ async function init() {
   initListen({
     Native, isNative, toast, show, openUrl: (url) => window.open(url, '_blank', 'noopener'),
     publicUrl: () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname),
+  });
+  initAblauf({
+    toast, addToCalendar,
+    ocrFile: async (file) => recognize(await fileToCanvas(file)),
   });
   initUmfrage({
     state, Native, isNative, toast, show,

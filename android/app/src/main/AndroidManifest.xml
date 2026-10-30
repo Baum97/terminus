@@ -83,6 +83,10 @@
 
     <!-- Mail-Apps finden (Android 11+) -->
     <queries>
+        <!-- Spracheingabe: Spracherkennung des Handys finden -->
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
         <!-- Listen: Aufgaben-Apps mit OpenTasks-Schnittstelle -->
         <provider android:authorities="org.tasks.opentasks" />
         <provider android:authorities="org.dmfs.tasks" />

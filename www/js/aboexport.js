@@ -5,7 +5,9 @@ import { VTIMEZONE, fold, escapeText, buildICS } from './ics.js';
 import { berlinParts } from './icsimport.js';
 import { parseDescription } from './desc.js';
 
-export const DEFAULT_FIELDS = { location: true, notes: false, bring: false };
+// busy: nur „belegt“ teilen – ohne Titel, Ort und Notizen (für Familie, Kollegen, Verein)
+export const DEFAULT_FIELDS = { location: true, notes: false, bring: false, busy: false };
+const BUSY = 'Belegt';
 
 const utcStamp = (ms) => new Date(ms).toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
 const utcDate = (ms) => new Date(ms).toISOString().slice(0, 10).replace(/-/g, '');
@@ -62,6 +64,7 @@ export function aboFromDevice(rows, { name, calendarId, fields = DEFAULT_FIELDS,
     return out;
   };
   const body = (r) => {
+    if (fields.busy) return [`SUMMARY:${BUSY}`, 'TRANSP:OPAQUE', 'CLASS:PRIVATE'];
     const out = [`SUMMARY:${escapeText(r.title || 'Termin')}`];
     if (fields.location && r.location) out.push(`LOCATION:${escapeText(r.location)}`);
     const desc = sharedDescription(r.description, fields);
@@ -90,9 +93,11 @@ export function aboFromDevice(rows, { name, calendarId, fields = DEFAULT_FIELDS,
 
 // Web-Version: gemerkte Termine, ohne Familienangaben
 export function aboFromLocal(events, { name, fields = DEFAULT_FIELDS }) {
-  const shared = events.map((e) => ({
+  const shared = events.map((e) => (fields.busy ? {
+    ...e, title: BUSY, location: '', notes: '', bring: [], cost: '', forWhom: [], responsible: '', done: [], guests: [], travel: null,
+  } : {
     ...e, location: fields.location ? e.location : '', notes: fields.notes ? e.notes : '', bring: fields.bring ? e.bring : [],
-    cost: '', forWhom: [], responsible: '', done: [], guests: [],
+    cost: '', forWhom: [], responsible: '', done: [], guests: [], travel: null,
   }));
   return buildICS(shared, { alarmMinutes: null, eveReminder: false })
     .replace('METHOD:PUBLISH\r\n', `METHOD:PUBLISH\r\nX-WR-CALNAME:${escapeText(name)}\r\nREFRESH-INTERVAL;VALUE=DURATION:PT6H\r\n`);
