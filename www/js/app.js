@@ -17,6 +17,7 @@ import { initKanal, handleKanalCode, getSubscriptions, setSubscriptions, getOwnC
 import { initSetup, renderSetup, setupNeeded, setupSummary, openInvite as openFamilyInvite, handleJoinCode, handleJoinLink } from './setup.js';
 import { berlinUtcStamp, parseICS, simpleRepeat } from './icsimport.js';
 import { parseTicket, readEmail } from './dokument.js';
+import { initUmfrage, handlePollCode, handleAnswerCode, handleRsvpCode, rsvpButtons, rsvpSummary } from './umfrageui.js';
 import { buildBackup, parseBackup, backupFileName } from './backup.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -46,7 +47,7 @@ const state = {
 
 /* ---------- Ansichten ---------- */
 
-const TAB_OF = { abo: 'calendar', kanal: 'calendar', home: 'home', busy: 'home', review: 'home', calendar: 'calendar', tasks: 'tasks', family: 'family', migrate: 'family', setup: 'family', join: 'family' };
+const TAB_OF = { abo: 'calendar', kanal: 'calendar', umfrage: 'family', home: 'home', busy: 'home', review: 'home', calendar: 'calendar', tasks: 'tasks', family: 'family', migrate: 'family', setup: 'family', join: 'family' };
 
 function show(view) {
   for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== `view-${view}`;
@@ -1053,6 +1054,7 @@ function showReceived(ev) {
   $('#received-card').replaceChildren(cardFor(ev, { editable: false }));
   $('#btn-recv-google').href = googleLink(ev, state.settings.defaultMinutes);
   $('#btn-recv-ics').onclick = () => addToCalendar([ev]);
+  $('#received-rsvp').replaceChildren(rsvpButtons(ev));
   document.title = `${ev.title} · Terminus`;
   show('received');
 }
@@ -1363,6 +1365,8 @@ async function route() {
   if (j && handleJoinCode(j[1])) return;
   const abo = location.hash.match(/^#abo=([\w-]+)/);
   if (abo && handleAboCode(abo[1])) return;
+  const u = location.hash.match(/^#(u|ua|z)=([\w-]+)/);
+  if (u && { u: handlePollCode, ua: handleAnswerCode, z: handleRsvpCode }[u[1]](u[2])) return;
   const k = location.hash.match(/^#k=([\w.-]+)/);
   if (k && (await handleKanalCode(k[1]))) return;
   const m = location.hash.match(/^#t=([\w-]+)/);
@@ -1386,7 +1390,7 @@ async function init() {
   initHub({
     state, store, Native, isNative, toast, show, openShare, openMap, startManual, openInvite: (id) => openFamilyInvite(id),
     shareCalendar: (cal) => openShareCalendar(cal), isAbo: (id) => !!getAbos()[id], republish: (id) => republishSoon(id),
-    subscriptions: getSubscriptions, endSubscription, webSubscriptionEvents, subscribedCalendarIds,
+    subscriptions: getSubscriptions, endSubscription, webSubscriptionEvents, subscribedCalendarIds, rsvpSummary,
     saveSettings: (s) => {
       state.settings = s;
       store.setSettings(s);
@@ -1396,6 +1400,16 @@ async function init() {
     state, store, Native, isNative, toast, show, config: CONFIG,
     openInvite: (id) => openFamilyInvite(id),
     publicUrl: () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname),
+  });
+  initUmfrage({
+    state, Native, isNative, toast, show,
+    publicUrl: () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname),
+    reviewEvent: (raw, label) => {
+      const ev = normalizeEvent(raw);
+      state.input = { canvas: null, dataUrl: null, text: '', label };
+      state.drafts = [{ ...ev, picked: true }];
+      renderReview('');
+    },
   });
   initKanal({
     state, Native, isNative, show, buildIcs, openShareCalendar,

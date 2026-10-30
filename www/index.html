@@ -162,6 +162,12 @@
         <p class="hint">Ein gemeinsamer Kalender für alle, auch mit iPhone. Ohne Big Tech, damit eure Daten eure bleiben.</p>
       </div>
       <section class="panel">
+        <h3>Wann können alle?</h3>
+        <p class="hint">Ein paar Termine vorschlagen, Link in die Gruppe schicken, alle kreuzen an. Ohne Konto, ohne Doodle.</p>
+        <ul class="cal-list" id="poll-list" hidden></ul>
+        <button class="btn primary" type="button" id="poll-new">Termin abstimmen</button>
+      </section>
+      <section class="panel">
         <h3>Wer gehört dazu?</h3>
         <ul class="members" id="family-list"></ul>
         <div class="add-member">
@@ -334,6 +340,17 @@
       </section>
     </section>
 
+    <!-- Terminfindung und Zusagen -->
+    <section id="view-umfrage" class="view" hidden>
+      <div>
+        <p class="eyebrow" id="uf-eyebrow"></p>
+        <h2 class="page-h" id="uf-title"></h2>
+        <p class="hint" id="uf-sub"></p>
+      </div>
+      <p class="step-msg" id="uf-msg" hidden></p>
+      <section class="panel" id="uf-body"></section>
+    </section>
+
     <!-- Empfänger eines verschickten Kalenders -->
     <section id="view-kanal" class="view" hidden>
       <div>
@@ -370,6 +387,7 @@
         <a class="btn web-only" id="btn-recv-google" target="_blank" rel="noopener">Google Kalender</a>
       </div>
       <p class="hint">Auf dem iPhone und mit Outlook öffnet „In meinen Kalender“ eine Kalenderdatei, die du mit einem Tipp übernimmst.</p>
+      <section class="panel" id="received-rsvp"></section>
       <div class="pitch">
         <p><strong>Terminus</strong> macht aus Fotos von Zetteln, Plakaten und Einladungen Kalendertermine. Kostenlos, Open Source, ohne Konto.</p>
         <a class="btn" href="./">Selbst ausprobieren</a>
@@ -473,6 +491,25 @@
     </form>
   </dialog>
 
+  <!-- Abstimmung anlegen -->
+  <dialog id="dlg-poll" aria-labelledby="pc-h">
+    <form method="dialog" class="dlg">
+      <div class="dlg-head">
+        <h2 id="pc-h">Termin abstimmen</h2>
+        <button class="btn ghost small" value="close" aria-label="Schließen">Schließen</button>
+      </div>
+      <label class="field"><span>Worum geht es?</span><input id="pc-title" maxlength="120" placeholder="Stammtisch, Elternabend, Probe …"></label>
+      <label class="field"><span>Ort (optional)</span><input id="pc-location" maxlength="200"></label>
+      <fieldset class="me">
+        <legend>Vorschläge (Tag, Beginn, Ende)</legend>
+        <ul class="pc-options" id="pc-options"></ul>
+        <button class="btn small" type="button" id="pc-add">+ Vorschlag</button>
+      </fieldset>
+      <p class="step-msg bad" id="pc-msg" hidden></p>
+      <button class="btn primary" type="button" id="pc-send">Abstimmung senden</button>
+    </form>
+  </dialog>
+
   <!-- Kalender-Menü -->
   <dialog id="dlg-calendars" aria-labelledby="calm-h">
     <form method="dialog" class="dlg">
@@ -508,6 +545,7 @@
       <label class="check" id="ev-done-row" hidden><input type="checkbox" id="ev-done"> <span>Frist erledigt</span></label>
       <button class="meta loc linkish" type="button" id="ev-loc" hidden></button>
       <p id="ev-notes" class="ev-notes"></p>
+      <p class="meta" id="ev-rsvp" hidden></p>
       <div id="ev-bring-box" hidden>
         <h3>Mitbringen</h3>
         <ul class="checklist" id="ev-bring"></ul>

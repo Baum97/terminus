@@ -477,6 +477,9 @@ function openEvent(item) {
   }
   $('#ev-series').hidden = !item.recurring;
   fillEdit(item);
+  const rsvp = item.birthday ? '' : ctx.rsvpSummary(item);
+  $('#ev-rsvp').hidden = !rsvp;
+  $('#ev-rsvp').textContent = rsvp ? `Zusagen: ${rsvp}` : '';
   const editable = !item.birthday && !item.readOnly;
   $('#ev-delete-one').hidden = !item.recurring || !editable;
   $('#ev-edit').hidden = !editable;

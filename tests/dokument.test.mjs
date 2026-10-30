@@ -59,3 +59,25 @@ test('E-Mail: Betreff, quoted-printable, HTML und Kalender-Anhang', () => {
   assert.match(m.ics, /SUMMARY:Arzt/);
   assert.equal(decodeWords('=?ISO-8859-1?B?R3L832U=?='), 'Grüße');
 });
+
+test('Terminfindung: Abstimmung, Antworten, bester Termin, Zusagen', async () => {
+  const u = await import('../www/js/umfrage.js');
+  const poll = { id: 'abc123def456', title: 'Stammtisch', location: 'Krone', by: 'Lea', options: [
+    { date: '2026-11-12', start: '19:00', end: '22:00' }, { date: '2026-11-13', start: '19:30', end: null }, { date: '2026-11-14', start: null, end: null }] };
+  const back = u.decodePoll(u.encodePoll(poll));
+  assert.deepEqual(back, poll);
+  assert.equal(u.decodePoll('kaputt'), null);
+  const a1 = u.decodeAnswer(u.encodeAnswer({ id: poll.id, name: 'Ben', votes: [2, 1, 0] }));
+  const a2 = u.decodeAnswer(u.encodeAnswer({ id: poll.id, name: 'Mia', votes: [0, 2, 2] }));
+  const a3 = u.decodeAnswer(u.encodeAnswer({ id: poll.id, name: 'Jo', votes: [1, 2, 7] }));
+  assert.deepEqual(a3.votes, [1, 2, 0]);
+  const t = u.tally(poll, { Ben: a1.votes, Mia: a2.votes, Jo: a3.votes });
+  assert.deepEqual(t.best, [1]);
+  assert.deepEqual(t.rows[1].yes, ['Mia', 'Jo']);
+  assert.deepEqual(t.rows[1].maybe, ['Ben']);
+  assert.deepEqual(u.tally(poll, {}).best, []);
+  const ev = { title: 'Sommerfest', date: '2027-07-03', start: '15:00' };
+  const r = u.decodeRsvp(u.encodeRsvp({ ev, name: 'Ömer', status: 'vielleicht' }));
+  assert.deepEqual([r.key, r.name, r.status], [u.eventKey(ev), 'Ömer', 'vielleicht']);
+  assert.equal(u.decodeRsvp(u.encodeRsvp({ ev, name: 'X', status: 'egal' })), null);
+});

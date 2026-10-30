@@ -48,7 +48,7 @@ export function messageText(ev, link) {
   if (ev.location) lines.push(`📍 ${ev.location}`);
   if (ev.bring?.length) lines.push(`🎒 Mitbringen: ${ev.bring.join(', ')}`);
   if (ev.cost) lines.push(`💶 ${ev.cost}`);
-  if (link) lines.push('', `In den Kalender: ${link}`);
+  if (link) lines.push('', `In den Kalender, zu- oder absagen: ${link}`);
   return lines.join('\n');
 }
 
