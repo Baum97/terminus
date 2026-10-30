@@ -15,7 +15,8 @@ import { quickParse } from './quick.js';
 import { initAbo, openShareCalendar, getAbos, setAbos, republishSoon, republishStale, handleAboCode, buildIcs } from './abo.js';
 import { initKanal, handleKanalCode, getSubscriptions, setSubscriptions, getOwnChannels, setOwnChannels, endSubscription, webSubscriptionEvents, subscribedCalendarIds } from './kanalui.js';
 import { initSetup, renderSetup, setupNeeded, setupSummary, openInvite as openFamilyInvite, handleJoinCode, handleJoinLink } from './setup.js';
-import { berlinUtcStamp } from './icsimport.js';
+import { berlinUtcStamp, parseICS, simpleRepeat } from './icsimport.js';
+import { parseTicket, readEmail } from './dokument.js';
 import { buildBackup, parseBackup, backupFileName } from './backup.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -147,9 +148,14 @@ async function fileToCanvas(file, max = 2000) {
   return canvas;
 }
 
+const isPdf = (f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+const isMail = (f) => f.type === 'message/rfc822' || /\.eml$/i.test(f.name);
+const isIcs = (f) => f.type === 'text/calendar' || /\.ics$/i.test(f.name);
+
 async function handleFile(file) {
+  if (file && (isPdf(file) || isMail(file) || isIcs(file))) return handleDocument(file);
   if (!file || !file.type.startsWith('image/')) {
-    toast('Bitte ein Bild auswählen.');
+    toast('Bitte ein Bild, ein PDF oder eine E-Mail auswählen.');
     return;
   }
   let canvas;
@@ -162,6 +168,45 @@ async function handleFile(file) {
   const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
   state.input = { canvas, dataUrl, text: '', label: 'Erkannt aus deinem Foto' };
   run();
+}
+
+// PDF (Ticket, Elternbrief, Rechnung), E-Mail (.eml) oder Kalenderdatei
+async function handleDocument(file) {
+  try {
+    if (isIcs(file)) return showIcsDrafts(await file.text(), `Aus ${file.name || 'der Kalenderdatei'}`);
+    if (isMail(file)) {
+      const mail = readEmail(await file.text());
+      // Einladungen mit Kalenderanhang: der Anhang ist genauer als jede Erkennung
+      if (mail.ics && parseICS(mail.ics).events.length) return showIcsDrafts(mail.ics, `Aus der E-Mail „${mail.subject || 'ohne Betreff'}“`);
+      if (!mail.text.trim()) return toast('In dieser E-Mail steht kein Text.');
+      state.input = { canvas: null, dataUrl: null, text: mail.text, label: `Erkannt aus der E-Mail „${mail.subject || 'ohne Betreff'}“` };
+      return run();
+    }
+    show('busy');
+    $('#busy-status').textContent = 'Lese das PDF …';
+    $('.sheet').hidden = true;
+    const { readPdf } = await import('./pdf.js');
+    const pdf = await readPdf(await file.arrayBuffer());
+    if (pdf.canvas) {
+      state.input = { canvas: pdf.canvas, dataUrl: pdf.canvas.toDataURL('image/jpeg', 0.85), text: '', label: 'Erkannt aus dem eingescannten PDF' };
+    } else {
+      state.input = { canvas: null, dataUrl: null, text: pdf.text, label: `Erkannt aus ${file.name || 'dem PDF'}` };
+    }
+    return run();
+  } catch (e) {
+    console.error(e);
+    show('home');
+    toast(`Die Datei konnte nicht gelesen werden${e.message ? `: ${e.message}` : '.'}`);
+  }
+}
+
+function showIcsDrafts(text, label) {
+  const { events } = parseICS(text);
+  const drafts = events.map((e) => normalizeEvent({ ...e, notes: e.description, repeat: simpleRepeat(e.rrule) })).filter(Boolean);
+  if (!drafts.length) return toast('In der Datei sind keine Termine.');
+  state.input = { canvas: null, dataUrl: null, text: '', label };
+  state.drafts = drafts.map((e) => ({ ...e, picked: true }));
+  renderReview('');
 }
 
 function handleText(text) {
@@ -203,8 +248,11 @@ async function run(forceLocal = false) {
       });
       if (abort.signal.aborted) return;
     }
-    let events;
-    if (local) {
+    // Fahrkarten erkennt Terminus selbst genauer als jede KI: Zug, Gleis, Platz, Umstiege
+    let events = parseTicket(rawText, new Date());
+    if (events.length) {
+      // nichts weiter zu tun
+    } else if (local) {
       events = parseText(rawText, new Date(), { holidayStart: holidayStartFinder(state.settings.state) });
     } else {
       // 2. Nur den Text an die KI. Das Foto nur, wenn kaum Text erkannt wurde (Handschrift).
@@ -1049,6 +1097,12 @@ async function takeNativeShare() {
       nativeCapture(shared.action);
       return true;
     }
+    if (shared.file) {
+      const bytes = Uint8Array.from(atob(shared.file), (c) => c.charCodeAt(0));
+      const name = shared.name || (shared.type === 'application/pdf' ? 'geteilt.pdf' : shared.type === 'message/rfc822' ? 'geteilt.eml' : 'geteilt.ics');
+      await handleFile(new File([bytes], name, { type: shared.type === 'application/octet-stream' ? '' : shared.type }));
+      return true;
+    }
     if (shared.image) {
       state.input = { canvas: await dataUrlToCanvas(shared.image), dataUrl: shared.image, text: '', label: 'Erkannt aus dem geteilten Bild' };
       run();
@@ -1172,7 +1226,7 @@ async function unlock() {
 /* ---------- Start ---------- */
 
 function bind() {
-  for (const id of ['#in-camera', '#in-file']) {
+  for (const id of ['#in-camera', '#in-file', '#in-doc']) {
     $(id).addEventListener('change', (e) => {
       const file = e.target.files?.[0];
       e.target.value = '';

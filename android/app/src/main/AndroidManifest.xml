@@ -44,6 +44,14 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+            <!-- PDFs (Tickets, Elternbriefe), E-Mails und Kalenderdateien -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="message/rfc822" />
+                <data android:mimeType="text/calendar" />
+            </intent-filter>
 
         </activity>
 

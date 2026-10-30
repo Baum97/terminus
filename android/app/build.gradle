@@ -17,7 +17,9 @@ android {
         }
     }
     // Fester Test-Schlüssel, damit neue Test-Versionen sich über alte installieren lassen.
-    // Für Play Store und F-Droid wird später ein eigener, geheimer Schlüssel verwendet.
+    // Veröffentlichte Versionen signiert der eigene, geheime Schlüssel (nie ins Repo!),
+    // den der Build über Umgebungsvariablen bekommt (siehe docs/VEROEFFENTLICHEN.md).
+    def releaseStore = System.getenv('TERMINUS_KEYSTORE')
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -25,9 +27,18 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (releaseStore) {
+            release {
+                storeFile file(releaseStore)
+                storePassword System.getenv('TERMINUS_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('TERMINUS_KEY_ALIAS') ?: 'terminus'
+                keyPassword System.getenv('TERMINUS_KEY_PASSWORD') ?: System.getenv('TERMINUS_KEYSTORE_PASSWORD')
+            }
+        }
     }
     buildTypes {
         release {
+            if (releaseStore) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

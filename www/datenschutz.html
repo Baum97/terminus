@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Datenschutz · Terminus</title>
+  <link rel="stylesheet" href="css/app.css">
+  <style>
+    main.legal { max-width: 44rem; margin: 0 auto; padding: 24px 16px 48px; display: grid; gap: 14px; }
+    main.legal h2 { margin: 18px 0 0; }
+    main.legal p, main.legal li { line-height: 1.55; }
+    .todo { background: var(--marker); padding: 8px 10px; border-radius: var(--r); }
+  </style>
+</head>
+<body>
+  <main class="legal">
+    <p><a href="./">‹ Zurück zu Terminus</a></p>
+    <h1>Datenschutz</h1>
+    <p><strong>Kurz:</strong> Terminus hat kein Konto, keine Werbung und keine Tracker. Deine Termine, Kontakte, Fotos und Dokumente bleiben auf deinem Gerät, außer du schickst sie bewusst weg.</p>
+
+    <h2>Verantwortlich</h2>
+    <!-- VOR DEM VERÖFFENTLICHEN AUSFÜLLEN (siehe docs/VEROEFFENTLICHEN.md, Schritt 6) -->
+    <p class="todo" id="verantwortlich">Name, Anschrift und E-Mail-Adresse der verantwortlichen Person</p>
+
+    <h2>Was auf deinem Gerät bleibt</h2>
+    <ul>
+      <li><strong>Fotos, Screenshots, PDFs und Sprachaufnahmen</strong> werden auf dem Gerät ausgewertet (Texterkennung mit Tesseract, Spracherkennung von Android). Sie werden nicht hochgeladen.</li>
+      <li><strong>Kalender und Kontakte</strong> liest und schreibt die Android-App nur auf dem Gerät. Wenn du sie mit einem Anbieter abgleichst (z. B. über DAVx⁵ mit mailbox.org, Posteo oder Nextcloud), gelten dessen Datenschutzbestimmungen.</li>
+      <li><strong>Einstellungen, gemerkte Termine, Listen, Dokumente und Schlüssel</strong> liegen im Speicher der App bzw. des Browsers. Eine Sicherungsdatei entsteht nur, wenn du sie selbst erstellst.</li>
+    </ul>
+
+    <h2>Wann Daten das Gerät verlassen</h2>
+    <ul>
+      <li><strong>KI-Erkennung (optional):</strong> Nur wenn du sie einschaltest, wird der erkannte Text (bei schwer lesbaren Bildern das Bild) an den gewählten Dienst geschickt: an Mistral AI (Paris, Frankreich) mit deinem eigenen Schlüssel, an einen Terminus-Server oder an einen Dienst deiner Wahl. Ohne KI arbeitet Terminus vollständig auf dem Gerät.</li>
+      <li><strong>Teilen und Einladen:</strong> Termine, Kalender, Abstimmungen und Einladungen verschickst du selbst über eine App deiner Wahl (Messenger, E-Mail). Die Daten stecken im Link hinter dem Zeichen „#“; dieser Teil wird beim Öffnen des Links nicht an den Webserver übertragen.</li>
+      <li><strong>Abo-Links (optional):</strong> Nur wenn du einen Abo-Link erstellst, wird die freigegebene Kalenderdatei auf dem eingetragenen Terminus-Server gespeichert, bis du den Link widerrufst.</li>
+      <li><strong>Fahrzeit (optional):</strong> Für „Losfahren um …“ werden Start- und Zielort an den Routendienst OSRM bzw. die Ortssuche Nominatim (OpenStreetMap) geschickt.</li>
+    </ul>
+
+    <h2>Web-Version</h2>
+    <p>Beim Aufruf der Web-Version speichert der Anbieter des Webspeichers technisch notwendige Zugriffsdaten (z. B. IP-Adresse, Zeitpunkt) in Server-Protokollen. Terminus selbst setzt keine Cookies und bindet keine Inhalte Dritter ein.</p>
+
+    <h2>Deine Rechte</h2>
+    <p>Du hast nach der DSGVO das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch sowie das Recht, dich bei einer Datenschutz-Aufsichtsbehörde zu beschweren. Da Terminus keine personenbezogenen Daten auf eigenen Servern speichert (außer Abo-Links), löschst du deine Daten, indem du die App deinstallierst oder die Browserdaten löschst.</p>
+  </main>
+</body>
+</html>

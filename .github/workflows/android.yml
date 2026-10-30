@@ -13,6 +13,8 @@ permissions:
 jobs:
   apk:
     runs-on: ubuntu-latest
+    env:
+      KEYSTORE_B64: ${{ secrets.TERMINUS_KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v4
 
@@ -48,8 +50,28 @@ jobs:
           name: terminus-apk
           path: terminus.apk
 
+      # Mit eigenem Schlüssel (Secrets TERMINUS_KEYSTORE_BASE64 und TERMINUS_KEYSTORE_PASSWORD)
+      # wird bei einem Tag eine signierte Release-APK gebaut, sonst gibt es nur die Test-Version.
+      - name: Signierte Release-APK bauen
+        if: startsWith(github.ref, 'refs/tags/v') && env.KEYSTORE_B64 != ''
+        working-directory: android
+        env:
+          TERMINUS_KEYSTORE_PASSWORD: ${{ secrets.TERMINUS_KEYSTORE_PASSWORD }}
+          TERMINUS_KEY_ALIAS: ${{ secrets.TERMINUS_KEY_ALIAS }}
+          TERMINUS_KEY_PASSWORD: ${{ secrets.TERMINUS_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          TERMINUS_KEYSTORE="$RUNNER_TEMP/release.jks" ./gradlew assembleRelease --no-daemon
+          rm -f "$RUNNER_TEMP/release.jks"
+          cp app/build/outputs/apk/release/app-release.apk "../terminus-$GITHUB_REF_NAME.apk"
+
       - name: Release mit APK anlegen
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" terminus.apk --title "Terminus $GITHUB_REF_NAME" --notes "Test-Version zum direkten Installieren (APK)." --prerelease
+        run: |
+          if ls terminus-v*.apk >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" terminus-v*.apk --title "Terminus $GITHUB_REF_NAME" --generate-notes
+          else
+            gh release create "$GITHUB_REF_NAME" terminus.apk --title "Terminus $GITHUB_REF_NAME" --notes "Test-Version zum direkten Installieren (APK, Test-Schlüssel)." --prerelease
+          fi

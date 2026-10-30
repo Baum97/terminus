@@ -22,7 +22,7 @@
       "title": "title",
       "text": "text",
       "url": "url",
-      "files": [{ "name": "image", "accept": ["image/*"] }]
+      "files": [{ "name": "image", "accept": ["image/*", "application/pdf", ".pdf", "message/rfc822", ".eml", "text/calendar", ".ics"] }]
     }
   }
 }

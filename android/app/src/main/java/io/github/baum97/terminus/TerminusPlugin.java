@@ -78,6 +78,9 @@ public class TerminusPlugin extends Plugin {
     private Uri pendingImage;
     private String pendingText;
     private String pendingAction;
+    // Geteilte Dokumente (PDF, E-Mail, Kalenderdatei) und ihr Typ
+    private Uri pendingFile;
+    private String pendingFileType;
     private Uri photoUri;
 
     /* ---------- Teilen-Menü: Eingang ---------- */
@@ -114,6 +117,13 @@ public class TerminusPlugin extends Plugin {
         if (type != null && type.startsWith("image/")) {
             pendingImage = streamExtra(intent);
             pendingText = null;
+        } else if (type != null && (type.equals("application/pdf") || type.equals("message/rfc822") || type.equals("text/calendar") || type.equals("application/octet-stream"))) {
+            pendingFile = streamExtra(intent);
+            pendingFileType = type;
+            pendingImage = null;
+            pendingText = null;
+            intent.setAction(null);
+            return pendingFile != null;
         } else {
             String subject = intent.getStringExtra(Intent.EXTRA_SUBJECT);
             String text = intent.getStringExtra(Intent.EXTRA_TEXT);
@@ -136,6 +146,11 @@ public class TerminusPlugin extends Plugin {
         JSObject result = new JSObject();
         try {
             if (pendingImage != null) result.put("image", imageDataUrl(pendingImage));
+            else if (pendingFile != null) {
+                result.put("file", fileBase64(pendingFile));
+                result.put("type", pendingFileType);
+                result.put("name", fileName(pendingFile));
+            }
             else if ("join".equals(pendingAction) || "kanal".equals(pendingAction)) {
                 result.put("action", pendingAction);
                 result.put("link", pendingText);
@@ -143,13 +158,36 @@ public class TerminusPlugin extends Plugin {
             else if (pendingAction != null) result.put("action", pendingAction);
         } catch (Exception e) {
             pendingImage = null;
-            call.reject("Das geteilte Bild konnte nicht gelesen werden.", e);
+            pendingFile = null;
+            call.reject(e instanceof IllegalArgumentException && e.getMessage() != null ? e.getMessage() : "Das Geteilte konnte nicht gelesen werden.", e);
             return;
         }
         pendingImage = null;
         pendingText = null;
         pendingAction = null;
+        pendingFile = null;
+        pendingFileType = null;
         call.resolve(result);
+    }
+
+    private String fileBase64(Uri uri) throws Exception {
+        try (InputStream in = getContext().getContentResolver().openInputStream(uri)) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[16384];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                out.write(buf, 0, n);
+                if (out.size() > 20 * 1024 * 1024) throw new IllegalArgumentException("Die Datei ist zu groß.");
+            }
+            return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
+        }
+    }
+
+    private String fileName(Uri uri) {
+        try (Cursor c = getContext().getContentResolver().query(uri, new String[] { android.provider.OpenableColumns.DISPLAY_NAME }, null, null, null)) {
+            if (c != null && c.moveToFirst()) return c.getString(0);
+        } catch (Exception ignored) {}
+        return "";
     }
 
     // Bild verkleinert und richtig gedreht als JPEG-Data-URL, wie die Web-App es auch erzeugt.
