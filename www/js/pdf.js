@@ -39,3 +39,24 @@ export async function readPdf(data, { maxPages = 6 } = {}) {
   await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
   return { text: '', pages: doc.numPages, canvas };
 }
+
+// Seiten als Bilder für die Wallet (Barcodes scharf: hohe Auflösung)
+export async function renderPdfPages(data, { maxPages = 4, width = 1400 } = {}) {
+  const pdfjs = await load();
+  const doc = await pdfjs.getDocument({ data, isEvalSupported: false }).promise;
+  const out = [];
+  for (let n = 1; n <= Math.min(doc.numPages, maxPages); n++) {
+    const page = await doc.getPage(n);
+    const base = page.getViewport({ scale: 1 });
+    const viewport = page.getViewport({ scale: width / base.width });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const g = canvas.getContext('2d');
+    g.fillStyle = '#fff';
+    g.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: g, viewport }).promise;
+    out.push(canvas);
+  }
+  return out;
+}

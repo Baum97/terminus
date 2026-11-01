@@ -33,7 +33,7 @@ export function normalizeRepeat(raw, until, date) {
     r = s === 'biweekly' ? { freq: 'weekly', interval: 2 } : { freq: s };
   }
   if (!r || typeof r !== 'object' || !FREQS.includes(r.freq)) return null;
-  const interval = Math.min(4, Math.max(1, Math.round(+r.interval || 1)));
+  const interval = Math.min(8, Math.max(1, Math.round(+r.interval || 1)));
   let u = typeof (r.until ?? until) === 'string' ? (r.until ?? until).slice(0, 10) : null;
   if (!isValidISO(u) || u <= date) u = null;
   return { freq: r.freq, interval, until: u };

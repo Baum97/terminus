@@ -1386,4 +1386,54 @@ public class TerminusPlugin extends Plugin {
         }
         call.resolve(r);
     }
+
+    /* ---------- Wallet: Helligkeit, Original-App ---------- */
+
+    // level 0..1 = fest, -1 = wieder wie im System eingestellt
+    @PluginMethod
+    public void setBrightness(PluginCall call) {
+        float level = call.getFloat("level", -1f);
+        getActivity().runOnUiThread(() -> {
+            android.view.WindowManager.LayoutParams lp = getActivity().getWindow().getAttributes();
+            lp.screenBrightness = level < 0 ? android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE : Math.min(1f, level);
+            getActivity().getWindow().setAttributes(lp);
+            call.resolve();
+        });
+    }
+
+    // Installierte Apps mit Startsymbol, z. B. um das Deutschlandticket in der App des Anbieters zu öffnen
+    @PluginMethod
+    public void listApps(PluginCall call) {
+        android.content.pm.PackageManager pm = getContext().getPackageManager();
+        Intent main = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
+        java.util.List<android.content.pm.ResolveInfo> found = pm.queryIntentActivities(main, 0);
+        java.util.TreeMap<String, String> sorted = new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        for (android.content.pm.ResolveInfo r : found) {
+            String pkg = r.activityInfo.packageName;
+            if (pkg.equals(getContext().getPackageName())) continue;
+            sorted.put(String.valueOf(r.loadLabel(pm)) + "\u0000" + pkg, pkg);
+        }
+        JSArray apps = new JSArray();
+        for (java.util.Map.Entry<String, String> e : sorted.entrySet()) {
+            JSObject a = new JSObject();
+            a.put("label", e.getKey().substring(0, e.getKey().indexOf('\u0000')));
+            a.put("package", e.getValue());
+            apps.put(a);
+        }
+        JSObject r = new JSObject();
+        r.put("apps", apps);
+        call.resolve(r);
+    }
+
+    @PluginMethod
+    public void openApp(PluginCall call) {
+        Intent i = getContext().getPackageManager().getLaunchIntentForPackage(call.getString("package", ""));
+        if (i == null) {
+            call.reject("Diese App ist nicht (mehr) installiert.", "missing");
+            return;
+        }
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(i);
+        call.resolve();
+    }
 }

@@ -83,6 +83,11 @@
 
     <!-- Mail-Apps finden (Android 11+) -->
     <queries>
+        <!-- Wallet: Original-App eines Tickets öffnen (z. B. für das Deutschlandticket) -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
         <!-- Spracheingabe: Spracherkennung des Handys finden -->
         <intent>
             <action android:name="android.speech.action.RECOGNIZE_SPEECH" />

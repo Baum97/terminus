@@ -139,7 +139,7 @@ async function renderShare() {
   }
 }
 
-function drawQR(canvas, text) {
+export function drawQR(canvas, text) {
   const qr = window.qrcode(0, 'L');
   qr.addData(text);
   qr.make();

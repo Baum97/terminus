@@ -8,6 +8,7 @@ import { publicHolidays, schoolHolidays } from './holidays.js';
 import { normalizeEvent, newId } from './events.js';
 import { parseICS, simpleRepeat } from './icsimport.js';
 import { readZip } from './unzip.js';
+import { drawWeek } from './wochenbild.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
@@ -46,6 +47,14 @@ export function initHub(c) {
     $('#dlg-calendars').close();
     ctx.show('family');
     $('#sub-url').focus();
+  });
+  $('#calm-week').addEventListener('click', () => {
+    $('#dlg-calendars').close();
+    shareWeek();
+  });
+  $('#calm-bruecken').addEventListener('click', () => {
+    $('#dlg-calendars').close();
+    ctx.openBruecken();
   });
   $('#calm-check').addEventListener('click', () => {
     $('#dlg-calendars').close();
@@ -255,6 +264,38 @@ function agendaDay(iso, holidays) {
   }
   wrap.append(ul);
   return wrap;
+}
+
+/* ---------- Woche als Bild teilen ---------- */
+
+// Die angezeigte Woche (mit Personenfilter) als Bild in die Familiengruppe oder den Status
+async function shareWeek() {
+  const from = weekStart(cal.selected);
+  const items = (await loadItems(from, addDays(from, 6))).filter((i) => matchesPerson(i, cal.person));
+  const title = cal.person ? `Woche von ${cal.person}` : `Woche ${isoWeek(from)}`;
+  const canvas = drawWeek(from, items, { title, todayIso: toISO(new Date()) });
+  const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+  const fileName = `woche-${isoWeek(from)}.png`;
+  try {
+    if (ctx.isNative) {
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      let bin = '';
+      for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode(...bytes.subarray(i, i + 8192));
+      await ctx.Native.shareFile({ base64: btoa(bin), mimeType: 'image/png', fileName, text: title, title: 'Woche teilen' });
+      return;
+    }
+    const file = new File([blob], fileName, { type: 'image/png' });
+    if (navigator.canShare?.({ files: [file] })) return await navigator.share({ files: [file], title });
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+  }
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), { href: url, download: fileName });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+  ctx.toast('Bild gespeichert.');
 }
 
 /* ---------- Kalender-Menü: Kalender des Handys, Leute einladen ---------- */
@@ -477,6 +518,15 @@ function openEvent(item) {
   }
   $('#ev-series').hidden = !item.recurring;
   fillEdit(item);
+  $('#ev-ticket').hidden = true;
+  if (!item.birthday) ctx.ticketFor(item).then((t) => {
+    if (!t || cal.current !== item) return;
+    $('#ev-ticket').hidden = false;
+    $('#ev-ticket').onclick = () => {
+      $('#dlg-event').close();
+      ctx.showTicket(t.id);
+    };
+  });
   const rsvp = item.birthday ? '' : ctx.rsvpSummary(item);
   $('#ev-rsvp').hidden = !rsvp;
   $('#ev-rsvp').textContent = rsvp ? `Zusagen: ${rsvp}` : '';

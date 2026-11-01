@@ -121,3 +121,44 @@ export async function extractWithLLM({ settings, imageDataUrl, text, today = new
     throw new LLMError('Die Antwort der KI war kein gültiges JSON.', 'format');
   }
 }
+
+// „Brief verstehen“: Zusammenfassung in einfacher Sprache, auf Wunsch übersetzt.
+export function explainPrompt(lang = 'de') {
+  return `Erkläre den Text (Brief, Elternbrief, Aushang) in einfacher Sprache auf ${LANGUAGES[lang] || 'Deutsch'}.
+Nur JSON: {"summary":"","todo":[""],"dates":[""]}
+- summary: 2 bis 4 kurze Sätze. Worum geht es, wer schreibt, was ist wichtig.
+- todo: was der Empfänger tun muss (unterschreiben, zahlen, mitbringen, antworten), je höchstens 12 Wörter. Leer, wenn nichts.
+- dates: wichtige Daten und Fristen als kurzer Text, z. B. "Fr 14.11.: Laternenfest 17 Uhr".
+- Kurze Sätze, keine Fachwörter. Nichts erfinden.`;
+}
+
+export async function explainWithLLM({ settings, text, lang, signal }) {
+  const preset = PROVIDERS[settings.provider];
+  if (!preset?.endpoint && !settings.endpoint) throw new LLMError('Für „Brief verstehen“ braucht es die KI. Schalte sie in den Einstellungen ein.', 'off');
+  const body = {
+    model: settings.model || preset.model,
+    temperature: 0.2,
+    max_tokens: 900,
+    response_format: { type: 'json_object' },
+    messages: [{ role: 'system', content: explainPrompt(lang || settings.lang) }, { role: 'user', content: `Text:\n${String(text).slice(0, 5000)}` }],
+  };
+  if (settings.provider === 'server') body.mode = 'text';
+  const headers = { 'Content-Type': 'application/json' };
+  if (settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`;
+  let res;
+  try {
+    res = await fetch(settings.endpoint || preset.endpoint, { method: 'POST', headers, body: JSON.stringify(body), signal });
+  } catch (e) {
+    if (e.name === 'AbortError') throw e;
+    throw new LLMError('Die KI ist nicht erreichbar. Prüfe die Internetverbindung.', 'network');
+  }
+  if (!res.ok) throw new LLMError(res.status === 401 || res.status === 403 ? 'Der API-Schlüssel wurde abgelehnt.' : `Die KI hat mit Fehler ${res.status} geantwortet.`, 'http');
+  const raw = contentText((await res.json()).choices?.[0]?.message).replace(/^```(?:json)?\s*|\s*```$/g, '');
+  try {
+    const o = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
+    const list = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim().slice(0, 200)).slice(0, 10) : []);
+    return { summary: String(o.summary || '').trim().slice(0, 1200), todo: list(o.todo), dates: list(o.dates) };
+  } catch {
+    throw new LLMError('Die Antwort der KI war nicht lesbar.', 'format');
+  }
+}

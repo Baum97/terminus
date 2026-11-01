@@ -103,6 +103,8 @@
       </div>
       <p class="hint" id="review-hint">Prüfe die Angaben kurz. Antippen zum Bearbeiten.</p>
       <button class="linkish" type="button" id="btn-check-calendar" hidden>Mit meinem Kalender abgleichen (Überschneidungen finden)</button>
+      <button class="btn small" type="button" id="btn-wallet-add" hidden>Ticket in die Wallet legen</button>
+      <button class="btn small" type="button" id="btn-explain" hidden>Brief verstehen: einfach erklärt oder übersetzt</button>
       <ol class="cards" id="cards"></ol>
       <button class="btn ghost add" id="btn-add" type="button">+ Termin von Hand ergänzen</button>
       <details class="raw" id="raw-box" hidden>
@@ -212,6 +214,29 @@
         <p class="hint">Ein paar Termine vorschlagen, Link in die Gruppe schicken, alle kreuzen an. Ohne Konto, ohne Doodle.</p>
         <ul class="cal-list" id="poll-list" hidden></ul>
         <button class="btn primary" type="button" id="poll-new">Termin abstimmen</button>
+      </section>
+      <section class="panel">
+        <h3>Gemeinsame Kasse</h3>
+        <p class="hint">Ausflug, WG, Kita-Kasse: Wer hat was bezahlt, wer schuldet wem? Ohne Konto, der Stand geht als Link in die Gruppe.</p>
+        <ul class="cal-list" id="kasse-list" hidden></ul>
+        <button class="btn" type="button" id="kasse-new">Neue Kasse</button>
+      </section>
+      <section class="panel">
+        <h3>Ämtchenplan</h3>
+        <p class="hint">Müll, Kochen, Bad putzen: reihum, im Familienkalender mit „Zuständig“.</p>
+        <details class="invite-link" id="am-form">
+          <summary>+ Ämtchen anlegen</summary>
+          <div class="grid2">
+            <label class="field"><span>Aufgabe</span><input id="am-task" maxlength="60" placeholder="Müll rausbringen"></label>
+            <label class="field"><span>Wie oft wechseln?</span><select id="am-freq"><option value="weekly">jede Woche</option><option value="daily">jeden Tag</option></select></label>
+            <label class="field"><span>Ab</span><input id="am-start" type="date"></label>
+            <label class="field"><span>Uhrzeit (optional)</span><input id="am-time" type="time"></label>
+          </div>
+          <fieldset class="me"><legend>Wer macht mit? (in dieser Reihenfolge)</legend><div id="am-members" class="row"></div>
+            <label class="field"><span>Weitere</span><input id="am-others" placeholder="Namen mit Komma"></label>
+          </fieldset>
+          <button class="btn primary small" type="button" id="am-create">Plan erstellen</button>
+        </details>
       </section>
       <section class="panel">
         <h3>Wer gehört dazu?</h3>
@@ -386,6 +411,71 @@
       </section>
     </section>
 
+    <!-- Gemeinsame Kasse -->
+    <section id="view-kasse" class="view" hidden>
+      <div>
+        <p class="eyebrow">Gemeinsame Kasse</p>
+        <h2 class="page-h" id="ka-title"></h2>
+      </div>
+      <section class="panel">
+        <h3>Ausgabe eintragen</h3>
+        <div class="grid2">
+          <label class="field"><span>Betrag</span><input id="ka-amount" inputmode="decimal" placeholder="12,50"></label>
+          <label class="field"><span>Bezahlt von</span><select id="ka-by"></select></label>
+          <label class="field"><span>Wofür?</span><input id="ka-text" maxlength="80" placeholder="Pizza, Tickets …"></label>
+        </div>
+        <fieldset class="me"><legend>Für wen?</legend><div id="ka-for" class="row"></div></fieldset>
+        <button class="btn primary" type="button" id="ka-add">Eintragen</button>
+      </section>
+      <section class="panel">
+        <h3>Stand</h3>
+        <ul class="ka-balances" id="ka-balances"></ul>
+        <div id="ka-settle-box"><h3>So gleicht ihr aus</h3><ul class="ka-settle" id="ka-settle"></ul></div>
+        <button class="btn primary" type="button" id="ka-share">Stand in die Gruppe schicken</button>
+        <p class="hint">Wer den Link antippt, hat den Stand und kann eigene Ausgaben eintragen und zurückschicken. Terminus führt alles zusammen.</p>
+      </section>
+      <section class="panel">
+        <h3>Ausgaben</h3>
+        <ul class="cal-list" id="ka-expenses"></ul>
+        <p class="hint" id="ka-empty">Noch keine Ausgaben.</p>
+      </section>
+      <details class="panel invite-link" id="ka-people">
+        <summary>Personen</summary>
+        <p class="hint" id="ka-members"></p>
+        <div class="grid2">
+          <label class="field"><span>Name</span><input id="ka-member" maxlength="40"></label>
+          <label class="field"><span>IBAN (optional, für GiroCode)</span><input id="ka-iban" autocomplete="off" placeholder="DE…"></label>
+        </div>
+        <button class="btn small" type="button" id="ka-member-add">Hinzufügen</button>
+        <button class="btn ghost small danger" type="button" id="ka-delete">Kasse löschen</button>
+      </details>
+    </section>
+
+    <!-- Brückentage -->
+    <section id="view-bruecken" class="view" hidden>
+      <div class="cal-head br-head">
+        <button class="btn ghost small icon" type="button" id="br-prev" aria-label="Vorjahr">‹</button>
+        <h2>Brückentage <span id="br-year"></span></h2>
+        <button class="btn ghost small icon" type="button" id="br-next" aria-label="Nächstes Jahr">›</button>
+      </div>
+      <p class="hint" id="br-state"></p>
+      <ul class="br-list" id="br-list"></ul>
+      <p class="empty" id="br-empty" hidden>Keine lohnenden Brückentage mehr in diesem Jahr.</p>
+      <button class="btn" type="button" id="br-share">Liste teilen</button>
+    </section>
+
+    <!-- Wallet -->
+    <section id="view-wallet" class="view" hidden>
+      <div>
+        <h2 class="page-h">Wallet</h2>
+        <p class="hint">Fahrkarten, Bordkarten, Eintrittskarten als PDF oder Bild. Nur auf diesem Gerät.</p>
+      </div>
+      <label class="btn primary" for="wl-file">+ Ticket hinzufügen</label>
+      <input id="wl-file" type="file" accept=".pdf,application/pdf,image/*" hidden>
+      <ul class="wl-list" id="wl-list"></ul>
+      <p class="empty" id="wl-empty">Noch leer. Tipp: Teile ein Ticket-PDF an Terminus, dann landet der Termin im Kalender und das Ticket hier.</p>
+    </section>
+
     <!-- Terminfindung und Zusagen -->
     <section id="view-umfrage" class="view" hidden>
       <div>
@@ -445,6 +535,7 @@
     <button type="button" data-tab="home"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span>Erfassen</span></button>
     <button type="button" data-tab="calendar"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span>Kalender</span></button>
     <button type="button" data-tab="tasks"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 7 2 2 3-3M5 15l2 2 3-3M13 8h6M13 16h6"/></svg><span>Aufgaben</span></button>
+    <button type="button" data-tab="wallet"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4z"/><path d="M4 7V6a2 2 0 0 1 2-2h10v3"/><circle cx="16" cy="13.5" r="1.2"/></svg><span>Wallet</span></button>
     <button type="button" data-tab="family"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="10" r="2.4"/><path d="M3 20c.5-3.5 2.5-5.5 5-5.5s4.5 2 5 5.5M13.5 20c.4-2.6 1.7-4 3.5-4s3.1 1.4 3.5 4"/></svg><span>Familie</span></button>
   </nav>
 
@@ -539,6 +630,68 @@
     </form>
   </dialog>
 
+  <!-- GiroCode -->
+  <dialog id="dlg-giro" aria-labelledby="giro-h">
+    <form method="dialog" class="dlg">
+      <div class="dlg-head"><h2 id="giro-h">Überweisen</h2><button class="btn ghost small" value="close">Schließen</button></div>
+      <figure class="qr-figure"><canvas id="giro-qr" width="520" height="520" aria-label="GiroCode"></canvas></figure>
+      <p class="hint" id="giro-text"></p>
+    </form>
+  </dialog>
+
+  <!-- Wallet: hinzufügen und zeigen -->
+  <dialog id="dlg-wallet-add" aria-labelledby="wa-h">
+    <form method="dialog" class="dlg">
+      <div class="dlg-head"><h2 id="wa-h">In die Wallet</h2><button class="btn ghost small" value="close">Schließen</button></div>
+      <p class="hint" id="wa-file-name"></p>
+      <label class="field"><span>Name</span><input id="wa-title" maxlength="80"></label>
+      <div class="grid2">
+        <label class="field"><span>Art</span><select id="wa-kind"></select></label>
+        <label class="field"><span>Datum (optional)</span><input id="wa-date" type="date"></label>
+      </div>
+      <div id="wa-app-row">
+        <p class="hint">App zum Öffnen (optional), z. B. für das Deutschlandticket: <strong id="wa-app">keine</strong></p>
+        <button class="btn small" type="button" id="wa-app-pick">App wählen</button>
+        <select id="wa-app-list" hidden></select>
+      </div>
+      <label class="field"><span>Notiz (optional)</span><input id="wa-note" maxlength="300" placeholder="Wagen 7, Platz 45"></label>
+      <button class="btn primary" type="button" id="wa-save">Ablegen</button>
+    </form>
+  </dialog>
+  <dialog id="dlg-ticket" class="ticket" aria-labelledby="wt-title">
+    <form method="dialog" class="dlg">
+      <div class="dlg-head"><div><h2 id="wt-title"></h2><p class="hint" id="wt-meta"></p></div><button class="btn ghost small" value="close">Schließen</button></div>
+      <div class="wt-pages" id="wt-pages"></div>
+      <p class="hint" id="wt-hint">Bei der Kontrolle gilt, was in den Tarifbestimmungen steht. Manche Tickets (z. B. das Deutschlandticket) gelten nur in der App des Anbieters oder mit Ausweis. Halte beides bereit.</p>
+      <div class="row">
+        <button class="btn primary" type="button" id="wt-app" hidden>Original-App öffnen</button>
+        <button class="btn ghost small danger" type="button" id="wt-delete">Löschen</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Brief verstehen -->
+  <dialog id="dlg-explain" aria-labelledby="ex-h">
+    <form method="dialog" class="dlg">
+      <div class="dlg-head">
+        <h2 id="ex-h">Brief verstehen</h2>
+        <button class="btn ghost small" value="close" aria-label="Schließen">Schließen</button>
+      </div>
+      <label class="field"><span>Sprache</span><select id="ex-lang"></select></label>
+      <p class="hint" id="ex-status"></p>
+      <div id="ex-result" class="ex-result" hidden>
+        <p id="ex-summary"></p>
+        <div id="ex-todo-box"><h3>Was ist zu tun?</h3><ul id="ex-todo"></ul></div>
+        <div id="ex-dates-box"><h3>Wichtige Daten</h3><ul id="ex-dates"></ul></div>
+      </div>
+      <div class="row">
+        <button class="btn small" type="button" id="ex-speak" hidden>Vorlesen</button>
+        <button class="btn small" type="button" id="ex-share" hidden>Teilen</button>
+      </div>
+      <p class="hint">Der erkannte Text geht dafür an die eingestellte KI. Das Foto bleibt auf dem Handy.</p>
+    </form>
+  </dialog>
+
   <!-- Abstimmung anlegen -->
   <dialog id="dlg-poll" aria-labelledby="pc-h">
     <form method="dialog" class="dlg">
@@ -574,6 +727,8 @@
       <div class="row">
         <button class="btn" type="button" id="calm-new">Neuer Termin</button>
         <button class="btn" type="button" id="calm-subscribe">Kalender abonnieren</button>
+        <button class="btn" type="button" id="calm-week">Woche als Bild teilen</button>
+        <button class="btn" type="button" id="calm-bruecken">Brückentage</button>
         <button class="btn" type="button" id="calm-check">Einrichtung prüfen</button>
       </div>
     </form>
@@ -594,6 +749,7 @@
       <button class="meta loc linkish" type="button" id="ev-loc" hidden></button>
       <p id="ev-notes" class="ev-notes"></p>
       <p class="meta" id="ev-rsvp" hidden></p>
+      <button class="btn small" type="button" id="ev-ticket" hidden>Ticket zeigen</button>
       <div id="ev-bring-box" hidden>
         <h3>Mitbringen</h3>
         <ul class="checklist" id="ev-bring"></ul>

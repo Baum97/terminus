@@ -51,7 +51,7 @@ async function scan(file) {
   Object.assign(hint, { hidden: false, textContent: 'Lese das Datum …' });
   try {
     const text = await ctx.ocrFile(file);
-    const dates = text.split(/\n/).flatMap((l) => findDates(l, new Date()).map((d) => d.date));
+    const dates = text.split(/\n/).flatMap((l) => findDates(l, new Date()).dates.map((d) => d.date));
     const best = guessExpiry(dates);
     if (!best) throw new Error('Kein Datum in der Zukunft gefunden. Bitte von Hand eintragen.');
     $('#ab-date').value = $('#ab-date').type === 'month' ? best.slice(0, 7) : best;

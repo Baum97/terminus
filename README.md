@@ -47,7 +47,21 @@ Du fotografierst einen Elternbrief, ein Plakat, eine Einladung oder einen Chat-S
 | **Listen** | Aufgaben → Einkauf, Packliste, To-dos. Mit Tasks.org oder OpenTasks auf dem Handy über DAVx⁵ mit dem Anbieter abgeglichen, also mit der Familie geteilt. Ohne: lokal in Terminus, als Nachricht verschickbar |
 | **Nur „belegt“ teilen** | Beim Teilen eines Kalenders: andere sehen, wann du keine Zeit hast, aber nicht wofür |
 
-Alles ohne Server: Abstimmungen, Antworten, Zusagen und Listen stecken im `#`-Teil des Links.
+| **Gemeinsame Kasse** | Ausflug, WG, Kita-Kasse: Ausgaben eintragen, „Ben schuldet Mia 21,67 €“, Ausgleich mit wenigen Überweisungen. Mit IBAN gibt es einen **GiroCode**, den jede deutsche Banking-App scannt. Der Stand geht als Link in die Gruppe; wer ihn öffnet, trägt eigene Ausgaben ein und schickt zurück – Terminus führt alles zusammen |
+| **Ämtchenplan** | „Müll rausbringen“ wöchentlich reihum: jede Person bekommt eine versetzte Serie mit „Zuständig“ im Familienkalender |
+| **Woche als Bild** | Kalender → ⋯ → „Woche als Bild teilen“: die Woche (oder mit Personenfilter „Woche von Ben“) als Bild für die Familiengruppe oder den Status |
+
+Alles ohne Server: Abstimmungen, Antworten, Zusagen, Listen und Kassen stecken im `#`-Teil des Links.
+
+## Pläne, Briefe, Urlaub, Tickets
+
+| Funktion | Was passiert |
+|---|---|
+| **Dienstplan vom Foto** | Kürzel mit Legende („F = Frühdienst 6:00–14:00“), als Liste oder Tabelle, Nachtdienste über Mitternacht. Ohne KI |
+| **Stundenplan vom Foto** | Wochentage als Spalten, Stunden als Zeilen: jedes Fach wird eine wöchentliche Serie bis zu den Sommerferien, Doppelstunden zusammengefasst, Ferien und Feiertage fallen aus |
+| **Brief verstehen** | Bei jedem erkannten Text: Zusammenfassung in einfacher Sprache, was zu tun ist, wichtige Daten – auf Wunsch auf Türkisch, Arabisch, Ukrainisch, Englisch … und zum Vorlesen. Braucht die KI |
+| **Brückentage** | Kalender → ⋯ → „Brückentage“: mit wie wenigen Urlaubstagen du wie viele Tage frei hast, fürs eingestellte Bundesland. Eintragen oder teilen |
+| **Wallet** | Fahrkarten, Bordkarten, Eintrittskarten als PDF oder Bild ablegen, groß und mit voller Helligkeit zeigen. Ticket-PDFs landen mit einem Tipp gleichzeitig im Kalender und in der Wallet; im Termin steht dann „Ticket zeigen“. Für Tickets, die nur in der Anbieter-App gelten (z. B. Deutschlandticket), kann man die App hinterlegen und mit einem Tipp öffnen |
 
 Feiertage berechnet die App selbst. Die Schulferien kommen von der [OpenHolidays-API](https://www.openholidaysapi.org) (offene Daten, EU-gefördert) und werden beim Build nach `www/data/ferien.json` geladen (`node scripts/ferien.mjs`), danach liegen sie offline in der App.
 
@@ -236,6 +250,12 @@ www/                      Web-App, wird auch in die Android-App gepackt
   js/ablauf.js            Ablauf-Wächter: Vorlauf, Kündigungsfristen
   js/ablaufui.js          Ablauf-Wächter im Aufgaben-Bereich
   js/unterwegs.js         Fahrzeit über OpenStreetMap-Dienste
+  js/plan.js              Dienstpläne und Stundenpläne lesen
+  js/aemtchen*.js         Ämtchenplan (reihum)
+  js/kasse*.js            Gemeinsame Kasse, Ausgleich, GiroCode
+  js/bruecken*.js         Brückentage-Planer
+  js/wallet*.js           Wallet (IndexedDB auf dem Gerät)
+  js/wochenbild.js        Woche als Bild
   datenschutz.html        Datenschutzerklärung (vor Veröffentlichung Namen eintragen)
   data/ferien.json        Schulferien, beim Build erzeugt
   js/native.js            Brücke zur Android-App

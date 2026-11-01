@@ -1,5 +1,5 @@
 import { parseText } from './parse.js';
-import { PROVIDERS, LANGUAGES, extractWithLLM, LLMError } from './llm.js';
+import { PROVIDERS, LANGUAGES, extractWithLLM, explainWithLLM, LLMError } from './llm.js';
 import { recognize } from './ocr.js';
 import { buildICS, googleLink, icsFileName, description, alarms, rrule, summary } from './ics.js';
 import { STATES, loadSchoolHolidays, holidayNotes, holidayStartFinder, holidayExdates } from './holidays.js';
@@ -12,12 +12,17 @@ import { CONFIG } from './config.js';
 import { isNative, Native } from './native.js';
 import { initHub, onShow, invalidateBirthdays } from './hub.js';
 import { quickParse } from './quick.js';
-import { initAbo, openShareCalendar, getAbos, setAbos, republishSoon, republishStale, handleAboCode, buildIcs } from './abo.js';
+import { initAbo, openShareCalendar, getAbos, setAbos, republishSoon, republishStale, handleAboCode, buildIcs, drawQR as drawQrCode } from './abo.js';
 import { initKanal, handleKanalCode, getSubscriptions, setSubscriptions, getOwnChannels, setOwnChannels, endSubscription, webSubscriptionEvents, subscribedCalendarIds } from './kanalui.js';
 import { initSetup, renderSetup, setupNeeded, setupSummary, openInvite as openFamilyInvite, handleJoinCode, handleJoinLink } from './setup.js';
 import { berlinUtcStamp, parseICS, simpleRepeat } from './icsimport.js';
 import { parseTicket, readEmail } from './dokument.js';
+import { parseShifts, parseTimetable } from './plan.js';
 import { geocode, travelMinutes, leaveText, MODES } from './unterwegs.js';
+import { initKasse, handleGroupCode, getGroups, setGroups } from './kasseui.js';
+import { initAemtchen } from './aemtchenui.js';
+import { initBruecken, openBruecken } from './brueckenui.js';
+import { initWallet, renderWallet, openAdd as walletAdd, ticketFor, show as showTicket } from './walletui.js';
 import { initAblauf, getExpiries, setExpiries } from './ablaufui.js';
 import { initListen, renderListen, handleListCode, getLocalLists, setLocalLists } from './listenui.js';
 import { initUmfrage, handlePollCode, handleAnswerCode, handleRsvpCode, rsvpButtons, rsvpSummary } from './umfrageui.js';
@@ -50,7 +55,7 @@ const state = {
 
 /* ---------- Ansichten ---------- */
 
-const TAB_OF = { abo: 'calendar', kanal: 'calendar', umfrage: 'family', home: 'home', busy: 'home', review: 'home', calendar: 'calendar', tasks: 'tasks', family: 'family', migrate: 'family', setup: 'family', join: 'family' };
+const TAB_OF = { abo: 'calendar', kanal: 'calendar', umfrage: 'family', kasse: 'family', bruecken: 'calendar', wallet: 'wallet', home: 'home', busy: 'home', review: 'home', calendar: 'calendar', tasks: 'tasks', family: 'family', migrate: 'family', setup: 'family', join: 'family' };
 
 function show(view) {
   for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== `view-${view}`;
@@ -64,6 +69,7 @@ function show(view) {
   if (view === 'setup') renderSetup();
   if (view === 'home') renderSetupBanner();
   if (view === 'tasks') renderListen();
+  if (view === 'wallet') renderWallet();
 }
 
 async function renderSetupBanner() {
@@ -169,6 +175,7 @@ async function handleDocument(file) {
     } else {
       state.input = { canvas: null, dataUrl: null, text: pdf.text, label: `Erkannt aus ${file.name || 'dem PDF'}` };
     }
+    state.input.file = file;
     return run();
   } catch (e) {
     console.error(e);
@@ -225,8 +232,15 @@ async function run(forceLocal = false) {
       });
       if (abort.signal.aborted) return;
     }
+    state.lastText = rawText || '';
     // Fahrkarten erkennt Terminus selbst genauer als jede KI: Zug, Gleis, Platz, Umstiege
     let events = parseTicket(rawText, new Date());
+    // Dienst- und Stundenpläne: feste Raster, die Terminus selbst zuverlässiger liest als die KI
+    if (!events.length) events = parseShifts(rawText, new Date());
+    if (!events.length) {
+      const sommer = state.settings.state ? holidayStartFinder(state.settings.state)('sommer') : null;
+      events = parseTimetable(rawText, new Date(), { until: sommer ? addDays(sommer, -1) : null });
+    }
     if (events.length) {
       // nichts weiter zu tun
     } else if (local) {
@@ -316,6 +330,19 @@ function fillCard(li, ev) {
 function applySkip(ev) {
   ev.exdates = ev.skipHolidays && ev.repeat ? holidayExdates(ev, state.settings.state) : [];
   return ev;
+}
+
+async function shareTextAny(text, title = 'Teilen') {
+  try {
+    if (isNative) await Native.shareText({ text, title });
+    else if (navigator.share) await navigator.share({ text });
+    else {
+      await navigator.clipboard.writeText(text);
+      toast('Kopiert.');
+    }
+  } catch {
+    // abgebrochen
+  }
 }
 
 async function speak(input) {
@@ -574,6 +601,50 @@ function cardFor(ev, { editable = true, onRemove } = {}) {
 }
 
 // Fahrzeit vom Startort zum Termin, als Erinnerung „Losfahren“ mit eingetragen
+/* ---------- Brief verstehen ---------- */
+
+let explained = null;
+
+async function explainLetter() {
+  const text = (state.input?.text || state.lastText || '').trim();
+  const dlg = $('#dlg-explain');
+  const sel = $('#ex-lang');
+  if (!sel.options.length) sel.replaceChildren(...Object.entries(LANGUAGES).map(([k, v]) => new Option(v, k)));
+  if (!dlg.open) sel.value = state.settings.lang || 'de';
+  dlg.open || dlg.showModal();
+  $('#ex-result').hidden = true;
+  $('#ex-speak').hidden = $('#ex-share').hidden = true;
+  if (!usesLLM()) {
+    $('#ex-status').textContent = 'Dafür braucht es die KI (z. B. Mistral mit eigenem Schlüssel). Schalte sie in den Einstellungen ein.';
+    return;
+  }
+  $('#ex-status').textContent = 'Die KI liest den Brief …';
+  try {
+    explained = await explainWithLLM({ settings: state.settings, text, lang: sel.value });
+    $('#ex-status').textContent = '';
+    $('#ex-summary').textContent = explained.summary;
+    $('#ex-todo-box').hidden = !explained.todo.length;
+    $('#ex-todo').replaceChildren(...explained.todo.map((t) => Object.assign(document.createElement('li'), { textContent: t })));
+    $('#ex-dates-box').hidden = !explained.dates.length;
+    $('#ex-dates').replaceChildren(...explained.dates.map((t) => Object.assign(document.createElement('li'), { textContent: t })));
+    $('#ex-result').hidden = false;
+    $('#ex-result').dir = ['ar', 'fa'].includes(sel.value) ? 'rtl' : 'ltr';
+    $('#ex-speak').hidden = !('speechSynthesis' in window);
+    $('#ex-share').hidden = false;
+  } catch (e) {
+    $('#ex-status').textContent = e.message || 'Das hat nicht geklappt.';
+  }
+}
+
+const explainedText = () => [explained.summary, explained.todo.length ? `\nZu tun:\n${explained.todo.map((t) => `• ${t}`).join('\n')}` : '', explained.dates.length ? `\nDaten:\n${explained.dates.map((t) => `• ${t}`).join('\n')}` : ''].join('\n').trim();
+
+function speakExplained() {
+  const u = new SpeechSynthesisUtterance(explainedText());
+  u.lang = { de: 'de-DE', en: 'en-GB', tr: 'tr-TR', ar: 'ar', uk: 'uk-UA', ru: 'ru-RU', pl: 'pl-PL', ro: 'ro-RO', fa: 'fa-IR' }[$('#ex-lang').value] || 'de-DE';
+  speechSynthesis.cancel();
+  speechSynthesis.speak(u);
+}
+
 async function planTravel(ev, li) {
   const home = state.settings.home;
   if (!home) {
@@ -606,6 +677,8 @@ function renderReview(rawText) {
   const list = $('#cards');
   list.replaceChildren(...state.drafts.map((ev) => cardFor(ev, { onRemove: removeDraft })));
   $('#review-source').textContent = state.input?.label || 'Erkannt';
+  $('#btn-wallet-add').hidden = !state.input?.file;
+  $('#btn-explain').hidden = (state.input?.text || state.lastText || '').trim().length < 80 || !state.input || (!state.input.text && !state.input.canvas);
   $('#raw-box').hidden = !rawText;
   $('#raw-text').textContent = rawText || '';
   updateActionbar();
@@ -1184,7 +1257,7 @@ function applySimple() {
 let pendingBackup = null;
 
 function saveBackup() {
-  const json = buildBackup({ settings: state.settings, people: store.getPeople(), family: store.getFamily(), saved: store.getSaved(), abos: getAbos(), kanaele: { own: getOwnChannels(), subs: getSubscriptions() }, listen: getLocalLists(), ablauf: getExpiries() });
+  const json = buildBackup({ settings: state.settings, people: store.getPeople(), family: store.getFamily(), saved: store.getSaved(), abos: getAbos(), kanaele: { own: getOwnChannels(), subs: getSubscriptions() }, listen: getLocalLists(), ablauf: getExpiries(), kassen: getGroups() });
   const name = backupFileName();
   if (isNative) {
     const base64 = btoa(String.fromCharCode(...new TextEncoder().encode(json)));
@@ -1220,6 +1293,7 @@ function applyBackup() {
   store.setFamily(b.family);
   if (b.abos) setAbos(b.abos);
   if (Object.keys(b.kanaele.own).length) setOwnChannels({ ...getOwnChannels(), ...b.kanaele.own });
+  if (Object.keys(b.kassen).length) setGroups({ ...b.kassen, ...getGroups() });
   if (b.ablauf.length) setExpiries([...getExpiries().filter((x) => !b.ablauf.some((y) => y.id === x.id)), ...b.ablauf]);
   if (b.listen.length) setLocalLists([...getLocalLists().filter((l) => !b.listen.some((x) => x.id === l.id)), ...b.listen]);
   if (Object.keys(b.kanaele.subs).length) setSubscriptions({ ...b.kanaele.subs, ...getSubscriptions() });
@@ -1256,6 +1330,15 @@ async function unlock() {
 /* ---------- Start ---------- */
 
 function bind() {
+  $('#btn-explain').addEventListener('click', explainLetter);
+  $('#btn-wallet-add').addEventListener('click', () => {
+    const ev = state.drafts[0];
+    walletAdd(state.input.file, ev ? { title: ev.title, date: ev.date, eventKey: `${ev.date}|${ev.title.toLowerCase()}` } : {});
+  });
+  $('#ex-lang').addEventListener('change', explainLetter);
+  $('#ex-speak').addEventListener('click', speakExplained);
+  $('#ex-share').addEventListener('click', () => shareTextAny(explainedText()));
+  $('#dlg-explain').addEventListener('close', () => 'speechSynthesis' in window && speechSynthesis.cancel());
   for (const form of document.querySelectorAll('[data-quick]')) {
     form.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -1428,6 +1511,8 @@ async function route() {
   if (j && handleJoinCode(j[1])) return;
   const abo = location.hash.match(/^#abo=([\w-]+)/);
   if (abo && handleAboCode(abo[1])) return;
+  const ka = location.hash.match(/^#ka=([\w-]+)/);
+  if (ka && (await handleGroupCode(ka[1]))) return;
   const u = location.hash.match(/^#(u|ua|z|l)=([\w-]+)/);
   if (u && { u: handlePollCode, ua: handleAnswerCode, z: handleRsvpCode, l: handleListCode }[u[1]](u[2])) return;
   const k = location.hash.match(/^#k=([\w.-]+)/);
@@ -1454,6 +1539,7 @@ async function init() {
     state, store, Native, isNative, toast, show, openShare, openMap, startManual, openInvite: (id) => openFamilyInvite(id),
     shareCalendar: (cal) => openShareCalendar(cal), isAbo: (id) => !!getAbos()[id], republish: (id) => republishSoon(id),
     subscriptions: getSubscriptions, endSubscription, webSubscriptionEvents, subscribedCalendarIds, rsvpSummary,
+    openBruecken: () => openBruecken(), ticketFor, showTicket,
     saveSettings: (s) => {
       state.settings = s;
       store.setSettings(s);
@@ -1468,6 +1554,18 @@ async function init() {
     Native, isNative, toast, show, openUrl: (url) => window.open(url, '_blank', 'noopener'),
     publicUrl: () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname),
   });
+  const reviewEvents = (list, label) => {
+    const evs = list.map((e) => normalizeEvent(e)).filter(Boolean);
+    if (!evs.length) return;
+    state.input = { canvas: null, dataUrl: null, text: '', label };
+    state.drafts = evs.map((e) => applySkip({ ...e, picked: true, skipHolidays: !!(e.repeat && state.settings.state && e.skipHolidays) }));
+    renderReview('');
+  };
+  const pub = () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname);
+  initKasse({ state, Native, isNative, toast, show, drawQR: drawQrCode, publicUrl: pub });
+  initAemtchen({ store, toast, reviewEvents });
+  initBruecken({ state, show, reviewEvents, publicUrl: pub, shareText: (t, title) => shareTextAny(t, title) });
+  initWallet({ Native, isNative, toast });
   initAblauf({
     toast, addToCalendar,
     ocrFile: async (file) => recognize(await fileToCanvas(file)),
