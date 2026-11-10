@@ -395,8 +395,9 @@ html:not(.native) .native-only.brief-row { display: none !important; }
 
 /* Einfach-Modus: größere Schrift, weniger Auswahl */
 html.simple { font-size: 118%; }
-html.simple .tabbar { grid-template-columns: repeat(2, 1fr); }
-html.simple .tabbar [data-tab="tasks"], html.simple .tabbar [data-tab="family"] { display: none; }
+html.simple .tabbar { grid-template-columns: repeat(3, 1fr); }
+html.simple .tabbar [data-tab="tasks"], html.simple .tabbar [data-tab="wallet"] { display: none; }
+html.simple .hub-tiles .adv { display: none; }
 html.simple #paste-box, html.simple .mode, html.simple #home-migrate, html.simple .quick-hint,
 html.simple .segmented, html.simple #cal-people, html.simple #cal-month, html.simple .card-actions .invite,
 html.simple .edit, html.simple .saved-head .linkish { display: none !important; }
@@ -532,3 +533,35 @@ dialog.ticket { width: min(100vw, 46rem); max-width: 100vw; max-height: 100vh; }
 .wt-pages { display: grid; gap: 10px; background: #fff; border-radius: 8px; }
 .wt-pages canvas, .wt-pages img { width: 100%; height: auto; display: block; }
 #btn-wallet-add, #ev-ticket { justify-self: start; }
+
+/* Gemeinsam: Kacheln */
+.hub-tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.hub-tiles button { display: grid; gap: 2px; justify-items: start; text-align: left; border: 0; border-radius: var(--r); background: var(--surface); box-shadow: var(--shadow); padding: 14px; font: inherit; color: var(--ink); cursor: pointer; min-height: 96px; }
+.hub-tiles .ic { font-size: 1.6rem; line-height: 1; }
+.hub-tiles strong { font-size: 1rem; }
+.hub-tiles small { color: var(--ink-soft); font-size: 0.8rem; }
+.hub-back { justify-self: start; }
+
+/* Ersteinführung */
+.tour-slides { list-style: none; margin: 0; padding: 0; }
+.tour-slides li { display: grid; gap: 10px; text-align: center; justify-items: center; padding: 8px 4px; }
+.tour-slides .ic { font-size: 3rem; }
+.tour-dots { display: flex; gap: 6px; justify-content: center; }
+.tour-dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.tour-dots span.on { background: var(--pen); }
+.tour .row { justify-content: space-between; }
+
+/* Infokarte */
+.ik-list { display: grid; gap: 10px; }
+.ik-card { border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; display: grid; gap: 8px; background: var(--surface); }
+.ik-card h4 { margin: 0; font-size: 1.05rem; }
+.ik-card dl { display: grid; grid-template-columns: minmax(7rem, auto) 1fr; gap: 4px 10px; margin: 0; }
+.ik-card dt { color: var(--ink-soft); font-size: 0.85rem; }
+.ik-card dd { margin: 0; }
+.ik-fields { display: grid; gap: 8px; }
+
+/* Geschenkideen */
+.gs-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.gs-person { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: var(--r); padding: 12px; }
+.gs-head { display: grid; }
+.gs-head small { color: var(--ink-soft); }

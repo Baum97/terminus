@@ -22,7 +22,7 @@ export function normalizeGuests(list) {
 
 const str = (v, max = 300) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
 
-const FREQS = ['daily', 'weekly', 'monthly'];
+const FREQS = ['daily', 'weekly', 'monthly', 'yearly'];
 
 // Wiederholung: { freq: 'daily' | 'weekly' | 'monthly', interval: 1–4, until: 'YYYY-MM-DD' | null }.
 // Die KI darf auch kurz "weekly", "biweekly" oder "monthly" plus "until" liefern.
@@ -74,6 +74,8 @@ export function normalizeEvent(raw) {
     exdates: (Array.isArray(raw.exdates) ? raw.exdates : []).filter((d) => isValidISO(d) && d > date).slice(0, 200),
     repeat: kind === 'frist' || endDate ? null : normalizeRepeat(raw.repeat, raw.until, date),
     unsure: raw.unsure === true || raw.confidence === 'niedrig' || raw.confidence === 'low',
+    // Erinnerung am Vorabend um 19 Uhr (z. B. Mülltonne rausstellen)
+    eveAlarm: raw.eveAlarm === true,
     // Fahrzeit zum Ort (für die Erinnerung „Losfahren“)
     travel: start && raw.travel && Number.isFinite(raw.travel.minutes) && raw.travel.minutes > 0
       ? { minutes: Math.min(600, Math.round(raw.travel.minutes)), mode: ['auto', 'rad', 'fuss', 'oepnv'].includes(raw.travel.mode) ? raw.travel.mode : 'auto' }

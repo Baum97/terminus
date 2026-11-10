@@ -49,6 +49,10 @@ export function initListen(c) {
   $('#ls-send').addEventListener('click', sendList);
   $('#ls-clear').addEventListener('click', clearDone);
   $('#ls-connect').addEventListener('click', connect);
+  $('#ls-widget').addEventListener('click', async () => {
+    const r = await ctx.Native.pinWidget({ kind: 'list' }).catch(() => ({}));
+    if (!r.requested) ctx.toast('Lange auf den Startbildschirm drücken → Widgets → Terminus: Liste.');
+  });
 }
 
 const isDevice = (id) => id.startsWith('d:');
@@ -124,8 +128,22 @@ async function select(id) {
     }
   } else {
     st.items = loadLocal().find((l) => `l:${l.id}` === id)?.items || [];
+    // Häkchen aus dem Widget übernehmen
+    if (ctx.isNative) {
+      const { changes = {}, listId } = await ctx.Native.takeListWidgetChanges().catch(() => ({}));
+      if (listId === id && Object.keys(changes).length) storeLocal(st.items.map((i) => (i.id in changes ? { ...i, done: !!changes[i.id] } : i)));
+    }
   }
   renderItems();
+}
+
+// Startbildschirm-Widget mit der gerade gewählten Liste
+function pushWidget() {
+  if (!ctx.isNative || !st.current) return;
+  ctx.Native.setListWidget({
+    name: currentName(), source: isDevice(st.current) ? 'd' : 'l', listId: st.current,
+    items: st.items.slice(0, 40).map((i) => ({ id: isDevice(st.current) ? String(i.id) : i.id, text: i.text, done: !!i.done })),
+  }).catch(() => {});
 }
 
 function currentName() {
@@ -156,6 +174,7 @@ function renderItems() {
   const open = st.items.filter((i) => !i.done).length;
   $('#ls-count').textContent = st.items.length ? `${open} offen${st.items.length - open ? `, ${st.items.length - open} erledigt` : ''}` : 'Noch leer. Tipp oben ein, mehrere mit Komma: „Milch, Eier, Brot“.';
   $('#ls-clear').hidden = isDevice(st.current) || st.items.every((i) => !i.done);
+  pushWidget();
 }
 
 async function addItems(text) {

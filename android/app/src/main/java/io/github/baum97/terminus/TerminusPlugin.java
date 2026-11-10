@@ -76,6 +76,7 @@ public class TerminusPlugin extends Plugin {
     static final String ACTION_CAMERA = "io.github.baum97.terminus.CAMERA";
     static final String ACTION_PICK = "io.github.baum97.terminus.PICK";
     static final String ACTION_CALENDAR = "io.github.baum97.terminus.CALENDAR";
+    static final String ACTION_TASKS = "io.github.baum97.terminus.TASKS";
 
     private Uri pendingImage;
     private String pendingText;
@@ -102,8 +103,8 @@ public class TerminusPlugin extends Plugin {
         if (intent == null) return false;
         // Schnellstart vom App-Icon (lange drücken): "Zettel knipsen" oder "Screenshot wählen"
         String a = intent.getAction();
-        if (ACTION_CAMERA.equals(a) || ACTION_PICK.equals(a) || ACTION_CALENDAR.equals(a)) {
-            pendingAction = ACTION_CAMERA.equals(a) ? "camera" : ACTION_PICK.equals(a) ? "pick" : "calendar";
+        if (ACTION_CAMERA.equals(a) || ACTION_PICK.equals(a) || ACTION_CALENDAR.equals(a) || ACTION_TASKS.equals(a)) {
+            pendingAction = ACTION_CAMERA.equals(a) ? "camera" : ACTION_PICK.equals(a) ? "pick" : ACTION_TASKS.equals(a) ? "tasks" : "calendar";
             intent.setAction(null);
             return true;
         }
@@ -1105,7 +1106,8 @@ public class TerminusPlugin extends Plugin {
             return;
         }
         android.appwidget.AppWidgetManager wm = android.appwidget.AppWidgetManager.getInstance(getContext());
-        r.put("requested", wm.isRequestPinAppWidgetSupported() && wm.requestPinAppWidget(new android.content.ComponentName(getContext(), TerminusWidget.class), null, null));
+        Class<?> cls = "list".equals(call.getString("kind")) ? ListWidget.class : TerminusWidget.class;
+        r.put("requested", wm.isRequestPinAppWidgetSupported() && wm.requestPinAppWidget(new android.content.ComponentName(getContext(), cls), null, null));
         call.resolve(r);
     }
 
@@ -1435,5 +1437,34 @@ public class TerminusPlugin extends Plugin {
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         getContext().startActivity(i);
         call.resolve();
+    }
+
+    /* ---------- Listen-Widget ---------- */
+
+    @PluginMethod
+    public void setListWidget(PluginCall call) {
+        JSObject st = new JSObject();
+        st.put("name", call.getString("name", "Liste"));
+        st.put("source", call.getString("source", "l"));
+        st.put("listId", call.getString("listId", ""));
+        st.put("items", call.getArray("items", new JSArray()));
+        getContext().getSharedPreferences(ListWidget.PREFS, android.content.Context.MODE_PRIVATE).edit().putString("state", st.toString()).apply();
+        ListWidget.refresh(getContext());
+        call.resolve();
+    }
+
+    // Häkchen, die im Widget bei lokalen Listen gesetzt wurden: { changes: { id: true|false } }
+    @PluginMethod
+    public void takeListWidgetChanges(PluginCall call) {
+        android.content.SharedPreferences prefs = getContext().getSharedPreferences(ListWidget.PREFS, android.content.Context.MODE_PRIVATE);
+        JSObject r = new JSObject();
+        try {
+            r.put("changes", new JSObject(prefs.getString("changes", "{}")));
+            r.put("listId", ListWidget.state(getContext()).optString("listId", ""));
+        } catch (Exception e) {
+            r.put("changes", new JSObject());
+        }
+        prefs.edit().remove("changes").apply();
+        call.resolve(r);
     }
 }

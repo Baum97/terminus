@@ -1,11 +1,12 @@
 // Oberfläche für Terminfindung („Wann können alle?“) und Zusagen zu Einladungen.
 import { newPollId, encodePoll, decodePoll, encodeAnswer, decodeAnswer, tally, eventKey, encodeRsvp, decodeRsvp, RSVP, YES, MAYBE, NO } from './umfrage.js';
 import { fmtDate, addDays, toISO } from './dates.js';
+import { t } from './i18n.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const POLLS = 'terminus.umfragen';
 const RSVPS = 'terminus.zusagen';
-const VOTE_LABEL = { [YES]: '✓ passt', [MAYBE]: '? wenn nötig', [NO]: '✗ geht nicht' };
+const VOTE_LABEL = { [YES]: 'poll.yes', [MAYBE]: 'poll.maybe', [NO]: 'poll.no' };
 let ctx;
 
 const load = (key) => {
@@ -137,7 +138,7 @@ export function handlePollCode(code) {
   }
   // Eigene Abstimmung: gleich die Ergebnisse zeigen
   if (getPolls()[poll.id]) return showResults(poll.id), true;
-  const body = page({ eyebrow: poll.by ? `${poll.by} fragt: Wann passt es dir?` : 'Wann passt es dir?', title: poll.title, sub: poll.location ? `📍 ${poll.location}` : '' });
+  const body = page({ eyebrow: poll.by ? t('poll.asks', { by: poll.by }) : t('poll.ask'), title: poll.title, sub: poll.location ? `📍 ${poll.location}` : '' });
   const votes = poll.options.map(() => YES);
   const ul = document.createElement('ul');
   ul.className = 'vote-list';
@@ -146,7 +147,7 @@ export function handlePollCode(code) {
     li.innerHTML = '<span class="opt"></span><div class="vote" role="group"></div>';
     $('.opt', li).textContent = optionText(o);
     for (const v of [YES, MAYBE, NO]) {
-      const b = Object.assign(document.createElement('button'), { type: 'button', className: `vote-btn v${v}`, textContent: VOTE_LABEL[v] });
+      const b = Object.assign(document.createElement('button'), { type: 'button', className: `vote-btn v${v}`, textContent: t(VOTE_LABEL[v]) });
       b.setAttribute('aria-pressed', String(v === YES));
       b.addEventListener('click', () => {
         votes[i] = v;
@@ -157,16 +158,17 @@ export function handlePollCode(code) {
     ul.append(li);
   });
   const name = Object.assign(document.createElement('label'), { className: 'field' });
-  name.innerHTML = '<span>Dein Name</span><input id="uf-name" autocomplete="given-name" maxlength="40">';
+  name.innerHTML = '<span></span><input id="uf-name" autocomplete="given-name" maxlength="40">';
+  $('span', name).textContent = t('poll.name');
   $('input', name).value = ctx.state.settings.ownerName || '';
-  const btn = Object.assign(document.createElement('button'), { type: 'button', className: 'btn primary', textContent: 'Antwort zurückschicken' });
+  const btn = Object.assign(document.createElement('button'), { type: 'button', className: 'btn primary', textContent: t('poll.send') });
   btn.addEventListener('click', async () => {
     const n = $('#uf-name').value.trim();
-    if (!n) return message('Schreib deinen Namen dazu, damit man weiß, von wem die Antwort ist.', true);
+    if (!n) return message(t('poll.needName'), true);
     const link = `${ctx.publicUrl()}#ua=${encodeAnswer({ id: poll.id, name: n, votes })}`;
     const lines = poll.options.map((o, i) => `${votes[i] === YES ? '✓' : votes[i] === MAYBE ? '?' : '✗'} ${optionText(o)}`);
     await send(`🗳️ ${n} zu „${poll.title}“:\n${lines.join('\n')}\n\nFür ${poll.by || 'die Abstimmung'} zum Eintragen:\n${link}`, 'Antwort senden');
-    message('✓ Antwort erstellt. Schick sie an die Person, die gefragt hat (oder in die Gruppe). Wenn der Termin feststeht, bekommst du ihn als Link.');
+    message(t('poll.done'));
   });
   body.replaceChildren(ul, name, btn);
   return true;
@@ -229,7 +231,7 @@ function showResults(id) {
     delete polls[id];
     save(POLLS, polls);
     renderPollList();
-    ctx.show('family');
+    ctx.openHub('abstimmen');
   });
   const hint = Object.assign(document.createElement('p'), { className: 'hint', textContent: 'Antworten kommen als Link zurück. Tippe jeden an, dann steht er hier. Wer zweimal antwortet, wird überschrieben.' });
   const row = Object.assign(document.createElement('div'), { className: 'row' });
@@ -254,20 +256,23 @@ function finalize(poll, index) {
 export function rsvpButtons(ev, from = '') {
   const box = document.createElement('div');
   box.className = 'rsvp';
-  box.innerHTML = '<p class="rsvp-q">Kommst du?</p><div class="row"></div><label class="field"><span>Dein Name</span><input maxlength="40" autocomplete="given-name"></label><p class="hint"></p>';
+  box.innerHTML = '<p class="rsvp-q"></p><div class="row"></div><label class="field"><span></span><input maxlength="40" autocomplete="given-name"></label><p class="hint"></p>';
+  $('.rsvp-q', box).textContent = t('rsvp.q');
+  $('.field span', box).textContent = t('rsvp.name');
   $('input', box).value = ctx.state.settings.ownerName || '';
-  for (const [status, label] of [['ja', 'Ich komme'], ['vielleicht', 'Vielleicht'], ['nein', 'Ich kann nicht']]) {
+  for (const status of ['ja', 'vielleicht', 'nein']) {
+    const label = t(`rsvp.${status}`);
     const b = Object.assign(document.createElement('button'), { type: 'button', className: `btn${status === 'ja' ? ' primary' : ''}`, textContent: label });
     b.addEventListener('click', async () => {
       const name = $('input', box).value.trim();
       if (!name) {
-        $('.hint', box).textContent = 'Schreib deinen Namen dazu.';
+        $('.hint', box).textContent = t('rsvp.needName');
         return;
       }
       const link = `${ctx.publicUrl()}#z=${encodeRsvp({ ev, name, status })}`;
       const word = { ja: 'komme', vielleicht: 'komme vielleicht', nein: 'kann leider nicht' }[status];
       await send(`${status === 'ja' ? '👍' : status === 'nein' ? '👎' : '🤔'} ${name}: Ich ${word} – „${ev.title}“ am ${fmtDate(ev.date, false)}\n\n${from ? `Für ${from} zum Eintragen` : 'Zum Eintragen'}:\n${link}`, 'Antwort senden');
-      $('.hint', box).textContent = '✓ Antwort erstellt. Schick sie an die Person, die eingeladen hat.';
+      $('.hint', box).textContent = t('rsvp.done');
     });
     $('.row', box).append(b);
   }

@@ -53,6 +53,18 @@ Du fotografierst einen Elternbrief, ein Plakat, eine Einladung oder einen Chat-S
 
 Alles ohne Server: Abstimmungen, Antworten, Zusagen, Listen und Kassen stecken im `#`-Teil des Links.
 
+## Gemeinsam: alles an einem Ort
+
+Der Bereich **Gemeinsam** (früher „Familie“) zeigt Kacheln statt langer Listen: Familie, Wann können alle?, Kasse, Ämtchen, Infokarte, Geschenkideen, Müll & Abos, Einrichtung. Im Einfach-Modus bleiben nur die wichtigsten. Beim ersten Start erklärt eine kurze Einführung in drei Schritten, was Terminus kann.
+
+| Funktion | Was passiert |
+|---|---|
+| **Infokarte** | Kinderarzt, Allergien, Medikamente, Notfallkontakte je Person – Telefonnummern antippbar, als Link an Babysitter oder Großeltern. Mit Geburtsdatum schlägt Terminus die **U-Untersuchungen (U2–U9, J1)** als Erinnerungen vor |
+| **Geschenkideen** | Ideen je Person übers Jahr sammeln (Geburtstage auch aus dem Adressbuch), jährliche Erinnerung eine Woche vorher mit den Ideen |
+| **Abfuhrkalender** | Abfuhrplan fotografieren oder als PDF öffnen: Restmüll, Bio, Papier, Gelber Sack … werden Termine mit Erinnerung am Vorabend um 19 Uhr. Mit dem .ics-Link des Abfallbetriebs (Suche über Qwant) aktualisiert sich der Kalender von selbst. Eine bundesweite Schnittstelle gibt es nicht |
+| **Listen-Widget** | Die gewählte Liste (z. B. Einkauf) auf dem Startbildschirm abhaken. Bei Tasks.org/OpenTasks direkt in der geteilten Liste, bei lokalen Listen übernimmt Terminus die Häkchen beim nächsten Öffnen |
+| **Sprachen** | Oberfläche auf Deutsch, Englisch, Türkisch, Arabisch (von rechts nach links) und Ukrainisch. Wer einen Termin-, Kalender- oder Abstimmungslink öffnet, bekommt automatisch die Sprache seines Handys. Übersetzt sind Start, Einführung, Empfangsseiten, Abstimmen und Zusagen; die übrigen Bereiche folgen |
+
 ## Pläne, Briefe, Urlaub, Tickets
 
 | Funktion | Was passiert |
@@ -256,6 +268,11 @@ www/                      Web-App, wird auch in die Android-App gepackt
   js/bruecken*.js         Brückentage-Planer
   js/wallet*.js           Wallet (IndexedDB auf dem Gerät)
   js/wochenbild.js        Woche als Bild
+  js/hubui.js             Bereich „Gemeinsam“ mit Kacheln
+  js/i18n.js              Übersetzungen (de, en, tr, ar, uk)
+  js/muell.js             Abfuhrkalender lesen
+  js/infokarte*.js        Infokarte und U-Untersuchungen
+  js/geschenke*.js        Geschenkideen
   datenschutz.html        Datenschutzerklärung (vor Veröffentlichung Namen eintragen)
   data/ferien.json        Schulferien, beim Build erzeugt
   js/native.js            Brücke zur Android-App
@@ -264,6 +281,7 @@ android/                  Android-Projekt (Capacitor)
   …/TerminusPlugin.java   Teilen-Menü, Kalender lesen/schreiben, Adressbuch, Geburtstage, Einladungs-Mail
   …/TerminusWidget.java   Startbildschirm-Widget
   …/MorningBrief.java     Morgen-Überblick (Wecker, Neustart, Benachrichtigung)
+  …/ListWidget.java       Startbildschirm-Widget: Liste zum Abhaken
   …/Tasks.java            Listen über die OpenTasks-Schnittstelle (Tasks.org, OpenTasks)
   …/Setup.java            Umzug von Kalendern und Kontakten auf dem Gerät, Zugangsprüfung
 docs/VEROEFFENTLICHEN.md  Anleitung: Schlüssel, Release, F-Droid, Play Store, Rechtliches, Server

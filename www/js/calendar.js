@@ -68,7 +68,10 @@ export function occurrences(ev, from, to) {
     const d = new Date(first);
     if (freq === 'daily') d.setDate(d.getDate() + i * interval);
     else if (freq === 'weekly') d.setDate(d.getDate() + i * 7 * interval);
-    else {
+    else if (freq === 'yearly') {
+      d.setFullYear(first.getFullYear() + i * interval);
+      if (d.getDate() !== first.getDate()) continue; // 29. Februar
+    } else {
       d.setMonth(first.getMonth() + i * interval);
       if (d.getDate() !== first.getDate()) continue; // 31. gibt es nicht in jedem Monat
     }

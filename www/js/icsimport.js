@@ -178,7 +178,7 @@ function finish(c, exceptions) {
 export function simpleRepeat(rule) {
   if (!rule) return null;
   const p = Object.fromEntries(rule.split(';').map((x) => x.split('=')));
-  const freq = { DAILY: 'daily', WEEKLY: 'weekly', MONTHLY: 'monthly' }[p.FREQ];
+  const freq = { DAILY: 'daily', WEEKLY: 'weekly', MONTHLY: 'monthly', YEARLY: 'yearly' }[p.FREQ];
   if (!freq || p.COUNT || (p.BYDAY && p.BYDAY.includes(','))) return null;
   const until = p.UNTIL ? `${p.UNTIL.slice(0, 4)}-${p.UNTIL.slice(4, 6)}-${p.UNTIL.slice(6, 8)}` : null;
   return { freq, interval: +(p.INTERVAL || 1), until };

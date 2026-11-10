@@ -9,4 +9,5 @@
     <string name="shortcut_pick">Screenshot wählen</string>
     <string name="shortcut_pick_long">Bild oder Screenshot wählen</string>
     <string name="widget_description">Deine Termine von heute und morgen</string>
+    <string name="widget_list_description">Einkaufsliste zum Abhaken</string>
 </resources>

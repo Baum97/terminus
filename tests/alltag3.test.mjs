@@ -88,3 +88,57 @@ test('Brückentage 2027 in Bayern', async () => {
   assert.ok(list.every((o) => o.free / o.vacation.length >= 2));
   assert.ok(list.some((o) => o.holidays.includes('Karfreitag')));
 });
+
+test('Abfuhrkalender: Zeilen je Tonne, Blöcke und Datum mit mehreren Tonnen', async () => {
+  const { parseWaste } = await import('../www/js/muell.js');
+  const text = `Abfuhrkalender 2027 – Musterstraße
+Restmüll: 07.01., 21.01., 04.02.
+Biotonne
+14.01. 28.01.
+Mi 10.02.2027 Papier, Gelber Sack`;
+  const ev = parseWaste(text, new Date(2026, 11, 15));
+  assert.deepEqual(ev.map((e) => `${e.date} ${e.title}`), [
+    '2027-01-07 ⚫ Restmüll', '2027-01-14 🟤 Biomüll', '2027-01-21 ⚫ Restmüll', '2027-01-28 🟤 Biomüll', '2027-02-04 ⚫ Restmüll', '2027-02-10 🟡 Gelber Sack', '2027-02-10 🔵 Papier',
+  ]);
+  assert.equal(ev[0].eveAlarm, true);
+  const { alarms } = await import('../www/js/ics.js');
+  assert.deepEqual(alarms(ev[0]).map((a) => a.minutes), [300]);
+  assert.deepEqual(parseWaste('Bio-Markt am 12.11. und 19.11.', new Date(2026, 10, 1)), []);
+});
+
+test('Infokarte: Vorsorge U-Untersuchungen, Telefonnummern, Link', async () => {
+  const k = await import('../www/js/infokarte.js');
+  const card = k.cleanCard({ name: 'Mia', birth: '2026-06-15', doctor: 'Dr. Kunz', doctorPhone: '089 123456', emergency: 'Oma Anna 0171 2345678\nPapa +49 160 1112223' });
+  const u = k.checkups(card, new Date(2026, 10, 10));
+  assert.deepEqual(u.map((e) => `${e.title} ${e.date}`).slice(0, 3), ['U5 für Mia: Termin machen 2026-12-01', 'U6 für Mia: Termin machen 2027-04-01', 'U7 für Mia: Termin machen 2028-03-01']);
+  assert.match(u[0].notes, /vom 15\.12\.2026 bis 15\.01\.2027/);
+  assert.equal(u.at(-1).title, 'J1 für Mia: Termin machen');
+  assert.deepEqual(k.phones(card.emergency).map((p) => p.tel), ['01712345678', '+491601112223']);
+  assert.deepEqual(await k.decodeCards(await k.encodeCards([card])), [card]);
+  assert.equal(k.cleanCard({ name: '' }), null);
+});
+
+test('Oberfläche: alle Sprachen vollständig', async () => {
+  const { _dict, pickLang } = await import('../www/js/i18n.js');
+  const keys = Object.keys(_dict.en).sort();
+  for (const l of ['tr', 'ar', 'uk']) assert.deepEqual(Object.keys(_dict[l]).sort(), keys, l);
+  assert.equal(pickLang('', 'tr-TR'), 'tr');
+  assert.equal(pickLang('', 'fr-FR'), 'de');
+  assert.equal(pickLang('uk', 'de-DE'), 'uk');
+});
+
+test('Geschenkideen: nächster Geburtstag, jährliche Erinnerung eine Woche vorher', async () => {
+  const g = await import('../www/js/geschenke.js');
+  const today = new Date(2026, 10, 10);
+  assert.equal(g.monthDay('1950-03-14'), '03-14');
+  assert.equal(g.monthDay('--11-12'), '11-12');
+  assert.equal(g.monthDay('5.1.'), '01-05');
+  assert.equal(g.nextBirthday('11-12', today), '2026-11-12');
+  assert.equal(g.nextBirthday('02-29', today), '2028-02-29');
+  assert.equal(g.daysUntil('2026-11-12', today), 2);
+  const ev = g.giftReminder({ name: 'Oma', md: '11-12', ideas: [{ text: 'Buch', done: false }, { text: 'Schal', done: true }] }, today);
+  assert.deepEqual([ev.date, ev.repeat.freq, ev.title], ['2027-11-05', 'yearly', '🎁 Geschenk für Oma']);
+  assert.match(ev.notes, /Ideen: Buch\n/);
+  const { rrule } = await import('../www/js/ics.js');
+  assert.equal(rrule(ev), 'FREQ=YEARLY');
+});

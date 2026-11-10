@@ -20,7 +20,7 @@
     <a class="brand" href="./" aria-label="Terminus Startseite">Termin<span>us</span></a>
     <div class="top-actions">
       <button class="btn ghost small icon invite" id="btn-invite-top" type="button" aria-label="Leute einladen" title="Leute einladen"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 1.5v6M9 4.5h6"/><circle cx="12" cy="12.4" r="3.4"/><path d="M5 22c.6-3.9 3.4-6 7-6s6.4 2.1 7 6"/></svg></button>
-      <button class="btn ghost small" id="btn-settings" type="button">Einstellungen</button>
+      <button class="btn ghost small" id="btn-settings" type="button" data-i18n="top.settings">Einstellungen</button>
     </div>
   </header>
 
@@ -28,47 +28,47 @@
     <!-- Start: Foto, Bild oder Text -->
     <section id="view-home" class="view">
       <div class="intro">
-        <h1>Zettel knipsen.<br><mark>Termin steht.</mark></h1>
-        <p>Elternbrief, Plakat, Einladung oder Chat-Screenshot: Terminus findet Datum, Uhrzeit, Ort und Mitbringliste und legt daraus Kalendertermine an.</p>
+        <h1 data-i18n-html="home.h1">Zettel knipsen.<br><mark>Termin steht.</mark></h1>
+        <p data-i18n="home.intro">Elternbrief, Plakat, Einladung oder Chat-Screenshot: Terminus findet Datum, Uhrzeit, Ort und Mitbringliste und legt daraus Kalendertermine an.</p>
       </div>
 
       <div class="capture">
         <label class="btn primary big" for="in-camera">
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
-          Foto aufnehmen
+          <span data-i18n="home.camera">Foto aufnehmen</span>
         </label>
         <input id="in-camera" type="file" accept="image/*" capture="environment" hidden>
         <label class="btn big" for="in-file">
           <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="1"/><path d="m4 16 5-5 4 4 2-2 5 5"/></svg>
-          Bild oder Screenshot
+          <span data-i18n="home.file">Bild oder Screenshot</span>
         </label>
         <input id="in-file" type="file" accept="image/*" hidden>
       </div>
-      <label class="btn ghost small doc-pick" for="in-doc">PDF, E-Mail oder Ticket öffnen</label>
+      <label class="btn ghost small doc-pick" for="in-doc" data-i18n="home.doc">PDF, E-Mail oder Ticket öffnen</label>
       <input id="in-doc" type="file" accept=".pdf,application/pdf,.eml,message/rfc822,.ics,text/calendar" hidden>
 
 <form class="quick" data-quick>
         <label class="sr" for="quick-home">Schnell eintragen</label>
-        <input id="quick-home" type="text" autocomplete="off" enterkeyhint="done" placeholder="Schnell eintragen: Mi 16 Uhr Zahnarzt Ben">
+        <input id="quick-home" data-i18n-ph="quick.ph" type="text" autocomplete="off" enterkeyhint="done" placeholder="Schnell eintragen: Mi 16 Uhr Zahnarzt Ben">
         <button class="btn small icon mic" type="button" data-mic aria-label="Termin sprechen" title="Termin sprechen" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></button>
-        <button class="btn primary small" type="submit">Eintragen</button>
+        <button class="btn primary small" type="submit" data-i18n="quick.submit">Eintragen</button>
       </form>
-      <p class="hint quick-hint">Auch: „morgen 8:30 Elterngespräch @ Schule“, „dienstags 16 Uhr Schwimmen Mia“. Das Mikrofon der Tastatur funktioniert auch.</p>
+      <p class="hint quick-hint" data-i18n="quick.hint">Auch: „morgen 8:30 Elterngespräch @ Schule“, „dienstags 16 Uhr Schwimmen Mia“. Das Mikrofon der Tastatur funktioniert auch.</p>
 
       <details class="paste" id="paste-box">
-        <summary>Text einfügen statt Foto</summary>
+        <summary data-i18n="paste.summary">Text einfügen statt Foto</summary>
         <label class="sr" for="in-text">Text mit Terminen</label>
         <textarea id="in-text" rows="5" placeholder="z. B. Nachricht aus dem Eltern-Chat einfügen"></textarea>
-        <button class="btn" id="btn-text" type="button">Termine finden</button>
+        <button class="btn" id="btn-text" type="button" data-i18n="paste.btn">Termine finden</button>
       </details>
 
       <p class="mode"><span class="dot" id="mode-dot"></span><span id="mode-line">Erkennung: …</span></p>
       <button class="setup-banner" type="button" id="home-setup" hidden></button>
-      <button class="linkish" type="button" id="home-migrate">Unabhängig von Big Tech werden</button>
+      <button class="linkish" type="button" id="home-migrate" data-i18n="home.migrate">Unabhängig von Big Tech werden</button>
 
       <section class="saved" aria-labelledby="saved-h">
         <div class="saved-head">
-          <h2 id="saved-h">Gemerkte Termine</h2>
+          <h2 id="saved-h" data-i18n="saved.h">Gemerkte Termine</h2>
           <button class="linkish" id="btn-demo" type="button">Beispiel ansehen</button>
         </div>
         <ul id="saved-list" class="saved-list"></ul>
@@ -106,14 +106,14 @@
       <button class="btn small" type="button" id="btn-wallet-add" hidden>Ticket in die Wallet legen</button>
       <button class="btn small" type="button" id="btn-explain" hidden>Brief verstehen: einfach erklärt oder übersetzt</button>
       <ol class="cards" id="cards"></ol>
-      <button class="btn ghost add" id="btn-add" type="button">+ Termin von Hand ergänzen</button>
+      <button class="btn ghost add" id="btn-add" type="button" data-i18n="review.add">+ Termin von Hand ergänzen</button>
       <details class="raw" id="raw-box" hidden>
         <summary>Erkannter Text</summary>
         <pre id="raw-text"></pre>
       </details>
       <div class="actionbar">
-        <button class="btn primary" id="btn-ics-all" type="button">In den Kalender</button>
-        <button class="btn" id="btn-save" type="button">Merken</button>
+        <button class="btn primary" id="btn-ics-all" type="button" data-i18n="review.ics">In den Kalender</button>
+        <button class="btn" id="btn-save" type="button" data-i18n="review.save">Merken</button>
       </div>
     </section>
 
@@ -134,9 +134,9 @@
       </div>
 <form class="quick" data-quick>
         <label class="sr" for="quick-cal">Schnell eintragen</label>
-        <input id="quick-cal" type="text" autocomplete="off" enterkeyhint="done" placeholder="Schnell eintragen: Mi 16 Uhr Zahnarzt Ben">
+        <input id="quick-cal" data-i18n-ph="quick.ph" type="text" autocomplete="off" enterkeyhint="done" placeholder="Schnell eintragen: Mi 16 Uhr Zahnarzt Ben">
         <button class="btn small icon mic" type="button" data-mic aria-label="Termin sprechen" title="Termin sprechen" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></button>
-        <button class="btn primary small" type="submit">Eintragen</button>
+        <button class="btn primary small" type="submit" data-i18n="quick.submit">Eintragen</button>
       </form>
       <ul class="person-filter" id="cal-people" aria-label="Nach Person filtern"></ul>
       <div class="cal-permission" id="cal-permission" hidden>
@@ -169,6 +169,7 @@
         <div class="row">
           <label class="check"><input type="checkbox" id="ls-hide"> <span>Erledigte ausblenden</span></label>
           <button class="btn ghost small" type="button" id="ls-clear" hidden>Erledigte löschen</button>
+          <button class="btn ghost small native-only" type="button" id="ls-widget">Als Widget auf den Startbildschirm</button>
         </div>
         <div id="ls-connect-box" class="sc-kanal" hidden>
           <p class="hint" id="ls-connect-hint"></p>
@@ -206,22 +207,33 @@
     <!-- Familie -->
     <section id="view-family" class="view" hidden>
       <div>
-        <h2 class="page-h">Familie</h2>
-        <p class="hint">Ein gemeinsamer Kalender für alle, auch mit iPhone. Ohne Big Tech, damit eure Daten eure bleiben.</p>
+        <h2 class="page-h" id="hub-title">Gemeinsam</h2>
+        <p class="hint" id="hub-hint">Familie, Freunde, Verein: zusammen planen. Ohne Big Tech, damit eure Daten eure bleiben.</p>
       </div>
-      <section class="panel">
+      <button class="btn ghost small hub-back" type="button" id="hub-back" hidden>‹ Übersicht</button>
+      <div class="hub-tiles" id="hub-tiles">
+        <button type="button" data-hub-open="familie"><span class="ic">👪</span><strong>Familie</strong><small>Wer gehört dazu, gemeinsamer Kalender</small></button>
+        <button type="button" data-hub-open="abstimmen"><span class="ic">🗳️</span><strong>Wann können alle?</strong><small>Termin abstimmen</small></button>
+        <button type="button" data-hub-open="kasse"><span class="ic">💶</span><strong>Kasse</strong><small>Wer schuldet wem?</small></button>
+        <button type="button" data-hub-open="aemtchen" class="adv"><span class="ic">🧹</span><strong>Ämtchen</strong><small>Aufgaben reihum</small></button>
+        <button type="button" data-hub-open="info"><span class="ic">🩺</span><strong>Infokarte</strong><small>Arzt, Allergien, Notfall</small></button>
+        <button type="button" data-hub-open="geschenke" class="adv"><span class="ic">🎁</span><strong>Geschenkideen</strong><small>Geburtstage nicht verpassen</small></button>
+        <button type="button" data-hub-open="abos"><span class="ic">🗑️</span><strong>Müll &amp; Abos</strong><small>Abfuhrplan, Schule, Verein</small></button>
+        <button type="button" data-hub-open="setup" class="adv"><span class="ic">⚙️</span><strong>Einrichtung</strong><small>Assistent, Umzug, Einladen</small></button>
+      </div>
+      <section class="panel" data-hub="abstimmen">
         <h3>Wann können alle?</h3>
         <p class="hint">Ein paar Termine vorschlagen, Link in die Gruppe schicken, alle kreuzen an. Ohne Konto, ohne Doodle.</p>
         <ul class="cal-list" id="poll-list" hidden></ul>
         <button class="btn primary" type="button" id="poll-new">Termin abstimmen</button>
       </section>
-      <section class="panel">
+      <section class="panel" data-hub="kasse">
         <h3>Gemeinsame Kasse</h3>
         <p class="hint">Ausflug, WG, Kita-Kasse: Wer hat was bezahlt, wer schuldet wem? Ohne Konto, der Stand geht als Link in die Gruppe.</p>
         <ul class="cal-list" id="kasse-list" hidden></ul>
         <button class="btn" type="button" id="kasse-new">Neue Kasse</button>
       </section>
-      <section class="panel">
+      <section class="panel" data-hub="aemtchen">
         <h3>Ämtchenplan</h3>
         <p class="hint">Müll, Kochen, Bad putzen: reihum, im Familienkalender mit „Zuständig“.</p>
         <details class="invite-link" id="am-form">
@@ -238,7 +250,30 @@
           <button class="btn primary small" type="button" id="am-create">Plan erstellen</button>
         </details>
       </section>
-      <section class="panel">
+      <section class="panel" data-hub="info">
+        <h3>Infokarte</h3>
+        <p class="hint">Kinderarzt, Allergien, Medikamente, Notfallkontakte – griffbereit und mit einem Tipp an Babysitter, Großeltern oder Kita geschickt. Bleibt nur auf diesem Gerät, bis du sie schickst.</p>
+        <div id="ik-list" class="ik-list"></div>
+        <div class="row">
+          <button class="btn primary" type="button" id="ik-new">+ Infokarte</button>
+          <button class="btn" type="button" id="ik-share-all" hidden>Alle Karten schicken</button>
+        </div>
+      </section>
+      <section class="panel" data-hub="geschenke">
+        <h3>Geschenkideen</h3>
+        <p class="hint">Ideen übers Jahr sammeln. Eine Woche vor dem Geburtstag erinnert Terminus – mit der Liste.</p>
+        <ul class="gs-list" id="gs-list"></ul>
+        <p class="hint" id="gs-empty">Noch niemand eingetragen.</p>
+        <div class="grid2">
+          <label class="field"><span>Name</span><input id="gs-name" maxlength="40"></label>
+          <label class="field"><span>Geburtstag</span><input id="gs-date" placeholder="14.03." maxlength="12"></label>
+        </div>
+        <div class="row">
+          <button class="btn small primary" type="button" id="gs-add">Hinzufügen</button>
+          <button class="btn small" type="button" id="gs-import">Geburtstage aus dem Adressbuch</button>
+        </div>
+      </section>
+      <section class="panel" data-hub="familie">
         <h3>Wer gehört dazu?</h3>
         <ul class="members" id="family-list"></ul>
         <div class="add-member">
@@ -249,7 +284,7 @@
           <button class="btn" type="button" id="fm-add">Hinzufügen</button>
         </div>
       </section>
-      <section class="panel">
+      <section class="panel" data-hub="familie">
         <h3>Familienkalender</h3>
         <div id="family-cal-native" class="native-only">
           <label class="field"><span>Gemeinsamer Kalender auf diesem Handy</span>
@@ -265,7 +300,21 @@
         </ol>
         <button class="btn" type="button" id="family-send">Anleitung an die Familie schicken</button>
       </section>
-      <section class="panel">
+      <section class="panel" data-hub="abos">
+        <h3>Abfuhrkalender</h3>
+        <p class="hint">Restmüll, Bio, Papier, Gelber Sack: Terminus erinnert am Vorabend um 19 Uhr ans Rausstellen.</p>
+        <ol class="steps">
+          <li><strong>Mit Link (am besten):</strong> Viele Abfallbetriebe bieten auf ihrer Website einen Kalender zum Abonnieren an („iCal“, „ICS“, „in Kalender übernehmen“). Link kopieren und unten einfügen – dann kommen Änderungen von selbst.</li>
+          <li><strong>Ohne Link:</strong> Abfuhrplan (Papier oder PDF) fotografieren oder öffnen. Terminus liest die Termine je Tonne aus.</li>
+        </ol>
+        <div class="row">
+          <label class="btn small" for="in-camera">Abfuhrplan fotografieren</label>
+          <label class="btn small" for="in-doc">PDF öffnen</label>
+          <a class="btn small" id="muell-search" target="_blank" rel="noopener">Abfallkalender meiner Stadt suchen</a>
+        </div>
+        <p class="hint">Eine einheitliche Schnittstelle für alle Kommunen gibt es leider nicht, darum der Weg über den Link oder das Foto.</p>
+      </section>
+      <section class="panel" data-hub="abos">
         <h3>Kalender abonnieren</h3>
         <p class="hint">Müllabfuhr, Schule, Verein, Kita: Viele bieten einen Kalender-Link an (oft „iCal“, „ICS“ oder „Abonnieren“ genannt). Abonnierte Kalender aktualisieren sich von selbst.</p>
         <form class="quick" id="sub-form">
@@ -279,11 +328,11 @@
           <a class="btn small" href="https://play.google.com/store/apps/details?id=at.bitfire.icsdroid" target="_blank" rel="noopener">im Play Store</a>
         </div>
       </section>
-      <div class="row">
+      <div class="row" data-hub="setup">
         <button class="btn primary" type="button" id="open-setup">Einrichtungsassistent</button>
         <button class="btn" type="button" id="open-invite">Familie einladen (QR)</button>
       </div>
-      <button class="btn ghost" type="button" id="open-migrate">Umzugshelfer: raus aus Big Tech</button>
+      <button class="btn ghost" type="button" id="open-migrate" data-hub="setup">Umzugshelfer: raus aus Big Tech</button>
     </section>
 
     <!-- Umzugshelfer -->
@@ -411,6 +460,17 @@
       </section>
     </section>
 
+    <!-- Empfangene Infokarte -->
+    <section id="view-infokarte" class="view" hidden>
+      <div>
+        <p class="eyebrow">Infokarte</p>
+        <h2 class="page-h">Wichtige Infos</h2>
+        <p class="hint">Vertraulich behandeln. Telefonnummern lassen sich antippen.</p>
+      </div>
+      <div id="ikv-list" class="ik-list"></div>
+      <button class="btn" type="button" id="ikv-keep">Auf diesem Gerät behalten</button>
+    </section>
+
     <!-- Gemeinsame Kasse -->
     <section id="view-kasse" class="view" hidden>
       <div>
@@ -490,7 +550,7 @@
     <!-- Empfänger eines verschickten Kalenders -->
     <section id="view-kanal" class="view" hidden>
       <div>
-        <p class="eyebrow">Dir wurde ein Kalender geschickt</p>
+        <p class="eyebrow" data-i18n="kanal.eyebrow">Dir wurde ein Kalender geschickt</p>
         <h2 class="page-h" id="k-title">Kalender</h2>
         <p class="hint" id="k-sub"></p>
       </div>
@@ -506,37 +566,37 @@
       <section class="panel" id="k-file-box">
         <h3>Ohne Terminus</h3>
         <p class="hint">iPhone, Outlook und andere: die Termine einmalig als Datei übernehmen. Das ist ein Schnappschuss; spätere Updates kommen so nicht automatisch an.</p>
-        <button class="btn" type="button" id="k-file">Als Kalenderdatei öffnen</button>
+        <button class="btn" type="button" id="k-file" data-i18n="kanal.file">Als Kalenderdatei öffnen</button>
       </section>
       <div class="pitch">
-        <p><strong>Terminus</strong> macht aus Fotos von Zetteln, Plakaten und Einladungen Kalendertermine. Kostenlos, Open Source, ohne Konto.</p>
-        <a class="btn" href="./">Selbst ausprobieren</a>
+        <p data-i18n-html="pitch.text"><strong>Terminus</strong> macht aus Fotos von Zetteln, Plakaten und Einladungen Kalendertermine. Kostenlos, Open Source, ohne Konto.</p>
+        <a class="btn" href="./" data-i18n="pitch.btn">Selbst ausprobieren</a>
       </div>
     </section>
 
     <!-- Empfänger eines geteilten Termins -->
     <section id="view-received" class="view" hidden>
-      <p class="eyebrow">Dir wurde ein Termin geschickt</p>
+      <p class="eyebrow" data-i18n="recv.eyebrow">Dir wurde ein Termin geschickt</p>
       <ol class="cards" id="received-card"></ol>
       <div class="row">
-        <button class="btn primary" id="btn-recv-ics" type="button">In meinen Kalender</button>
+        <button class="btn primary" id="btn-recv-ics" type="button" data-i18n="recv.ics">In meinen Kalender</button>
         <a class="btn web-only" id="btn-recv-google" target="_blank" rel="noopener">Google Kalender</a>
       </div>
-      <p class="hint">Auf dem iPhone und mit Outlook öffnet „In meinen Kalender“ eine Kalenderdatei, die du mit einem Tipp übernimmst.</p>
+      <p class="hint" data-i18n="recv.hint">Auf dem iPhone und mit Outlook öffnet „In meinen Kalender“ eine Kalenderdatei, die du mit einem Tipp übernimmst.</p>
       <section class="panel" id="received-rsvp"></section>
       <div class="pitch">
-        <p><strong>Terminus</strong> macht aus Fotos von Zetteln, Plakaten und Einladungen Kalendertermine. Kostenlos, Open Source, ohne Konto.</p>
-        <a class="btn" href="./">Selbst ausprobieren</a>
+        <p data-i18n-html="pitch.text"><strong>Terminus</strong> macht aus Fotos von Zetteln, Plakaten und Einladungen Kalendertermine. Kostenlos, Open Source, ohne Konto.</p>
+        <a class="btn" href="./" data-i18n="pitch.btn">Selbst ausprobieren</a>
       </div>
     </section>
   </main>
 
   <nav class="tabbar" id="tabbar" aria-label="Bereiche">
-    <button type="button" data-tab="home"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span>Erfassen</span></button>
-    <button type="button" data-tab="calendar"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span>Kalender</span></button>
-    <button type="button" data-tab="tasks"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 7 2 2 3-3M5 15l2 2 3-3M13 8h6M13 16h6"/></svg><span>Aufgaben</span></button>
-    <button type="button" data-tab="wallet"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4z"/><path d="M4 7V6a2 2 0 0 1 2-2h10v3"/><circle cx="16" cy="13.5" r="1.2"/></svg><span>Wallet</span></button>
-    <button type="button" data-tab="family"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="10" r="2.4"/><path d="M3 20c.5-3.5 2.5-5.5 5-5.5s4.5 2 5 5.5M13.5 20c.4-2.6 1.7-4 3.5-4s3.1 1.4 3.5 4"/></svg><span>Familie</span></button>
+    <button type="button" data-tab="home"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span data-i18n="tab.home">Erfassen</span></button>
+    <button type="button" data-tab="calendar"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span data-i18n="tab.calendar">Kalender</span></button>
+    <button type="button" data-tab="tasks"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m5 7 2 2 3-3M5 15l2 2 3-3M13 8h6M13 16h6"/></svg><span data-i18n="tab.tasks">Aufgaben</span></button>
+    <button type="button" data-tab="wallet"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4z"/><path d="M4 7V6a2 2 0 0 1 2-2h10v3"/><circle cx="16" cy="13.5" r="1.2"/></svg><span data-i18n="tab.wallet">Wallet</span></button>
+    <button type="button" data-tab="family"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="10" r="2.4"/><path d="M3 20c.5-3.5 2.5-5.5 5-5.5s4.5 2 5 5.5M13.5 20c.4-2.6 1.7-4 3.5-4s3.1 1.4 3.5 4"/></svg><span data-i18n="tab.family">Gemeinsam</span></button>
   </nav>
 
   <!-- Familie einladen -->
@@ -627,6 +687,34 @@
         <button class="btn primary" type="button" id="sc-edit-invite">Zum Mitbearbeiten einladen</button>
       </div>
       <p class="step-msg" id="sc-msg" hidden></p>
+    </form>
+  </dialog>
+
+  <!-- Infokarte bearbeiten -->
+  <dialog id="dlg-info" aria-labelledby="ik-h">
+    <form method="dialog" class="dlg">
+      <div class="dlg-head"><h2 id="ik-h">Infokarte</h2><button class="btn ghost small" value="close">Schließen</button></div>
+      <label class="field"><span>Für wen?</span><input id="ik-name" maxlength="40" list="ik-names" autocomplete="off"></label>
+      <datalist id="ik-names"></datalist>
+      <div id="ik-form-fields" class="ik-fields"></div>
+      <p class="hint">Mit Geburtsdatum schlägt Terminus die nächsten Vorsorgeuntersuchungen (U-Untersuchungen, J1) vor.</p>
+      <button class="btn primary" type="button" id="ik-save">Speichern</button>
+    </form>
+  </dialog>
+
+  <!-- Ersteinführung -->
+  <dialog id="dlg-tour" class="tour" aria-labelledby="tour-h">
+    <form method="dialog" class="dlg">
+      <ol class="tour-slides" id="tour-slides">
+        <li><span class="ic">📸</span><h2 id="tour-h" data-i18n="tour.1h">Zettel knipsen. Termin steht.</h2><p data-i18n="tour.1p">Foto vom Elternbrief, Screenshot aus dem Chat, PDF oder einfach sagen: „Donnerstag 15 Uhr Zahnarzt“. Terminus findet Datum, Uhrzeit, Ort und Mitbringliste.</p></li>
+        <li hidden><span class="ic">📤</span><h2 data-i18n="tour.2h">Mit einem Tipp weiterschicken</h2><p data-i18n="tour.2p">An Oma, Partner oder die Klassengruppe: per WhatsApp, Signal oder E-Mail. Wer den Link antippt, hat den Termin im eigenen Kalender – auch ohne Terminus.</p></li>
+        <li hidden><span class="ic">👪</span><h2 data-i18n="tour.3h">Gemeinsam planen</h2><p data-i18n="tour.3p">Familienkalender, „Wann können alle?“, gemeinsame Kasse, Listen und Ämtchen – alles unter „Gemeinsam“. Ohne Konto, ohne Big Tech.</p></li>
+      </ol>
+      <p class="tour-dots" id="tour-dots" aria-hidden="true"><span></span><span></span><span></span></p>
+      <div class="row">
+        <button class="btn ghost small" value="close" id="tour-skip" data-i18n="tour.skip">Überspringen</button>
+        <button class="btn primary" type="button" id="tour-next">Weiter</button>
+      </div>
     </form>
   </dialog>
 
@@ -786,7 +874,7 @@
   </dialog>
 
   <footer class="foot">
-    <p><strong>Damit deine Daten deine bleiben.</strong> Open Source unter EUPL-1.2 · Kein Konto, keine Werbung, keine Tracker · Ohne Big Tech · <a href="datenschutz.html">Datenschutz</a> · <a href="https://github.com/Baum97/terminus">Quellcode</a></p>
+    <p><strong data-i18n="foot.claim">Damit deine Daten deine bleiben.</strong> Open Source unter EUPL-1.2 · Kein Konto, keine Werbung, keine Tracker · Ohne Big Tech · <a href="datenschutz.html">Datenschutz</a> · <a href="https://github.com/Baum97/terminus">Quellcode</a></p>
   </footer>
 
   <!-- Teilen -->
@@ -890,6 +978,9 @@
         </label>
         <label class="field"><span>Sprache der Termine (mit KI)</span>
           <select id="s-lang"></select>
+        </label>
+        <label class="field"><span>Sprache der App · Language · Dil · اللغة · Мова</span>
+          <select id="s-ui-lang"><option value="">automatisch (wie das Handy)</option></select>
         </label>
       </div>
       <label class="check"><input type="checkbox" id="s-eve"> <span>Am Vorabend um 19 Uhr an Mitbringsachen erinnern</span></label>

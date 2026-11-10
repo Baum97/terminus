@@ -18,7 +18,12 @@ import { initSetup, renderSetup, setupNeeded, setupSummary, openInvite as openFa
 import { berlinUtcStamp, parseICS, simpleRepeat } from './icsimport.js';
 import { parseTicket, readEmail } from './dokument.js';
 import { parseShifts, parseTimetable } from './plan.js';
+import { parseWaste } from './muell.js';
 import { geocode, travelMinutes, leaveText, MODES } from './unterwegs.js';
+import { UI_LANGS, pickLang, applyLang, t } from './i18n.js';
+import { initGemeinsam, onShowFamily, openHub } from './hubui.js';
+import { initInfokarte, handleCardsCode, renderCards, getCards, setCards } from './infokarteui.js';
+import { initGeschenke, renderGifts, getGifts, setGifts } from './geschenkeui.js';
 import { initKasse, handleGroupCode, getGroups, setGroups } from './kasseui.js';
 import { initAemtchen } from './aemtchenui.js';
 import { initBruecken, openBruecken } from './brueckenui.js';
@@ -55,7 +60,7 @@ const state = {
 
 /* ---------- Ansichten ---------- */
 
-const TAB_OF = { abo: 'calendar', kanal: 'calendar', umfrage: 'family', kasse: 'family', bruecken: 'calendar', wallet: 'wallet', home: 'home', busy: 'home', review: 'home', calendar: 'calendar', tasks: 'tasks', family: 'family', migrate: 'family', setup: 'family', join: 'family' };
+const TAB_OF = { infokarte: 'family', abo: 'calendar', kanal: 'calendar', umfrage: 'family', kasse: 'family', bruecken: 'calendar', wallet: 'wallet', home: 'home', busy: 'home', review: 'home', calendar: 'calendar', tasks: 'tasks', family: 'family', migrate: 'family', setup: 'family', join: 'family' };
 
 function show(view) {
   for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== `view-${view}`;
@@ -70,6 +75,7 @@ function show(view) {
   if (view === 'home') renderSetupBanner();
   if (view === 'tasks') renderListen();
   if (view === 'wallet') renderWallet();
+  if (view === 'family') onShowFamily();
 }
 
 async function renderSetupBanner() {
@@ -236,6 +242,7 @@ async function run(forceLocal = false) {
     // Fahrkarten erkennt Terminus selbst genauer als jede KI: Zug, Gleis, Platz, Umstiege
     let events = parseTicket(rawText, new Date());
     // Dienst- und Stundenpläne: feste Raster, die Terminus selbst zuverlässiger liest als die KI
+    if (!events.length) events = parseWaste(rawText, new Date());
     if (!events.length) events = parseShifts(rawText, new Date());
     if (!events.length) {
       const sommer = state.settings.state ? holidayStartFinder(state.settings.state)('sommer') : null;
@@ -343,6 +350,32 @@ async function shareTextAny(text, title = 'Teilen') {
   } catch {
     // abgebrochen
   }
+}
+
+/* ---------- Ersteinführung (einmalig) ---------- */
+
+function maybeTour() {
+  try {
+    if (localStorage.getItem('terminus.tour')) return;
+    localStorage.setItem('terminus.tour', '1');
+  } catch {
+    return;
+  }
+  let i = 0;
+  const slides = [...document.querySelectorAll('#tour-slides li')];
+  const dots = [...document.querySelectorAll('#tour-dots span')];
+  const draw = () => {
+    slides.forEach((s, k) => (s.hidden = k !== i));
+    dots.forEach((d, k) => d.classList.toggle('on', k === i));
+    $('#tour-next').textContent = t(i === slides.length - 1 ? 'tour.go' : 'tour.next');
+  };
+  $('#tour-next').onclick = () => {
+    if (i === slides.length - 1) return $('#dlg-tour').close();
+    i++;
+    draw();
+  };
+  draw();
+  $('#dlg-tour').showModal();
 }
 
 async function speak(input) {
@@ -1056,6 +1089,7 @@ function openSettings() {
   $('#s-duration').value = String(state.settings.defaultMinutes || 60);
   $('#s-state').value = state.settings.state || '';
   $('#s-lang').value = state.settings.lang || 'de';
+  $('#s-ui-lang').value = state.settings.uiLang || '';
   $('#s-eve').checked = state.settings.eveReminder !== false;
   $('#s-photo').checked = state.settings.photoFallback !== false;
   $('#s-bdays').checked = state.settings.showBirthdays !== false;
@@ -1105,6 +1139,7 @@ function saveSettings() {
     defaultMinutes: +$('#s-duration').value,
     state: $('#s-state').value,
     lang: $('#s-lang').value,
+    uiLang: $('#s-ui-lang').value,
     eveReminder: $('#s-eve').checked,
     photoFallback: $('#s-photo').checked,
     showBirthdays: $('#s-bdays').checked,
@@ -1136,6 +1171,7 @@ function saveSettings() {
   store.setSettings(s);
   invalidateBirthdays();
   applySimple();
+  applyLang(pickLang(s.uiLang));
   renderMode();
   if (isNative && briefChanged) {
     const [hour, minute] = s.briefTime.split(':').map(Number);
@@ -1189,6 +1225,10 @@ async function takeNativeShare() {
     if (shared.action === 'kanal') {
       const d = new URL(shared.link).searchParams.get('d');
       if (d) return handleKanalCode(d);
+    }
+    if (shared.action === 'tasks') {
+      show('tasks');
+      return true;
     }
     if (shared.action === 'calendar') {
       show('calendar');
@@ -1257,7 +1297,7 @@ function applySimple() {
 let pendingBackup = null;
 
 function saveBackup() {
-  const json = buildBackup({ settings: state.settings, people: store.getPeople(), family: store.getFamily(), saved: store.getSaved(), abos: getAbos(), kanaele: { own: getOwnChannels(), subs: getSubscriptions() }, listen: getLocalLists(), ablauf: getExpiries(), kassen: getGroups() });
+  const json = buildBackup({ settings: state.settings, people: store.getPeople(), family: store.getFamily(), saved: store.getSaved(), abos: getAbos(), kanaele: { own: getOwnChannels(), subs: getSubscriptions() }, listen: getLocalLists(), ablauf: getExpiries(), kassen: getGroups(), infokarten: getCards(), geschenke: getGifts() });
   const name = backupFileName();
   if (isNative) {
     const base64 = btoa(String.fromCharCode(...new TextEncoder().encode(json)));
@@ -1293,6 +1333,8 @@ function applyBackup() {
   store.setFamily(b.family);
   if (b.abos) setAbos(b.abos);
   if (Object.keys(b.kanaele.own).length) setOwnChannels({ ...getOwnChannels(), ...b.kanaele.own });
+  if (b.infokarten.length) setCards([...getCards().filter((x) => !b.infokarten.some((y) => y.id === x.id)), ...b.infokarten]);
+  if (b.geschenke.length) setGifts([...getGifts().filter((x) => !b.geschenke.some((y) => y.id === x.id)), ...b.geschenke]);
   if (Object.keys(b.kassen).length) setGroups({ ...b.kassen, ...getGroups() });
   if (b.ablauf.length) setExpiries([...getExpiries().filter((x) => !b.ablauf.some((y) => y.id === x.id)), ...b.ablauf]);
   if (b.listen.length) setLocalLists([...getLocalLists().filter((l) => !b.listen.some((x) => x.id === l.id)), ...b.listen]);
@@ -1468,7 +1510,7 @@ function bind() {
     $('#dlg-settings').close();
     show('migrate');
   });
-  $('#migrate-back').addEventListener('click', () => show('family'));
+  $('#migrate-back').addEventListener('click', () => openHub('setup'));
   $('#btn-check-calendar').addEventListener('click', async () => {
     try {
       await Native.listCalendars();
@@ -1481,6 +1523,7 @@ function bind() {
   $('#qr-share').addEventListener('click', shareQR);
   $('#s-state').append(...Object.entries(STATES).map(([k, v]) => new Option(v, k)));
   $('#s-lang').append(...Object.entries(LANGUAGES).map(([k, v]) => new Option(v, k)));
+  $('#s-ui-lang').append(...Object.entries(UI_LANGS).map(([k, v]) => new Option(v, k)));
   $('#invite-search').addEventListener('input', renderInvite);
   $('#invite-search').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -1511,6 +1554,8 @@ async function route() {
   if (j && handleJoinCode(j[1])) return;
   const abo = location.hash.match(/^#abo=([\w-]+)/);
   if (abo && handleAboCode(abo[1])) return;
+  const ik = location.hash.match(/^#ik=([\w-]+)/);
+  if (ik && (await handleCardsCode(ik[1]))) return;
   const ka = location.hash.match(/^#ka=([\w-]+)/);
   if (ka && (await handleGroupCode(ka[1]))) return;
   const u = location.hash.match(/^#(u|ua|z|l)=([\w-]+)/);
@@ -1528,10 +1573,12 @@ async function route() {
   if (new URLSearchParams(location.search).has('shared') && (await takeSharedFile())) return;
   renderSaved();
   show('home');
+  maybeTour();
 }
 
 async function init() {
   document.documentElement.classList.toggle('native', isNative);
+  applyLang(pickLang(state.settings.uiLang));
   applySimple();
   if (isNative && state.settings.lock) lock();
   bind();
@@ -1539,7 +1586,7 @@ async function init() {
     state, store, Native, isNative, toast, show, openShare, openMap, startManual, openInvite: (id) => openFamilyInvite(id),
     shareCalendar: (cal) => openShareCalendar(cal), isAbo: (id) => !!getAbos()[id], republish: (id) => republishSoon(id),
     subscriptions: getSubscriptions, endSubscription, webSubscriptionEvents, subscribedCalendarIds, rsvpSummary,
-    openBruecken: () => openBruecken(), ticketFor, showTicket,
+    openBruecken: () => openBruecken(), ticketFor, showTicket, openHub: (k) => openHub(k),
     saveSettings: (s) => {
       state.settings = s;
       store.setSettings(s);
@@ -1562,7 +1609,14 @@ async function init() {
     renderReview('');
   };
   const pub = () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname);
-  initKasse({ state, Native, isNative, toast, show, drawQR: drawQrCode, publicUrl: pub });
+  initGemeinsam({ show, onSection: (k) => (k === 'geschenke' ? renderGifts() : k === 'info' ? renderCards() : null) });
+  initInfokarte({ store, toast, show, reviewEvents, publicUrl: pub, shareText: (t, title) => shareTextAny(t, title) });
+  initGeschenke({ Native, isNative, store, toast, reviewEvents });
+  $('#muell-search').addEventListener('click', (e) => {
+    const city = (state.settings.home || '').match(/\d{5}\s+([^,]+)/)?.[1] || '';
+    e.currentTarget.href = `https://www.qwant.com/?q=${encodeURIComponent(`Abfallkalender ${city} ics abonnieren`.replace(/\s+/g, ' '))}`;
+  });
+  initKasse({ state, Native, isNative, toast, show, openHub, drawQR: drawQrCode, publicUrl: pub });
   initAemtchen({ store, toast, reviewEvents });
   initBruecken({ state, show, reviewEvents, publicUrl: pub, shareText: (t, title) => shareTextAny(t, title) });
   initWallet({ Native, isNative, toast });
@@ -1571,7 +1625,7 @@ async function init() {
     ocrFile: async (file) => recognize(await fileToCanvas(file)),
   });
   initUmfrage({
-    state, Native, isNative, toast, show,
+    state, Native, isNative, toast, show, openHub: (k) => openHub(k),
     publicUrl: () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname),
     reviewEvent: (raw, label) => {
       const ev = normalizeEvent(raw);

@@ -43,7 +43,8 @@ export function alarms(ev, { alarmMinutes = null, eveReminder = true } = {}) {
   if (ev.kind === 'frist') return [{ minutes: 15 * 60, text: `Frist morgen: ${ev.title}` }];
   const out = [];
   const startMin = ev.start ? toMinutes(ev.start) : 0;
-  const eve = eveReminder && (ev.bring?.length || ev.cost);
+  if (ev.eveAlarm) out.push({ minutes: startMin + 5 * 60, text: `Morgen: ${ev.title}` });
+  const eve = !ev.eveAlarm && eveReminder && (ev.bring?.length || ev.cost);
   if (eve) {
     const what = [ev.bring?.length ? `Mitbringen: ${ev.bring.join(', ')}` : '', ev.cost ? `Kosten: ${ev.cost}` : ''].filter(Boolean).join(' · ');
     out.push({ minutes: startMin + 5 * 60, text: `Morgen: ${ev.title}. ${what}` });

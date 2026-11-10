@@ -194,7 +194,7 @@ function deleteGroup() {
   b.dataset.confirm = '';
   b.textContent = 'Kasse löschen';
   renderGroupList();
-  ctx.show('family');
+  ctx.openHub('kasse');
 }
 
 function showGiro(t, iban) {

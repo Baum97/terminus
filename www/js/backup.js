@@ -6,9 +6,9 @@ const VERSION = 1;
 
 // abos: veröffentlichte Kalender samt Bearbeitungsschlüssel, damit ein neues Handy sie weiter aktualisieren kann
 // kanaele: per Nachricht verschickte Kalender (mit Schlüssel zum Signieren) und abonnierte Absender
-export function buildBackup({ settings, people, family, saved, abos = {}, kanaele = {}, listen = [], ablauf = [], kassen = {} }, now = new Date()) {
+export function buildBackup({ settings, people, family, saved, abos = {}, kanaele = {}, listen = [], ablauf = [], kassen = {}, infokarten = [], geschenke = [] }, now = new Date()) {
   const { apiKey, ...safeSettings } = settings || {};
-  return JSON.stringify({ app: 'terminus', version: VERSION, created: now.toISOString(), settings: safeSettings, people, family, saved, abos, kanaele, listen, ablauf, kassen }, null, 2);
+  return JSON.stringify({ app: 'terminus', version: VERSION, created: now.toISOString(), settings: safeSettings, people, family, saved, abos, kanaele, listen, ablauf, kassen, infokarten, geschenke }, null, 2);
 }
 
 // Liefert die geprüften Daten oder wirft einen Fehler mit verständlicher Meldung
@@ -31,6 +31,8 @@ export function parseBackup(text) {
     abos: obj(data.abos),
     kanaele: { own: obj(data.kanaele?.own), subs: restoreSubs(obj(data.kanaele?.subs)) },
     kassen: obj(data.kassen),
+    infokarten: list(data.infokarten).filter((c) => typeof c.name === 'string'),
+    geschenke: list(data.geschenke).filter((g) => typeof g.name === 'string' && typeof g.md === 'string'),
     ablauf: list(data.ablauf).filter((a) => typeof a.expires === 'string' && typeof a.kind === 'string'),
     listen: list(data.listen).filter((l) => typeof l.name === 'string' && Array.isArray(l.items)),
   };

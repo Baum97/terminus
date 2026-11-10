@@ -45,7 +45,7 @@ export function initHub(c) {
   });
   $('#calm-subscribe').addEventListener('click', () => {
     $('#dlg-calendars').close();
-    ctx.show('family');
+    ctx.openHub('abos');
     $('#sub-url').focus();
   });
   $('#calm-week').addEventListener('click', () => {

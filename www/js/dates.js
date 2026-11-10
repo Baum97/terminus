@@ -79,6 +79,7 @@ export function fmtRepeat(ev) {
   const d = fromISO(ev.date);
   let text;
   if (r.freq === 'daily') text = r.interval > 1 ? `alle ${r.interval} Tage` : 'täglich';
+  else if (r.freq === 'yearly') text = `jährlich am ${d.getDate()}.${d.getMonth() + 1}.`;
   else if (r.freq === 'monthly') text = `${r.interval > 1 ? `alle ${r.interval} Monate` : 'monatlich'} am ${d.getDate()}.`;
   else text = r.interval > 1 ? `alle ${r.interval} Wochen ${WEEKDAYS[d.getDay()].toLowerCase()}s` : `jeden ${WEEKDAYS[d.getDay()]}`;
   return r.until ? `${text} bis ${fmtDate(r.until)}` : text;
