@@ -1,6 +1,7 @@
 // Infokarte im Bereich „Gemeinsam“: anlegen, ansehen, an Babysitter oder Großeltern schicken, Vorsorge eintragen.
 import { FIELDS, cleanCard, phones, checkups, encodeCards, decodeCards } from './infokarte.js';
 import { fmtDate } from './dates.js';
+import { ask } from './ask.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const KEY = 'terminus.infokarten';
@@ -85,14 +86,11 @@ function cardView(c, { own }) {
     btn('Bearbeiten', () => edit(c));
     btn('Schicken', () => share([c]));
     if (checkups(c).length) btn('Vorsorge-Termine eintragen', () => ctx.reviewEvents(checkups(c), `Vorsorge für ${c.name}`));
-    const del = btn('Löschen', () => {
-      if (del.dataset.confirm !== '1') {
-        del.dataset.confirm = '1';
-        del.textContent = 'Wirklich löschen?';
-        return;
-      }
-      setCards(getCards().filter((x) => x.id !== c.id));
+    btn('Löschen', () => {
+      const before = getCards();
+      setCards(before.filter((x) => x.id !== c.id));
       renderCards();
+      ctx.toast(`Infokarte von ${c.name} gelöscht.`, { undo: () => (setCards(before), renderCards()) });
     }, 'btn ghost small danger');
   }
   art.append(row);
@@ -122,7 +120,7 @@ function save() {
 async function share(cards) {
   if (!cards.length) return;
   const text = `🩺 Infokarte ${cards.map((c) => c.name).join(', ')} (Arzt, Allergien, Notfallkontakte)\nBitte vertraulich behandeln.\n\n${ctx.publicUrl()}#ik=${await encodeCards(cards)}`;
-  if (!confirm('Die Infokarte enthält Gesundheitsdaten. Schick sie nur an Menschen, denen du vertraust (z. B. Babysitter, Großeltern). Weiter?')) return;
+  if (!(await ask({ title: 'Infokarte schicken?', text: 'Sie enthält Gesundheitsdaten. Schick sie nur an Menschen, denen du vertraust, z. B. Babysitter oder Großeltern.', ok: 'Schicken' }))) return;
   ctx.shareText(text, 'Infokarte schicken');
 }
 

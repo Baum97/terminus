@@ -123,8 +123,9 @@ test('Oberfläche: alle Sprachen vollständig', async () => {
   const { default: _dict } = await import('../www/js/i18n-texte.js');
   const keys = Object.keys(_dict.en).sort();
   for (const l of ['tr', 'ar', 'uk']) assert.deepEqual(Object.keys(_dict[l]).sort(), keys, l);
-  assert.equal(pickLang('', 'tr-TR'), 'tr');
-  assert.equal(pickLang('', 'fr-FR'), 'de');
+  assert.equal(pickLang('', 'tr-TR'), 'de');
+  assert.equal(pickLang('', 'tr-TR', { auto: true }), 'tr');
+  assert.equal(pickLang('', 'fr-FR', { auto: true }), 'de');
   assert.equal(pickLang('uk', 'de-DE'), 'uk');
 });
 

@@ -222,16 +222,13 @@ function showResults(id) {
   again.addEventListener('click', () => send(`🗳️ Wann passt es euch? „${poll.title}“\n\n${ctx.publicUrl()}#u=${encodePoll(poll)}`, 'Abstimmung senden'));
   const del = Object.assign(document.createElement('button'), { type: 'button', className: 'btn ghost small danger', textContent: 'Abstimmung löschen' });
   del.addEventListener('click', () => {
-    if (del.dataset.confirm !== '1') {
-      del.dataset.confirm = '1';
-      del.textContent = 'Wirklich löschen?';
-      return;
-    }
-    const polls = getPolls();
+    const before = getPolls();
+    const polls = { ...before };
     delete polls[id];
     save(POLLS, polls);
     renderPollList();
     ctx.openHub('abstimmen');
+    ctx.toast('Abstimmung gelöscht.', { undo: () => (save(POLLS, before), renderPollList()) });
   });
   const hint = Object.assign(document.createElement('p'), { className: 'hint', textContent: 'Antworten kommen als Link zurück. Tippe jeden an, dann steht er hier. Wer zweimal antwortet, wird überschrieben.' });
   const row = Object.assign(document.createElement('div'), { className: 'row' });

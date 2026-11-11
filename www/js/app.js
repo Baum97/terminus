@@ -21,6 +21,7 @@ import { initGemeinsam, onShowFamily, openHub } from './hubui.js';
 import { rsvpSummary } from './umfrage.js';
 import { buildBackup, parseBackup, backupFileName } from './backup.js';
 import { loadQR } from './qr.js';
+import { initNav, navTo, canGoBackTo, currentNav } from './nav.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -145,7 +146,9 @@ const state = {
 
 const TAB_OF = { infokarte: 'family', abo: 'calendar', kanal: 'calendar', umfrage: 'family', kasse: 'family', bruecken: 'calendar', wallet: 'wallet', home: 'home', busy: 'home', review: 'home', calendar: 'calendar', tasks: 'tasks', family: 'family', migrate: 'family', setup: 'family', join: 'family' };
 
-function show(view) {
+// opts.tab: über die Tab-Leiste (Tabs ersetzen sich im Verlauf, „Zurück“ führt zum Start)
+function show(view, opts = {}) {
+  navTo({ view }, opts);
   for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== `view-${view}`;
   document.documentElement.classList.toggle('tabbar-off', view === 'busy' || view === 'received');
   for (const b of document.querySelectorAll('#tabbar [data-tab]')) {
@@ -185,12 +188,22 @@ function startManual(date) {
 }
 
 let toastTimer;
-function toast(msg) {
+// Kurze Rückmeldung unten. Mit undo: Knopf „Rückgängig“ (statt vorher „Wirklich löschen?“ zu fragen)
+function toast(msg, { undo } = {}) {
   const t = $('#toast');
-  t.textContent = msg;
+  t.replaceChildren(Object.assign(document.createElement('span'), { textContent: msg }));
+  if (undo) {
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'toast-undo', textContent: 'Rückgängig' });
+    b.addEventListener('click', () => {
+      clearTimeout(toastTimer);
+      t.hidden = true;
+      undo();
+    });
+    t.append(b);
+  }
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (t.hidden = true), 3200);
+  toastTimer = setTimeout(() => (t.hidden = true), undo ? 6000 : 3200);
 }
 
 function usesLLM() {
@@ -1593,7 +1606,8 @@ function bind() {
   for (const b of document.querySelectorAll('#tabbar [data-tab]')) {
     b.addEventListener('click', () => {
       if (b.dataset.tab === 'home') renderSaved();
-      show(b.dataset.tab);
+      if (canGoBackTo(b.dataset.tab)) history.back();
+      else show(b.dataset.tab, { tab: true });
     });
   }
   for (const id of ['#home-migrate', '#open-migrate']) $(id).addEventListener('click', () => show('migrate'));
@@ -1648,6 +1662,8 @@ function bind() {
 }
 
 async function route() {
+  // Empfänger eines Links sehen die Seite in der Sprache ihres Handys (falls nichts eingestellt)
+  if (!state.settings.uiLang && /^#(t|k|u)=/.test(location.hash)) await applyLang(pickLang('', undefined, { auto: true }));
   const j = location.hash.match(/^#j=([\w-]+)/);
   if (j && (await F.setup()).handleJoinCode(j[1])) return;
   const abo = location.hash.match(/^#abo=([\w-]+)/);
@@ -1679,7 +1695,21 @@ async function route() {
 
 async function init() {
   document.documentElement.classList.toggle('native', isNative);
-  const applyLangReady = applyLang(pickLang(state.settings.uiLang));
+  initNav({
+    native: isNative,
+    locked: () => !$('#lock').hidden,
+    leave: () => isNative && Native.moveToBackground().catch(() => {}),
+    restore: (st, from) => {
+      if (from?.view === 'busy') state.abort?.abort();
+      if (st.view === 'busy') show('home');
+      else if (st.view === 'family' && st.hub) openHub(st.hub);
+      else {
+        if (st.view === 'home') renderSaved();
+        show(st.view);
+      }
+    },
+  });
+  const applyLangReady = applyLang(pickLang(state.settings.uiLang, undefined, { auto: /^#(t|k|u)=/.test(location.hash) }));
   applySimple();
   if (isNative && state.settings.lock) lock();
   bind();
@@ -1704,7 +1734,9 @@ async function init() {
   });
   initGemeinsam({
     show,
+    back: () => (currentNav()?.hub ? history.back() : show('family')),
     onSection: (k) => {
+      navTo({ view: 'family', ...(k ? { hub: k } : {}) });
       if (!HUB_MODULES[k]) return;
       F[HUB_MODULES[k]]().then((m) => (k === 'geschenke' ? m.renderGifts() : k === 'info' ? m.renderCards() : null)).catch(fail);
     },

@@ -6,7 +6,7 @@ let keep = false;
 export function initGemeinsam(c) {
   ctx = c;
   for (const b of document.querySelectorAll('[data-hub-open]')) b.addEventListener('click', () => openHub(b.dataset.hubOpen));
-  $('#hub-back').addEventListener('click', () => ctx.show('family'));
+  $('#hub-back').addEventListener('click', () => ctx.back());
 }
 
 // Bei jedem Aufruf der Ansicht: Übersicht, außer ein Bereich wurde gezielt geöffnet

@@ -205,7 +205,8 @@ async function renderCalendar() {
       b.classList.toggle('other', day.getMonth() !== d.getMonth());
       b.classList.toggle('today', iso === today);
       b.classList.toggle('holiday', holidays.has(iso) || day.getDay() === 0);
-      b.setAttribute('aria-selected', String(iso === cal.selected));
+      b.setAttribute('aria-pressed', String(iso === cal.selected));
+      if (iso === today) b.setAttribute('aria-current', 'date');
       const on = itemsOnDay(cal.items, iso);
       b.setAttribute('aria-label', `${fmtDate(iso)}${on.length ? `, ${on.length} Termine` : ''}${holidays.has(iso) ? `, ${holidays.get(iso)}` : ''}`);
       b.innerHTML = '<span class="n"></span><span class="dots"></span>';
@@ -229,7 +230,7 @@ async function renderCalendar() {
 function agendaDay(iso, holidays) {
   const wrap = document.createElement('section');
   wrap.className = 'agenda-day';
-  const h = document.createElement('h3');
+  const h = document.createElement('h2');
   const d = fromISO(iso);
   h.textContent = `${WEEKDAYS[d.getDay()]}, ${d.getDate()}. ${MONTHS[d.getMonth()]}`;
   const extra = [holidays.get(iso), schoolHolidayOn(iso)].filter(Boolean).join(' · ');
@@ -607,7 +608,7 @@ async function renderTasks() {
   $('#tasks-list').replaceChildren(...groups.map(([cls, label, g]) => {
     const sec = document.createElement('section');
     sec.className = `task-group ${cls}`;
-    sec.append(Object.assign(document.createElement('h3'), { textContent: `${label} (${g.length})` }));
+    sec.append(Object.assign(document.createElement('h2'), { textContent: `${label} (${g.length})` }));
     for (const item of g) sec.append(taskCard(item, allDone(item)));
     return sec;
   }));

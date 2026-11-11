@@ -1467,4 +1467,13 @@ public class TerminusPlugin extends Plugin {
         prefs.edit().remove("changes").apply();
         call.resolve(r);
     }
+
+    /* ---------- Zurück-Taste auf der Startseite ---------- */
+
+    // Wie die Home-Taste: App in den Hintergrund, Zustand bleibt erhalten
+    @PluginMethod
+    public void moveToBackground(PluginCall call) {
+        getActivity().runOnUiThread(() -> getActivity().moveTaskToBack(true));
+        call.resolve();
+    }
 }

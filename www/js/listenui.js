@@ -1,6 +1,7 @@
 // Listen im Aufgaben-Bereich: Einkauf, Packliste, To-dos.
 // Android mit Tasks.org/OpenTasks: echte, über DAVx⁵ geteilte Listen (VTODO beim Anbieter).
 // Sonst: lokale Listen in Terminus, verschickbar als Nachricht.
+import { ask } from './ask.js';
 import { splitItems, listText, encodeList, decodeList, mergeItem } from './listen.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -207,20 +208,29 @@ async function toggle(item, done) {
 
 async function remove(item) {
   if (isDevice(st.current)) {
+    const listId = st.current.slice(2);
     await ctx.Native.deleteTask({ id: item.id }).catch((e) => ctx.toast(e.message));
+    ctx.toast(`„${item.text}“ entfernt.`, { undo: async () => {
+      await ctx.Native.addTask({ listId, text: item.text }).catch(() => {});
+      select(st.current);
+    } });
     return select(st.current);
   }
+  const before = st.items;
   storeLocal(st.items.filter((i) => i.id !== item.id));
   renderItems();
+  ctx.toast(`„${item.text}“ entfernt.`, { undo: () => (storeLocal(before), renderItems()) });
 }
 
 function clearDone() {
+  const before = st.items;
   storeLocal(st.items.filter((i) => !i.done));
   renderItems();
+  ctx.toast(`${before.length - st.items.length} erledigte gelöscht.`, { undo: () => (storeLocal(before), renderItems()) });
 }
 
-function newLocalList(name = '', items = []) {
-  const n = name || prompt('Name der neuen Liste (z. B. Packliste Urlaub):', '')?.trim();
+async function newLocalList(name = '', items = []) {
+  const n = name || (await ask({ title: 'Neue Liste', label: 'Name', placeholder: 'Packliste Urlaub, Baumarkt …', ok: 'Anlegen' }));
   if (!n) {
     $('#ls-list').value = st.current;
     return null;

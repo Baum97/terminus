@@ -95,8 +95,10 @@ export function renderAblauf() {
     const b = Object.assign(document.createElement('button'), { type: 'button', className: 'btn ghost small', textContent: 'Erledigt' });
     b.title = 'Aus der Liste nehmen (z. B. nach Verlängerung). Den Kalendereintrag löschst du im Kalender.';
     b.addEventListener('click', () => {
-      setExpiries(getExpiries().filter((x) => x.id !== item.id));
+      const before = getExpiries();
+      setExpiries(before.filter((x) => x.id !== item.id));
       renderAblauf();
+      ctx.toast('Aus der Liste genommen.', { undo: () => (setExpiries(before), renderAblauf()) });
     });
     li.append(b);
     return li;

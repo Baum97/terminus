@@ -58,8 +58,10 @@ export function renderGifts() {
     });
     const del = Object.assign(document.createElement('button'), { type: 'button', className: 'btn ghost small danger', textContent: 'Entfernen' });
     del.addEventListener('click', () => {
-      setGifts(getGifts().filter((x) => x.id !== p.id));
+      const before = getGifts();
+      setGifts(before.filter((x) => x.id !== p.id));
       renderGifts();
+      ctx.toast(`${p.name} entfernt.`, { undo: () => (setGifts(before), renderGifts()) });
     });
     $('.row', li).append(remind, del);
     return li;

@@ -116,8 +116,6 @@ export async function show(id) {
   appBtn.dataset.pkg = item.app || '';
   appBtn.textContent = `${item.appLabel || 'Original-App'} öffnen`;
   $('#wt-hint').hidden = item.kind !== 'ticket';
-  $('#wt-delete').dataset.confirm = '';
-  $('#wt-delete').textContent = 'Löschen';
   const pages = $('#wt-pages');
   pages.replaceChildren(Object.assign(document.createElement('p'), { className: 'hint', textContent: 'Lade …' }));
   $('#dlg-ticket').showModal();
@@ -140,15 +138,14 @@ export async function show(id) {
 }
 
 async function remove() {
-  const b = $('#wt-delete');
-  if (b.dataset.confirm !== '1') {
-    b.dataset.confirm = '1';
-    b.textContent = 'Wirklich löschen?';
-    return;
-  }
+  const item = await getItem(shownId);
   await deleteItem(shownId);
   $('#dlg-ticket').close();
   renderWallet();
+  ctx.toast(`„${item?.title || 'Ticket'}“ gelöscht.`, { undo: async () => {
+    if (item) await putItem(item);
+    renderWallet();
+  } });
 }
 
 // Für den Termin-Dialog im Kalender: passendes Ticket finden

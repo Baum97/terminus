@@ -18,8 +18,11 @@ const DE = {
 
 let lang = 'de';
 
-export function pickLang(setting, browser = (typeof navigator !== 'undefined' && navigator.language) || 'de') {
+// Eingestellte Sprache; sonst Deutsch. Nur wer einen Link öffnet (auto), bekommt die Sprache seines Handys –
+// die App selbst ist nicht vollständig übersetzt, ein Sprachmix wäre schlechter als Deutsch.
+export function pickLang(setting, browser = (typeof navigator !== 'undefined' && navigator.language) || 'de', { auto = false } = {}) {
   if (setting && UI_LANGS[setting]) return setting;
+  if (!auto) return 'de';
   const b = String(browser).slice(0, 2).toLowerCase();
   return UI_LANGS[b] ? b : 'de';
 }

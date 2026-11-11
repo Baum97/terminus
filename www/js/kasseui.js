@@ -1,4 +1,5 @@
 // Gemeinsame Kasse: Ausgaben erfassen, Stand per Link teilen, ausgleichen (auch per GiroCode).
+import { ask } from './ask.js';
 import { newId, parseAmount, euro, balances, settle, merge, encodeGroup, decodeGroup, validIban, cleanIban, epcPayload } from './kasse.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -49,8 +50,8 @@ function renderGroupList() {
   }));
 }
 
-function createGroup() {
-  const name = prompt('Name der Kasse (z. B. Ausflug Gardasee, WG, Kita-Kasse):', '')?.trim();
+async function createGroup() {
+  const name = await ask({ title: 'Neue Kasse', label: 'Name', placeholder: 'Ausflug Gardasee, WG, Kita-Kasse …', ok: 'Anlegen' });
   if (!name) return;
   const me = ctx.state.settings.ownerName || 'Ich';
   const g = { id: newId(), name: name.slice(0, 60), members: [{ name: me }], expenses: [], updated: Date.now(), me };
@@ -120,6 +121,10 @@ function render() {
     $('button', li).addEventListener('click', () => {
       e.deleted = true;
       persist();
+      ctx.toast(`„${e.text || 'Ausgabe'}“ gelöscht.`, { undo: () => {
+        delete e.deleted;
+        persist();
+      } });
     });
     return li;
   }));
@@ -182,19 +187,13 @@ async function shareState() {
 }
 
 function deleteGroup() {
-  const b = $('#ka-delete');
-  if (b.dataset.confirm !== '1') {
-    b.dataset.confirm = '1';
-    b.textContent = 'Wirklich löschen?';
-    return;
-  }
-  const all = getGroups();
+  const before = getGroups();
+  const all = { ...before };
   delete all[current.id];
   setGroups(all);
-  b.dataset.confirm = '';
-  b.textContent = 'Kasse löschen';
   renderGroupList();
   ctx.openHub('kasse');
+  ctx.toast(`Kasse „${current.name}“ gelöscht.`, { undo: () => (setGroups(before), renderGroupList()) });
 }
 
 function showGiro(t, iban) {
