@@ -119,7 +119,8 @@ test('Infokarte: Vorsorge U-Untersuchungen, Telefonnummern, Link', async () => {
 });
 
 test('Oberfläche: alle Sprachen vollständig', async () => {
-  const { _dict, pickLang } = await import('../www/js/i18n.js');
+  const { pickLang } = await import('../www/js/i18n.js');
+  const { default: _dict } = await import('../www/js/i18n-texte.js');
   const keys = Object.keys(_dict.en).sort();
   for (const l of ['tr', 'ar', 'uk']) assert.deepEqual(Object.keys(_dict[l]).sort(), keys, l);
   assert.equal(pickLang('', 'tr-TR'), 'tr');

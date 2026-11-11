@@ -6,11 +6,13 @@
 //   LLM_URL=http://localhost:11434/v1/chat/completions LLM_MODEL=mistral-small3.2 node proxy/server.mjs
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
+import { gzipSync } from 'node:zlib';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createAboStore, AboError, MAX_ICS } from './abo.mjs';
 
-const ROOT = resolve(fileURLToPath(new URL('../www', import.meta.url)));
+// WEB_DIR=dist liefert die gebaute, verkleinerte Fassung aus (npm run build)
+const ROOT = resolve(fileURLToPath(new URL(`../${process.env.WEB_DIR || 'www'}`, import.meta.url)));
 const PORT = +(process.env.PORT || 8080);
 const LLM_URL = process.env.LLM_URL || 'https://api.mistral.ai/v1/chat/completions';
 const LLM_KEY = process.env.LLM_KEY || process.env.MISTRAL_API_KEY || '';
@@ -165,13 +167,21 @@ async function serveStatic(req, res, pathname) {
   if (!file.startsWith(ROOT)) return send(res, 403, 'Verboten', 'text/plain; charset=utf-8');
   try {
     if (!(await stat(file)).isFile()) throw new Error();
-    const data = await readFile(file);
-    res.writeHead(200, {
-      'Content-Type': TYPES[extname(file)] || 'application/octet-stream',
+    let data = await readFile(file);
+    const type = TYPES[extname(file)] || 'application/octet-stream';
+    const headers = {
+      'Content-Type': type,
       'Cache-Control': pathname.startsWith('/vendor/') ? 'public, max-age=604800' : 'no-cache',
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'no-referrer',
-    });
+      Vary: 'Accept-Encoding',
+    };
+    // Text komprimiert ausliefern (JavaScript, HTML, CSS, JSON): etwa ein Viertel der Größe
+    if (data.length > 1024 && /text|javascript|json|svg|xml/.test(type) && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
+      data = gzipSync(data, { level: 9 });
+      headers['Content-Encoding'] = 'gzip';
+    }
+    res.writeHead(200, headers);
     res.end(req.method === 'HEAD' ? undefined : data);
   } catch {
     send(res, 404, 'Nicht gefunden', 'text/plain; charset=utf-8');

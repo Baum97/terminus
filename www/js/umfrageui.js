@@ -314,14 +314,4 @@ function rsvpList(e) {
   return ul;
 }
 
-// Für die Termin-Ansicht im Kalender: "3 kommen, 1 vielleicht, 1 nicht"
-export function rsvpSummary(ev) {
-  const e = getRsvps()[eventKey(ev)];
-  if (!e) return '';
-  const n = { ja: 0, vielleicht: 0, nein: 0 };
-  for (const a of Object.values(e.answers)) n[a.status]++;
-  return [n.ja && `${n.ja} ${n.ja === 1 ? 'kommt' : 'kommen'}`, n.vielleicht && `${n.vielleicht} vielleicht`, n.nein && `${n.nein} ${n.nein === 1 ? 'kommt' : 'kommen'} nicht`].filter(Boolean).join(', ')
-    + ` (${Object.keys(e.answers).join(', ')})`;
-}
-
 export { openCreate as openPollCreate };

@@ -3,6 +3,7 @@
 import { STATES } from './holidays.js';
 import { DAV_PROVIDERS, providerById, davUrls, APPS, storeLink, stepsFor, progress, encodeJoin, decodeJoin, joinWebLink, joinAppLink, mobileconfig, inviteTarget } from './setupdata.js';
 import { newId } from './events.js';
+import { loadQR } from './qr.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const DAVX = 'at.bitfire.davdroid';
@@ -585,14 +586,14 @@ function currentInvite() {
   return { opt, member, link: joinWebLink(code, ctx.publicUrl()) };
 }
 
-function drawInvite() {
+async function drawInvite() {
   const { opt, link } = currentInvite();
   $('#invite-family-link').textContent = link;
   $('#invite-family-hint').textContent = opt.id === APP_ONLY
     ? 'Der Code öffnet Terminus. Für einen gemeinsamen Kalender wähle oben einen Kalender, den DAVx⁵ synchronisiert.'
     : `Scannen mit der Kamera: Auf dem iPhone richtet ein Profil „${opt.name}“ ein, auf Android führt Terminus durch den Beitritt. Das Passwort sagst du persönlich, es steht nicht im Code.`;
   const canvas = $('#invite-family-qr');
-  const qr = window.qrcode(0, 'L');
+  const qr = (await loadQR())(0, 'L');
   qr.addData(link);
   qr.make();
   const n = qr.getModuleCount(), cell = Math.floor(canvas.width / (n + 8)), off = (canvas.width - cell * n) / 2;

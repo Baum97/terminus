@@ -2,6 +2,7 @@
 // Ein Abo-Link enthält nur diesen einen Kalender und nur die freigegebenen Felder.
 import { aboFromDevice, aboFromLocal, DEFAULT_FIELDS, encodeAbo, decodeAbo, subscribeLinks } from './aboexport.js';
 import { inviteTarget } from './setupdata.js';
+import { loadQR } from './qr.js';
 import { channelState, sendCalendar, markDirty, stopSending } from './kanalui.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -139,8 +140,8 @@ async function renderShare() {
   }
 }
 
-export function drawQR(canvas, text) {
-  const qr = window.qrcode(0, 'L');
+export async function drawQR(canvas, text) {
+  const qr = (await loadQR())(0, 'L');
   qr.addData(text);
   qr.make();
   const n = qr.getModuleCount(), cell = Math.floor(canvas.width / (n + 8)), off = (canvas.width - cell * n) / 2;

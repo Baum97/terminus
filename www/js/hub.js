@@ -8,7 +8,6 @@ import { publicHolidays, schoolHolidays } from './holidays.js';
 import { normalizeEvent, newId } from './events.js';
 import { parseICS, simpleRepeat } from './icsimport.js';
 import { readZip } from './unzip.js';
-import { drawWeek } from './wochenbild.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
@@ -273,6 +272,7 @@ async function shareWeek() {
   const from = weekStart(cal.selected);
   const items = (await loadItems(from, addDays(from, 6))).filter((i) => matchesPerson(i, cal.person));
   const title = cal.person ? `Woche von ${cal.person}` : `Woche ${isoWeek(from)}`;
+  const { drawWeek } = await import('./wochenbild.js');
   const canvas = drawWeek(from, items, { title, todayIso: toISO(new Date()) });
   const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
   const fileName = `woche-${isoWeek(from)}.png`;

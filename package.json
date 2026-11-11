@@ -7,15 +7,18 @@
   "description": "Zettel fotografieren, Termin im Kalender. Android-App und Web-App.",
   "scripts": {
     "start": "node proxy/server.mjs",
+    "build": "node scripts/build.mjs",
+    "start:dist": "node scripts/build.mjs && WEB_DIR=dist node proxy/server.mjs",
     "test": "node --test tests/*.test.mjs",
-    "android:sync": "cap sync android",
-    "android:build": "cap sync android && cd android && ./gradlew assembleDebug"
+    "android:sync": "node scripts/build.mjs && cap sync android",
+    "android:build": "node scripts/build.mjs && cap sync android && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
     "@capacitor/android": "8.5.3",
     "@capacitor/core": "8.5.3"
   },
   "devDependencies": {
-    "@capacitor/cli": "8.5.3"
+    "@capacitor/cli": "8.5.3",
+    "esbuild": "0.24.2"
   }
 }

@@ -14,26 +14,108 @@ import { initHub, onShow, invalidateBirthdays } from './hub.js';
 import { quickParse } from './quick.js';
 import { initAbo, openShareCalendar, getAbos, setAbos, republishSoon, republishStale, handleAboCode, buildIcs, drawQR as drawQrCode } from './abo.js';
 import { initKanal, handleKanalCode, getSubscriptions, setSubscriptions, getOwnChannels, setOwnChannels, endSubscription, webSubscriptionEvents, subscribedCalendarIds } from './kanalui.js';
-import { initSetup, renderSetup, setupNeeded, setupSummary, openInvite as openFamilyInvite, handleJoinCode, handleJoinLink } from './setup.js';
 import { berlinUtcStamp, parseICS, simpleRepeat } from './icsimport.js';
-import { parseTicket, readEmail } from './dokument.js';
-import { parseShifts, parseTimetable } from './plan.js';
-import { parseWaste } from './muell.js';
 import { geocode, travelMinutes, leaveText, MODES } from './unterwegs.js';
 import { UI_LANGS, pickLang, applyLang, t } from './i18n.js';
 import { initGemeinsam, onShowFamily, openHub } from './hubui.js';
-import { initInfokarte, handleCardsCode, renderCards, getCards, setCards } from './infokarteui.js';
-import { initGeschenke, renderGifts, getGifts, setGifts } from './geschenkeui.js';
-import { initKasse, handleGroupCode, getGroups, setGroups } from './kasseui.js';
-import { initAemtchen } from './aemtchenui.js';
-import { initBruecken, openBruecken } from './brueckenui.js';
-import { initWallet, renderWallet, openAdd as walletAdd, ticketFor, show as showTicket } from './walletui.js';
-import { initAblauf, getExpiries, setExpiries } from './ablaufui.js';
-import { initListen, renderListen, handleListCode, getLocalLists, setLocalLists } from './listenui.js';
-import { initUmfrage, handlePollCode, handleAnswerCode, handleRsvpCode, rsvpButtons, rsvpSummary } from './umfrageui.js';
+import { rsvpSummary } from './umfrage.js';
 import { buildBackup, parseBackup, backupFileName } from './backup.js';
+import { loadQR } from './qr.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
+
+/* ---------- Bereiche, die erst bei Bedarf laden ---------- */
+// Hält den Start auf langsamen Handys schnell: Kasse, Wallet, Abstimmungen, Assistent usw.
+// laden beim ersten Gebrauch (im Build als eigene kleine Dateien).
+const once = (load) => {
+  let p;
+  return () => (p ??= load().catch((e) => {
+    p = null;
+    throw e;
+  }));
+};
+const pub = () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname);
+const readJSON = (key, empty) => {
+  try {
+    return JSON.parse(localStorage.getItem(key) || 'null') ?? empty;
+  } catch {
+    return empty;
+  }
+};
+const F = {
+  setup: once(async () => {
+    const m = await import('./setup.js');
+    m.initSetup({ state, store, Native, isNative, toast, show, applySimple, publicUrl: pub, saveSettings: (s) => {
+      state.settings = s;
+      store.setSettings(s);
+    } });
+    return m;
+  }),
+  umfrage: once(async () => {
+    const m = await import('./umfrageui.js');
+    m.initUmfrage({ state, Native, isNative, toast, show, openHub: (k) => openHub(k), publicUrl: pub, reviewEvent: (raw, label) => reviewEvents([raw], label) });
+    return m;
+  }),
+  kasse: once(async () => {
+    const m = await import('./kasseui.js');
+    m.initKasse({ state, Native, isNative, toast, show, openHub, drawQR: drawQrCode, publicUrl: pub });
+    return m;
+  }),
+  wallet: once(async () => {
+    const m = await import('./walletui.js');
+    m.initWallet({ Native, isNative, toast });
+    return m;
+  }),
+  info: once(async () => {
+    const m = await import('./infokarteui.js');
+    m.initInfokarte({ store, toast, show, reviewEvents, publicUrl: pub, shareText: (t, title) => shareTextAny(t, title) });
+    return m;
+  }),
+  geschenke: once(async () => {
+    const m = await import('./geschenkeui.js');
+    m.initGeschenke({ Native, isNative, store, toast, reviewEvents });
+    return m;
+  }),
+  aemtchen: once(async () => {
+    const m = await import('./aemtchenui.js');
+    m.initAemtchen({ store, toast, reviewEvents });
+    return m;
+  }),
+  bruecken: once(async () => {
+    const m = await import('./brueckenui.js');
+    m.initBruecken({ state, show, reviewEvents, publicUrl: pub, shareText: (t, title) => shareTextAny(t, title) });
+    return m;
+  }),
+  listen: once(async () => {
+    const m = await import('./listenui.js');
+    m.initListen({ Native, isNative, toast, show, openUrl: (url) => window.open(url, '_blank', 'noopener'), publicUrl: pub });
+    return m;
+  }),
+  ablauf: once(async () => {
+    const m = await import('./ablaufui.js');
+    m.initAblauf({ toast, addToCalendar, ocrFile: async (file) => recognize(await fileToCanvas(file)) });
+    return m;
+  }),
+  dokument: once(() => import('./dokument.js')),
+  plaene: once(() => Promise.all([import('./plan.js'), import('./muell.js')]).then(([plan, muell]) => ({ ...plan, ...muell }))),
+};
+// Beim Öffnen eines Bereichs „Gemeinsam“ das passende Modul laden
+const HUB_MODULES = { abstimmen: 'umfrage', kasse: 'kasse', aemtchen: 'aemtchen', info: 'info', geschenke: 'geschenke' };
+const fail = (e) => toast(e?.message || 'Das konnte nicht geladen werden. Bitte noch einmal versuchen.');
+
+function reviewEvents(list, label) {
+  const evs = list.map((e) => normalizeEvent(e)).filter(Boolean);
+  if (!evs.length) return;
+  state.input = { canvas: null, dataUrl: null, text: '', label };
+  state.drafts = evs.map((e) => applySkip({ ...e, picked: true, skipHolidays: !!(e.repeat && state.settings.state && e.skipHolidays) }));
+  renderReview('');
+}
+
+// Einrichtung nötig? (ohne den Assistenten zu laden)
+function setupNeeded() {
+  const s = store.getSetup();
+  return isNative && !s.goal && !s.later;
+}
 
 const DEMO_TEXT = `Kita Sonnenschein · Lindenstraße 4
 Einladung zum Laternenfest
@@ -56,6 +138,7 @@ const state = {
   drafts: [],
   input: null, // { canvas, dataUrl, text, label }
   abort: null,
+  boot: Promise.resolve(), // Server-Erkennung und Ferien (siehe init)
 };
 
 /* ---------- Ansichten ---------- */
@@ -71,17 +154,22 @@ function show(view) {
   }
   window.scrollTo({ top: 0 });
   onShow(view);
-  if (view === 'setup') renderSetup();
+  if (view === 'setup') F.setup().then((m) => m.renderSetup()).catch(fail);
   if (view === 'home') renderSetupBanner();
-  if (view === 'tasks') renderListen();
-  if (view === 'wallet') renderWallet();
+  if (view === 'tasks') {
+    F.listen().then((m) => m.renderListen()).catch(fail);
+    F.ablauf().then((m) => m.renderAblauf()).catch(() => {});
+  }
+  if (view === 'wallet') F.wallet().then((m) => m.renderWallet()).catch(fail);
   if (view === 'family') onShowFamily();
 }
 
+const openFamilyInvite = (id) => F.setup().then((m) => m.openInvite(id)).catch(fail);
+
 async function renderSetupBanner() {
   const b = $('#home-setup');
-  if (!isNative) return;
-  const p = await setupSummary().catch(() => null);
+  if (!isNative || !store.getSetup().goal) return;
+  const p = await F.setup().then((m) => m.setupSummary()).catch(() => null);
   b.hidden = !p || !p.next;
   if (p?.next) b.textContent = `Einrichtung: ${p.done} von ${p.total} erledigt · weiter ›`;
 }
@@ -164,6 +252,7 @@ async function handleDocument(file) {
   try {
     if (isIcs(file)) return showIcsDrafts(await file.text(), `Aus ${file.name || 'der Kalenderdatei'}`);
     if (isMail(file)) {
+      const { readEmail } = await F.dokument();
       const mail = readEmail(await file.text());
       // Einladungen mit Kalenderanhang: der Anhang ist genauer als jede Erkennung
       if (mail.ics && parseICS(mail.ics).events.length) return showIcsDrafts(mail.ics, `Aus der E-Mail „${mail.subject || 'ohne Betreff'}“`);
@@ -225,6 +314,7 @@ async function run(forceLocal = false) {
 
   state.abort?.abort();
   const abort = (state.abort = new AbortController());
+  await state.boot;
   const local = forceLocal || !usesLLM();
   let rawText = text;
 
@@ -240,6 +330,7 @@ async function run(forceLocal = false) {
     }
     state.lastText = rawText || '';
     // Fahrkarten erkennt Terminus selbst genauer als jede KI: Zug, Gleis, Platz, Umstiege
+    const [{ parseTicket }, { parseWaste, parseShifts, parseTimetable }] = await Promise.all([F.dokument(), F.plaene()]);
     let events = parseTicket(rawText, new Date());
     // Dienst- und Stundenpläne: feste Raster, die Terminus selbst zuverlässiger liest als die KI
     if (!events.length) events = parseWaste(rawText, new Date());
@@ -478,10 +569,10 @@ async function checkConflicts() {
 
 /* ---------- QR-Code ---------- */
 
-function drawQR(ev) {
+async function drawQR(ev) {
   const canvas = $('#qr-canvas');
   const ctx = canvas.getContext('2d');
-  const qr = window.qrcode(0, 'L');
+  const qr = (await loadQR())(0, 'L');
   qr.addData(eventLink(ev, isNative ? CONFIG.publicUrl : undefined));
   qr.make();
   const n = qr.getModuleCount();
@@ -1080,7 +1171,8 @@ function syncProviderFields(fromSaved = false) {
   $('#s-key').placeholder = p.needsKey ? 'erforderlich' : 'optional';
 }
 
-function openSettings() {
+async function openSettings() {
+  await state.boot;
   const current = state.settings.provider || 'local';
   const radio = $(`#providers input[value="${current}"]`) || $('#providers input[value="local"]');
   radio.checked = true;
@@ -1189,7 +1281,7 @@ function showReceived(ev) {
   $('#received-card').replaceChildren(cardFor(ev, { editable: false }));
   $('#btn-recv-google').href = googleLink(ev, state.settings.defaultMinutes);
   $('#btn-recv-ics').onclick = () => addToCalendar([ev]);
-  $('#received-rsvp').replaceChildren(rsvpButtons(ev));
+  F.umfrage().then((m) => $('#received-rsvp').replaceChildren(m.rsvpButtons(ev))).catch(() => {});
   document.title = `${ev.title} · Terminus`;
   show('received');
 }
@@ -1219,7 +1311,7 @@ async function takeNativeShare() {
   try {
     const shared = await Native.takeShared();
     if (shared.action === 'join') {
-      handleJoinLink(shared.link);
+      (await F.setup()).handleJoinLink(shared.link);
       return true;
     }
     if (shared.action === 'kanal') {
@@ -1296,8 +1388,13 @@ function applySimple() {
 
 let pendingBackup = null;
 
-function saveBackup() {
-  const json = buildBackup({ settings: state.settings, people: store.getPeople(), family: store.getFamily(), saved: store.getSaved(), abos: getAbos(), kanaele: { own: getOwnChannels(), subs: getSubscriptions() }, listen: getLocalLists(), ablauf: getExpiries(), kassen: getGroups(), infokarten: getCards(), geschenke: getGifts() });
+async function saveBackup() {
+  const json = buildBackup({
+    settings: state.settings, people: store.getPeople(), family: store.getFamily(), saved: store.getSaved(), abos: getAbos(),
+    kanaele: { own: getOwnChannels(), subs: getSubscriptions() },
+    listen: readJSON('terminus.listen', {}).lists || [], ablauf: readJSON('terminus.ablauf', []), kassen: readJSON('terminus.kassen', {}),
+    infokarten: readJSON('terminus.infokarten', []), geschenke: readJSON('terminus.geschenke', []),
+  });
   const name = backupFileName();
   if (isNative) {
     const base64 = btoa(String.fromCharCode(...new TextEncoder().encode(json)));
@@ -1326,9 +1423,10 @@ function readBackup(text) {
   $('#backup-confirm').hidden = false;
 }
 
-function applyBackup() {
+async function applyBackup() {
   if (!pendingBackup) return;
   const b = pendingBackup;
+  const [{ getCards, setCards }, { getGifts, setGifts }, { getGroups, setGroups }, { getExpiries, setExpiries }, { getLocalLists, setLocalLists }] = await Promise.all([F.info(), F.geschenke(), F.kasse(), F.ablauf(), F.listen()]);
   store.setPeople(b.people);
   store.setFamily(b.family);
   if (b.abos) setAbos(b.abos);
@@ -1375,7 +1473,7 @@ function bind() {
   $('#btn-explain').addEventListener('click', explainLetter);
   $('#btn-wallet-add').addEventListener('click', () => {
     const ev = state.drafts[0];
-    walletAdd(state.input.file, ev ? { title: ev.title, date: ev.date, eventKey: `${ev.date}|${ev.title.toLowerCase()}` } : {});
+    F.wallet().then((m) => m.openAdd(state.input.file, ev ? { title: ev.title, date: ev.date, eventKey: `${ev.date}|${ev.title.toLowerCase()}` } : {})).catch(fail);
   });
   $('#ex-lang').addEventListener('change', explainLetter);
   $('#ex-speak').addEventListener('click', speakExplained);
@@ -1551,15 +1649,18 @@ function bind() {
 
 async function route() {
   const j = location.hash.match(/^#j=([\w-]+)/);
-  if (j && handleJoinCode(j[1])) return;
+  if (j && (await F.setup()).handleJoinCode(j[1])) return;
   const abo = location.hash.match(/^#abo=([\w-]+)/);
   if (abo && handleAboCode(abo[1])) return;
   const ik = location.hash.match(/^#ik=([\w-]+)/);
-  if (ik && (await handleCardsCode(ik[1]))) return;
+  if (ik && (await (await F.info()).handleCardsCode(ik[1]))) return;
   const ka = location.hash.match(/^#ka=([\w-]+)/);
-  if (ka && (await handleGroupCode(ka[1]))) return;
+  if (ka && (await (await F.kasse()).handleGroupCode(ka[1]))) return;
   const u = location.hash.match(/^#(u|ua|z|l)=([\w-]+)/);
-  if (u && { u: handlePollCode, ua: handleAnswerCode, z: handleRsvpCode, l: handleListCode }[u[1]](u[2])) return;
+  if (u) {
+    const m = u[1] === 'l' ? await F.listen() : await F.umfrage();
+    if ({ u: m.handlePollCode, ua: m.handleAnswerCode, z: m.handleRsvpCode, l: m.handleListCode }[u[1]](u[2])) return;
+  }
   const k = location.hash.match(/^#k=([\w.-]+)/);
   if (k && (await handleKanalCode(k[1]))) return;
   const m = location.hash.match(/^#t=([\w-]+)/);
@@ -1578,15 +1679,19 @@ async function route() {
 
 async function init() {
   document.documentElement.classList.toggle('native', isNative);
-  applyLang(pickLang(state.settings.uiLang));
+  const applyLangReady = applyLang(pickLang(state.settings.uiLang));
   applySimple();
   if (isNative && state.settings.lock) lock();
   bind();
   initHub({
     state, store, Native, isNative, toast, show, openShare, openMap, startManual, openInvite: (id) => openFamilyInvite(id),
     shareCalendar: (cal) => openShareCalendar(cal), isAbo: (id) => !!getAbos()[id], republish: (id) => republishSoon(id),
-    subscriptions: getSubscriptions, endSubscription, webSubscriptionEvents, subscribedCalendarIds, rsvpSummary,
-    openBruecken: () => openBruecken(), ticketFor, showTicket, openHub: (k) => openHub(k),
+    subscriptions: getSubscriptions, endSubscription, webSubscriptionEvents, subscribedCalendarIds,
+    rsvpSummary: (item) => rsvpSummary(item, readJSON('terminus.zusagen', {})),
+    openBruecken: () => F.bruecken().then((m) => m.openBruecken()).catch(fail),
+    ticketFor: async (ev) => (await F.wallet()).ticketFor(ev),
+    showTicket: (id) => F.wallet().then((m) => m.show(id)).catch(fail),
+    openHub: (k) => openHub(k),
     saveSettings: (s) => {
       state.settings = s;
       store.setSettings(s);
@@ -1597,62 +1702,31 @@ async function init() {
     openInvite: (id) => openFamilyInvite(id),
     publicUrl: () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname),
   });
-  initListen({
-    Native, isNative, toast, show, openUrl: (url) => window.open(url, '_blank', 'noopener'),
-    publicUrl: () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname),
+  initGemeinsam({
+    show,
+    onSection: (k) => {
+      if (!HUB_MODULES[k]) return;
+      F[HUB_MODULES[k]]().then((m) => (k === 'geschenke' ? m.renderGifts() : k === 'info' ? m.renderCards() : null)).catch(fail);
+    },
   });
-  const reviewEvents = (list, label) => {
-    const evs = list.map((e) => normalizeEvent(e)).filter(Boolean);
-    if (!evs.length) return;
-    state.input = { canvas: null, dataUrl: null, text: '', label };
-    state.drafts = evs.map((e) => applySkip({ ...e, picked: true, skipHolidays: !!(e.repeat && state.settings.state && e.skipHolidays) }));
-    renderReview('');
-  };
-  const pub = () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname);
-  initGemeinsam({ show, onSection: (k) => (k === 'geschenke' ? renderGifts() : k === 'info' ? renderCards() : null) });
-  initInfokarte({ store, toast, show, reviewEvents, publicUrl: pub, shareText: (t, title) => shareTextAny(t, title) });
-  initGeschenke({ Native, isNative, store, toast, reviewEvents });
   $('#muell-search').addEventListener('click', (e) => {
     const city = (state.settings.home || '').match(/\d{5}\s+([^,]+)/)?.[1] || '';
     e.currentTarget.href = `https://www.qwant.com/?q=${encodeURIComponent(`Abfallkalender ${city} ics abonnieren`.replace(/\s+/g, ' '))}`;
-  });
-  initKasse({ state, Native, isNative, toast, show, openHub, drawQR: drawQrCode, publicUrl: pub });
-  initAemtchen({ store, toast, reviewEvents });
-  initBruecken({ state, show, reviewEvents, publicUrl: pub, shareText: (t, title) => shareTextAny(t, title) });
-  initWallet({ Native, isNative, toast });
-  initAblauf({
-    toast, addToCalendar,
-    ocrFile: async (file) => recognize(await fileToCanvas(file)),
-  });
-  initUmfrage({
-    state, Native, isNative, toast, show, openHub: (k) => openHub(k),
-    publicUrl: () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname),
-    reviewEvent: (raw, label) => {
-      const ev = normalizeEvent(raw);
-      state.input = { canvas: null, dataUrl: null, text: '', label };
-      state.drafts = [{ ...ev, picked: true }];
-      renderReview('');
-    },
   });
   initKanal({
     state, Native, isNative, show, buildIcs, openShareCalendar,
     publicUrl: () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname),
   });
-  initSetup({
-    state, store, Native, isNative, toast, show, applySimple,
-    publicUrl: () => (isNative ? CONFIG.publicUrl : location.origin + location.pathname),
-    saveSettings: (s) => {
-      state.settings = s;
-      store.setSettings(s);
-    },
-  });
   if (isNative) {
     Native.addListener('shared', () => takeNativeShare());
     $('#btn-calendar-pick').addEventListener('click', pickCalendar);
   }
-  await Promise.all([detectServer(), loadSchoolHolidays()]);
-  renderProviders();
-  renderMode();
+  // Server-Erkennung und Ferien laufen im Hintergrund; die erste Ansicht wartet nicht darauf
+  state.boot = Promise.all([detectServer(), loadSchoolHolidays()]).then(() => {
+    renderProviders();
+    renderMode();
+  });
+  await applyLangReady;
   await route();
   republishStale().catch(() => {});
   if (!isNative && 'serviceWorker' in navigator && location.protocol !== 'file:') {

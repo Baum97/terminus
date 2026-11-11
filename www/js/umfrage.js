@@ -84,3 +84,13 @@ export function decodeRsvp(code) {
   if (!name) return null;
   return { key: String(d.k).slice(0, 160), title: str(d.t, 120), date: d.d, start: time(d.s), name, status: d.r };
 }
+
+// Kurzfassung für die Termin-Ansicht: "3 kommen, 1 vielleicht (Ben, Mia, …)". all: gespeicherte Zusagen
+export function rsvpSummary(ev, all = {}) {
+  const e = all[eventKey(ev)];
+  if (!e) return '';
+  const n = { ja: 0, vielleicht: 0, nein: 0 };
+  for (const a of Object.values(e.answers)) n[a.status]++;
+  return [n.ja && `${n.ja} ${n.ja === 1 ? 'kommt' : 'kommen'}`, n.vielleicht && `${n.vielleicht} vielleicht`, n.nein && `${n.nein} ${n.nein === 1 ? 'kommt' : 'kommen'} nicht`].filter(Boolean).join(', ')
+    + ` (${Object.keys(e.answers).join(', ')})`;
+}
