@@ -41,18 +41,26 @@
           <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="1"/><path d="m4 16 5-5 4 4 2-2 5 5"/></svg>
           <span data-i18n="home.file">Bild oder Screenshot</span>
         </label>
-        <input id="in-file" type="file" accept="image/*" hidden>
+        <input id="in-file" type="file" accept="image/*" multiple hidden>
       </div>
       <label class="btn ghost small doc-pick" for="in-doc" data-i18n="home.doc">PDF, E-Mail oder Ticket öffnen</label>
       <input id="in-doc" type="file" accept=".pdf,application/pdf,.eml,message/rfc822,.ics,text/calendar" hidden>
 
 <form class="quick" data-quick>
         <label class="sr" for="quick-home">Schnell eintragen</label>
-        <input id="quick-home" data-i18n-ph="quick.ph" type="text" autocomplete="off" enterkeyhint="done" placeholder="Schnell eintragen: Mi 16 Uhr Zahnarzt Ben">
+        <input id="quick-home" data-i18n-ph="quick.ph" type="text" autocomplete="off" enterkeyhint="done" placeholder="Mi 16 Uhr Zahnarzt Ben">
         <button class="btn small icon mic" type="button" data-mic aria-label="Termin sprechen" title="Termin sprechen" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></button>
         <button class="btn primary small" type="submit" data-i18n="quick.submit">Eintragen</button>
       </form>
       <p class="hint quick-hint" data-i18n="quick.hint">Auch: „morgen 8:30 Elterngespräch @ Schule“, „dienstags 16 Uhr Schwimmen Mia“. Das Mikrofon der Tastatur funktioniert auch.</p>
+
+      <section class="next native-only" id="home-next" aria-labelledby="next-h" hidden>
+        <div class="saved-head">
+          <h2 id="next-h">Als Nächstes</h2>
+          <button class="linkish" type="button" id="next-cal">Kalender ›</button>
+        </div>
+        <ul class="next-list" id="next-list"></ul>
+      </section>
 
       <details class="paste" id="paste-box">
         <summary data-i18n="paste.summary">Text einfügen statt Foto</summary>
@@ -123,7 +131,17 @@
         <h1 id="cal-title">Kalender</h1>
         <button class="btn ghost small icon" type="button" id="cal-next" aria-label="Weiter">›</button>
         <button class="btn small" type="button" id="cal-today">Heute</button>
+        <button class="btn ghost small icon" type="button" id="cal-search" aria-label="Termine suchen" title="Termine suchen"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg></button>
         <button class="btn ghost small icon" type="button" id="cal-menu" aria-label="Kalender verwalten" title="Kalender verwalten">⋯</button>
+      </div>
+      <div class="cal-search" id="cal-search-box" hidden>
+        <form class="quick" id="cs-form" role="search">
+          <label class="sr" for="cs-input">Termine suchen</label>
+          <input id="cs-input" type="search" autocomplete="off" enterkeyhint="search" placeholder="Zahnarzt, Sommerfest, Mia …">
+          <button class="btn small" type="button" id="cs-close">Fertig</button>
+        </form>
+        <p class="hint" id="cs-status" role="status"></p>
+        <ul class="cs-results" id="cs-results"></ul>
       </div>
       <button class="banner" type="button" id="kanal-banner" hidden></button>
       <div class="segmented" role="tablist" aria-label="Ansicht">
@@ -133,7 +151,7 @@
       </div>
 <form class="quick" data-quick>
         <label class="sr" for="quick-cal">Schnell eintragen</label>
-        <input id="quick-cal" data-i18n-ph="quick.ph" type="text" autocomplete="off" enterkeyhint="done" placeholder="Schnell eintragen: Mi 16 Uhr Zahnarzt Ben">
+        <input id="quick-cal" data-i18n-ph="quick.ph" type="text" autocomplete="off" enterkeyhint="done" placeholder="Mi 16 Uhr Zahnarzt Ben">
         <button class="btn small icon mic" type="button" data-mic aria-label="Termin sprechen" title="Termin sprechen" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></button>
         <button class="btn primary small" type="submit" data-i18n="quick.submit">Eintragen</button>
       </form>

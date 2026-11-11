@@ -83,6 +83,8 @@ public class TerminusPlugin extends Plugin {
     private String pendingAction;
     // Geteilte Dokumente (PDF, E-Mail, Kalenderdatei) und ihr Typ
     private Uri pendingFile;
+    // Mehrere Bilder auf einmal geteilt (z. B. zwei Seiten eines Elternbriefs)
+    private ArrayList<Uri> pendingImages;
     private String pendingFileType;
     private Uri photoUri;
 
@@ -115,6 +117,13 @@ public class TerminusPlugin extends Plugin {
             intent.setAction(null);
             return true;
         }
+        if (Intent.ACTION_SEND_MULTIPLE.equals(a) && intent.getType() != null && intent.getType().startsWith("image/")) {
+            pendingImages = streamExtras(intent);
+            pendingImage = null;
+            pendingText = null;
+            intent.setAction(null);
+            return pendingImages != null && !pendingImages.isEmpty();
+        }
         if (!Intent.ACTION_SEND.equals(intent.getAction())) return false;
         String type = intent.getType();
         if (type != null && type.startsWith("image/")) {
@@ -139,6 +148,18 @@ public class TerminusPlugin extends Plugin {
     }
 
     @SuppressWarnings("deprecation")
+    private ArrayList<Uri> streamExtras(Intent intent) {
+        if (Build.VERSION.SDK_INT >= 33) return intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri.class);
+        return intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+    }
+
+    private JSArray imagesDataUrls(java.util.List<Uri> uris) throws Exception {
+        JSArray out = new JSArray();
+        for (int i = 0; i < uris.size() && i < 6; i++) out.put(imageDataUrl(uris.get(i)));
+        return out;
+    }
+
+    @SuppressWarnings("deprecation")
     private Uri streamExtra(Intent intent) {
         if (Build.VERSION.SDK_INT >= 33) return intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri.class);
         return intent.getParcelableExtra(Intent.EXTRA_STREAM);
@@ -148,7 +169,8 @@ public class TerminusPlugin extends Plugin {
     public void takeShared(PluginCall call) {
         JSObject result = new JSObject();
         try {
-            if (pendingImage != null) result.put("image", imageDataUrl(pendingImage));
+            if (pendingImages != null && !pendingImages.isEmpty()) result.put("images", imagesDataUrls(pendingImages));
+            else if (pendingImage != null) result.put("image", imageDataUrl(pendingImage));
             else if (pendingFile != null) {
                 result.put("file", fileBase64(pendingFile));
                 result.put("type", pendingFileType);
@@ -166,6 +188,7 @@ public class TerminusPlugin extends Plugin {
             return;
         }
         pendingImage = null;
+        pendingImages = null;
         pendingText = null;
         pendingAction = null;
         pendingFile = null;
@@ -412,6 +435,7 @@ public class TerminusPlugin extends Plugin {
         boolean subscribed = isSubscription(calendarId);
         Uri eventsUri = subscribed ? asSyncAdapter(Events.CONTENT_URI) : Events.CONTENT_URI;
         int count = 0;
+        JSArray ids = new JSArray();
         try {
             for (int i = 0; i < events.length(); i++) {
                 JSONObject ev = events.getJSONObject(i);
@@ -438,6 +462,7 @@ public class TerminusPlugin extends Plugin {
                 Uri uri = resolver.insert(eventsUri, v);
                 if (uri == null) continue;
                 count++;
+                ids.put(uri.getLastPathSegment());
                 JSONArray reminders = subscribed ? null : ev.optJSONArray("reminders");
                 for (int k = 0; reminders != null && k < reminders.length(); k++) {
                     ContentValues r = new ContentValues();
@@ -454,6 +479,8 @@ public class TerminusPlugin extends Plugin {
         TerminusWidget.refresh(getContext());
         JSObject result = new JSObject();
         result.put("count", count);
+        // Für „Rückgängig“ direkt nach dem Eintragen
+        result.put("ids", ids);
         result.put("calendarId", String.valueOf(calendarId));
         call.resolve(result);
     }
@@ -620,6 +647,7 @@ public class TerminusPlugin extends Plugin {
         Intent i = new Intent(Intent.ACTION_GET_CONTENT);
         i.setType("image/*");
         i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         startActivityForResult(call, i, "pickResult");
     }
 
@@ -627,11 +655,29 @@ public class TerminusPlugin extends Plugin {
     private void pickResult(PluginCall call, ActivityResult result) {
         if (call == null) return;
         Intent data = result.getData();
-        if (result.getResultCode() != Activity.RESULT_OK || data == null || data.getData() == null) {
+        if (result.getResultCode() != Activity.RESULT_OK || data == null) {
             call.resolve(new JSObject());
             return;
         }
-        resolveImage(call, data.getData());
+        // Mehrere Seiten ausgewählt
+        if (data.getClipData() != null && data.getClipData().getItemCount() > 1) {
+            ArrayList<Uri> uris = new ArrayList<>();
+            for (int k = 0; k < data.getClipData().getItemCount(); k++) uris.add(data.getClipData().getItemAt(k).getUri());
+            try {
+                JSObject r = new JSObject();
+                r.put("images", imagesDataUrls(uris));
+                call.resolve(r);
+            } catch (Exception e) {
+                call.reject("Die Bilder konnten nicht gelesen werden.", e);
+            }
+            return;
+        }
+        Uri one = data.getData() != null ? data.getData() : data.getClipData() != null ? data.getClipData().getItemAt(0).getUri() : null;
+        if (one == null) {
+            call.resolve(new JSObject());
+            return;
+        }
+        resolveImage(call, one);
     }
 
     private void resolveImage(PluginCall call, Uri uri) {

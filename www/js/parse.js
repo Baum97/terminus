@@ -122,8 +122,27 @@ export function findTimes(line) {
 
 const FILLER = /(?<![\p{L}])(am|den|um|ab|bis|findet|statt|wir|laden|ein|herzlich|ganz|euch|sie|alle|unser|unsere|unseren|unserem|feiern|gibt|es|ist|sind|wird|uhr|beginn|ende|ca|termin|datum|zeit|wann)(?![\p{L}])/giu;
 
+// Ort direkt nach der Uhrzeit: „um 19:30 Uhr in der Aula“, „18 Uhr im Gemeindehaus“
+const PLACE = /((?:\d{1,2}(?:[:.]\d{2})?\s*[Uu]hr|\d{1,2}:\d{2}))\s+(?:in der|in den|im|auf dem|auf der|beim|vor der|vor dem)\s+(?!(?:Anschluss|Anschluß|Rahmen|Voraus|Vorfeld|Laufe|Namen|Auftrag|Freien|Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|Sommer|Winter|Frühjahr|Herbst)\b)([A-ZÄÖÜ][\p{L}\d.-]*(?:\s+(?:[A-ZÄÖÜ0-9][\p{L}\d.-]*|der|des|an der|am))*)/u;
+
+// Zeilenumbrüche aus Fotos: „… um 17“ / „Uhr.“ oder „… Uhr in“ / „der Aula.“ gehören zusammen
+function joinWrapped(lines) {
+  const out = [];
+  for (const l of lines) {
+    const prev = out.at(-1);
+    const uhr = l.match(/^(uhr|h)\b([.,;!]?)\s*(.*)$/i);
+    if (prev && uhr) {
+      // nur „Uhr“ gehört nach oben, der Rest der Zeile bleibt eine eigene Zeile
+      out[out.length - 1] = `${prev} ${uhr[1]}${uhr[2]}`;
+      if (uhr[3]) out.push(uhr[3]);
+    } else if (prev && l && /\s(um|ab|bis|von|am|im|in|der|die|das|den|dem|zur|zum|und|mit|beim)$/i.test(prev)) out[out.length - 1] = `${prev} ${l}`;
+    else out.push(l);
+  }
+  return out;
+}
+
 function cleanTitle(text) {
-  let t = text;
+  let t = text.replace(PLACE, '$1');
   for (const re of [RE.timeRangeColon, RE.timeRange, RE.time, RE.timeColon]) t = t.replace(re, ' ');
   t = t.replace(RE.weekday, ' ').replace(RE.location, ' ').replace(FILLER, ' ');
   t = t.replace(/^\s*(hey|hallo|hi|moin|servus|huhu)\b[!,.:]*/i, ' ');
@@ -140,6 +159,10 @@ function findLocation(lines) {
   for (const l of lines) {
     const m = l.match(RE.location);
     if (m) return m[1].replace(/[.;]+$/, '').trim();
+  }
+  for (const l of lines) {
+    const m = l.match(PLACE);
+    if (m) return m[2].replace(/[.,;!]+$/, '').trim();
   }
   return '';
 }
@@ -236,7 +259,7 @@ function nextWeekday(today, weekday, from = null) {
 
 // opts.holidayStart(name): Beginn der nächsten Ferien dieses Namens ("oster" → "2027-03-29")
 export function parseText(text, today = new Date(), opts = {}) {
-  const lines = String(text || '').split(/\r?\n/).map((l) => l.replace(/\s+/g, ' ').trim());
+  const lines = joinWrapped(String(text || '').split(/\r?\n/).map((l) => l.replace(/\s+/g, ' ').trim()));
   const hits = [];
   lines.forEach((line, i) => {
     const r = findDates(line, today);

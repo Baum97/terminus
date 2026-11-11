@@ -291,8 +291,9 @@ html.tabbar-off .actionbar { bottom: 0; }
 .page-h { font-size: var(--step-2); }
 
 /* Kalender */
-.cal-head { display: grid; grid-template-columns: auto 1fr auto auto auto; align-items: center; gap: 4px; }
-.cal-head h1, .cal-head h2 { font-size: var(--step-1); text-align: center; }
+.cal-head { display: grid; grid-template-columns: auto 1fr auto auto auto auto; align-items: center; gap: 4px; }
+#cal-search svg { width: 1.1em; height: 1.1em; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+.cal-head h1, .cal-head h2 { font-size: var(--step-1); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .btn.icon { font-size: 1.4rem; line-height: 1; }
 .segmented { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
 .segmented button { border: 0; background: transparent; padding: 8px 0; border-radius: 8px; font: 600 var(--step--1) var(--font-body); color: var(--ink-soft); cursor: pointer; }
@@ -571,3 +572,30 @@ dialog.ticket { width: min(100vw, 46rem); max-width: 100vw; max-height: 100vh; }
 dialog.ask { max-width: min(26rem, calc(100vw - 32px)); }
 h1.eyebrow { font-family: var(--font-body); line-height: inherit; }
 .toast-undo { white-space: nowrap; flex: none; }
+
+/* Suche im Kalender */
+.cal-search { display: grid; gap: 8px; }
+#view-calendar.searching > :not(.cal-head):not(.cal-search):not(.foot) { display: none !important; }
+.cs-results { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cs-results h2 { font-size: var(--step--1); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); margin: 10px 0 2px; }
+.cs-results button { display: grid; grid-template-columns: 4.6rem 1fr; gap: 10px; align-items: center; width: 100%; text-align: left; border: 0; border-radius: var(--r); background: var(--surface); color: var(--ink); padding: 10px 12px; font: inherit; cursor: pointer; min-height: 52px; }
+.cs-results .when { font: 700 0.8rem/1.25 var(--font-body); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.cs-results .what { display: grid; min-width: 0; }
+.cs-results .what small { color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-results mark { background: color-mix(in srgb, var(--marker) 55%, transparent); color: inherit; border-radius: 3px; }
+.cs-results .past { opacity: 0.75; }
+
+/* Startseite: Als Nächstes */
+.next { display: grid; gap: 8px; }
+.next-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.next-list button { display: grid; grid-template-columns: 4px 4.2rem 1fr; gap: 10px; align-items: center; width: 100%; text-align: left; border: 0; border-radius: var(--r); background: var(--surface); color: var(--ink); padding: 10px 12px 10px 0; font: inherit; cursor: pointer; min-height: 48px; box-shadow: var(--shadow); overflow: hidden; }
+.next-list .bar { align-self: stretch; border-radius: 0 3px 3px 0; }
+.next-list .when { font: 700 0.82rem/1.2 var(--font-body); color: var(--ink-soft); font-variant-numeric: tabular-nums; padding-left: 8px; }
+.next-list .what { display: grid; min-width: 0; }
+.next-list .what strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.next-list .what small { color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Wer die App kennt, braucht die Begrüßung nicht jedes Mal */
+html.returning .intro p { display: none; }
+html.returning .intro h1 { font-size: var(--step-2); }
+html.returning .intro { padding-top: 4px; }

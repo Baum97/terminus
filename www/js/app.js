@@ -10,7 +10,7 @@ import { fromISO, isoWeek, fmtWhen, fmtDate, fmtRepeat, WD_SHORT, MONTHS_SHORT, 
 import * as store from './store.js';
 import { CONFIG } from './config.js';
 import { isNative, Native } from './native.js';
-import { initHub, onShow, invalidateBirthdays } from './hub.js';
+import { initHub, onShow, invalidateBirthdays, setSearch, upNext, openItem } from './hub.js';
 import { quickParse } from './quick.js';
 import { initAbo, openShareCalendar, getAbos, setAbos, republishSoon, republishStale, handleAboCode, buildIcs, drawQR as drawQrCode } from './abo.js';
 import { initKanal, handleKanalCode, getSubscriptions, setSubscriptions, getOwnChannels, setOwnChannels, endSubscription, webSubscriptionEvents, subscribedCalendarIds } from './kanalui.js';
@@ -158,7 +158,10 @@ function show(view, opts = {}) {
   window.scrollTo({ top: 0 });
   onShow(view);
   if (view === 'setup') F.setup().then((m) => m.renderSetup()).catch(fail);
-  if (view === 'home') renderSetupBanner();
+  if (view === 'home') {
+    renderSetupBanner();
+    renderNext();
+  }
   if (view === 'tasks') {
     F.listen().then((m) => m.renderListen()).catch(fail);
     F.ablauf().then((m) => m.renderAblauf()).catch(() => {});
@@ -168,6 +171,30 @@ function show(view, opts = {}) {
 }
 
 const openFamilyInvite = (id) => F.setup().then((m) => m.openInvite(id)).catch(fail);
+
+// Startseite der App: was heute und morgen ansteht (aus dem Handykalender)
+async function renderNext() {
+  if (!isNative) return;
+  const box = $('#home-next');
+  const items = await upNext().catch(() => []);
+  box.hidden = !items.length;
+  const today = toISO(new Date());
+  $('#next-list').replaceChildren(...items.map((it) => {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.innerHTML = '<span class="bar"></span><span class="when"></span><span class="what"><strong></strong><small></small></span>';
+    $('.bar', b).style.background = it.color || 'var(--pen)';
+    const day = it.date === today ? 'Heute' : it.date === addDays(today, 1) ? 'Morgen' : fmtDate(it.date, false).replace(/^\w+, /, '');
+    $('.when', b).textContent = it.frist ? `Frist\n${day}` : `${day}\n${it.allDay || !it.start ? 'ganztägig' : it.start}`;
+    $('.when', b).style.whiteSpace = 'pre-line';
+    $('strong', b).textContent = it.title;
+    $('small', b).textContent = [it.location, it.calendar].filter(Boolean).join(' · ');
+    b.addEventListener('click', () => openItem(it));
+    li.append(b);
+    return li;
+  }));
+}
 
 async function renderSetupBanner() {
   const b = $('#home-setup');
@@ -333,14 +360,21 @@ async function run(forceLocal = false) {
 
   try {
     // 1. Text auf dem Gerät lesen. Das Foto selbst bleibt auf dem Handy.
-    if (canvas) {
-      $('#busy-status').textContent = 'Lese den Text auf dem Foto …';
-      rawText = await recognize(canvas, (m) => {
-        if (m.status === 'recognizing text') $('#busy-progress').value = m.progress;
-        else if (m.status?.startsWith('loading')) $('#busy-status').textContent = 'Lade die Texterkennung (einmalig) …';
-      });
+    // Mehrere Seiten (z. B. zweiseitiger Elternbrief) nacheinander lesen
+    const pages = state.input.pages || (canvas ? [canvas] : []);
+    const texts = [];
+    for (let i = 0; i < pages.length; i++) {
+      const label = pages.length > 1 ? `Lese Seite ${i + 1} von ${pages.length} …` : 'Lese den Text auf dem Foto …';
+      $('#busy-status').textContent = label;
+      texts.push(await recognize(pages[i], (m) => {
+        if (m.status === 'recognizing text') {
+          $('#busy-progress').value = (i + m.progress) / pages.length;
+          $('#busy-status').textContent = label;
+        } else if (m.status?.startsWith('loading')) $('#busy-status').textContent = 'Lade die Texterkennung (einmalig) …';
+      }));
       if (abort.signal.aborted) return;
     }
+    if (pages.length) rawText = texts.join('\n\n');
     state.lastText = rawText || '';
     // Fahrkarten erkennt Terminus selbst genauer als jede KI: Zug, Gleis, Platz, Umstiege
     const [{ parseTicket }, { parseWaste, parseShifts, parseTimetable }] = await Promise.all([F.dokument(), F.plaene()]);
@@ -460,7 +494,10 @@ async function shareTextAny(text, title = 'Teilen') {
 
 function maybeTour() {
   try {
-    if (localStorage.getItem('terminus.tour')) return;
+    if (localStorage.getItem('terminus.tour')) {
+      document.documentElement.classList.add('returning');
+      return;
+    }
     localStorage.setItem('terminus.tour', '1');
   } catch {
     return;
@@ -627,9 +664,17 @@ async function shareQR() {
 
 /* ---------- Kamera und Galerie in der App ---------- */
 
+// Mehrere Bilder (Data-URLs) als Seiten eines Dokuments erkennen
+async function runPages(images, label) {
+  const pages = await Promise.all(images.map((d) => dataUrlToCanvas(d)));
+  state.input = { canvas: pages[0], pages, dataUrl: images[0], text: '', label };
+  run();
+}
+
 async function nativeCapture(kind) {
   try {
     const r = kind === 'camera' ? await Native.takePhoto() : await Native.pickImage();
+    if (r.images?.length) return runPages(r.images, 'Erkannt aus deinen Bildern');
     if (!r.image) return;
     state.input = { canvas: await dataUrlToCanvas(r.image), dataUrl: r.image, text: '', label: kind === 'camera' ? 'Erkannt aus deinem Foto' : 'Erkannt aus deinem Bild' };
     run();
@@ -869,9 +914,15 @@ function nativeEvent(ev) {
 async function addToCalendar(events) {
   if (!isNative) return downloadICS(events);
   try {
-    const { count, calendarId } = await Native.insertEvents({ events: events.map(nativeEvent), calendarId: state.settings.calendarId || undefined });
+    const { count, calendarId, ids = [] } = await Native.insertEvents({ events: events.map(nativeEvent), calendarId: state.settings.calendarId || undefined });
     republishSoon(calendarId);
-    toast(count === 1 ? `Eingetragen${state.settings.calendarName ? ` in „${state.settings.calendarName}“` : ''}.` : `${count} Termine eingetragen.`);
+    toast(count === 1 ? `Eingetragen${state.settings.calendarName ? ` in „${state.settings.calendarName}“` : ''}.` : `${count} Termine eingetragen.`, {
+      undo: ids.length ? async () => {
+        for (const id of ids) await Native.deleteEvent({ id }).catch(() => {});
+        republishSoon(calendarId);
+        toast(ids.length === 1 ? 'Wieder entfernt.' : `${ids.length} Termine wieder entfernt.`);
+      } : undefined,
+    });
   } catch (e) {
     if (e.code === 'denied' && events.length === 1) {
       Native.openInCalendar({ event: nativeEvent(events[0]) }).catch(() => toast(e.message));
@@ -1146,6 +1197,7 @@ function renderSaved() {
       if (a === 'del') {
         store.removeSaved(ev.id);
         renderSaved();
+        toast(`„${ev.title}“ entfernt.`, { undo: () => (store.addSaved([ev]), renderSaved()) });
       }
     });
     return li;
@@ -1349,6 +1401,10 @@ async function takeNativeShare() {
       await handleFile(new File([bytes], name, { type: shared.type === 'application/octet-stream' ? '' : shared.type }));
       return true;
     }
+    if (shared.images?.length) {
+      await runPages(shared.images, 'Erkannt aus den geteilten Bildern');
+      return true;
+    }
     if (shared.image) {
       state.input = { canvas: await dataUrlToCanvas(shared.image), dataUrl: shared.image, text: '', label: 'Erkannt aus dem geteilten Bild' };
       run();
@@ -1484,6 +1540,8 @@ async function unlock() {
 
 function bind() {
   $('#btn-explain').addEventListener('click', explainLetter);
+  $('#next-cal').addEventListener('click', () => show('calendar', { tab: true }));
+  document.addEventListener('visibilitychange', () => !document.hidden && !$('#view-home').hidden && renderNext());
   $('#btn-wallet-add').addEventListener('click', () => {
     const ev = state.drafts[0];
     F.wallet().then((m) => m.openAdd(state.input.file, ev ? { title: ev.title, date: ev.date, eventKey: `${ev.date}|${ev.title.toLowerCase()}` } : {})).catch(fail);
@@ -1528,10 +1586,21 @@ function bind() {
     else if (state.settings.lock && isNative && Date.now() - lockState.hiddenAt > 60000) lock();
   });
   for (const id of ['#in-camera', '#in-file', '#in-doc']) {
-    $(id).addEventListener('change', (e) => {
-      const file = e.target.files?.[0];
+    $(id).addEventListener('change', async (e) => {
+      const files = [...(e.target.files || [])];
       e.target.value = '';
-      handleFile(file);
+      // Mehrere Bilder: als Seiten eines Dokuments lesen
+      if (files.length > 1 && files.every((f) => f.type.startsWith('image/'))) {
+        try {
+          const canvases = await Promise.all(files.slice(0, 6).map((f) => fileToCanvas(f)));
+          state.input = { canvas: canvases[0], pages: canvases, dataUrl: canvases[0].toDataURL('image/jpeg', 0.85), text: '', label: `Erkannt aus ${canvases.length} Bildern` };
+          run();
+        } catch {
+          toast('Eines der Bilder kann der Browser nicht öffnen.');
+        }
+        return;
+      }
+      handleFile(files[0]);
     });
   }
   $('#btn-text').addEventListener('click', () => handleText($('#in-text').value));
@@ -1703,6 +1772,10 @@ async function init() {
       if (from?.view === 'busy') state.abort?.abort();
       if (st.view === 'busy') show('home');
       else if (st.view === 'family' && st.hub) openHub(st.hub);
+      else if (st.view === 'calendar') {
+        show('calendar');
+        if (st.hub === 'suche') setSearch(true);
+      }
       else {
         if (st.view === 'home') renderSaved();
         show(st.view);
@@ -1722,6 +1795,7 @@ async function init() {
     ticketFor: async (ev) => (await F.wallet()).ticketFor(ev),
     showTicket: (id) => F.wallet().then((m) => m.show(id)).catch(fail),
     openHub: (k) => openHub(k),
+    navTo, currentNav,
     saveSettings: (s) => {
       state.settings = s;
       store.setSettings(s);

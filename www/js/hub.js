@@ -2,7 +2,7 @@
 // In der App kommen die Termine aus dem Handykalender (über DAVx⁵ mit CalDAV synchronisiert),
 // in der Web-Version aus den gemerkten Terminen.
 import { toISO, fromISO, addDays, fmtDate, fmtWhen, isoWeek, WEEKDAYS, WD_SHORT } from './dates.js';
-import { fromDevice, fromLocal, birthdayItems, itemsOnDay, matchesPerson, titleWithDone, weekStart, monthGrid } from './calendar.js';
+import { fromDevice, fromLocal, birthdayItems, itemsOnDay, matchesPerson, titleWithDone, weekStart, monthGrid, searchItems, fold } from './calendar.js';
 import { buildDescription } from './desc.js';
 import { publicHolidays, schoolHolidays } from './holidays.js';
 import { normalizeEvent, newId } from './events.js';
@@ -38,6 +38,17 @@ export function initHub(c) {
   });
   $('#cal-add').addEventListener('click', () => ctx.startManual(cal.selected));
   $('#cal-menu').addEventListener('click', openCalendarMenu);
+  $('#cal-search').addEventListener('click', () => openSearch());
+  $('#cs-close').addEventListener('click', () => closeSearch());
+  $('#cs-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    $('#cs-input').blur();
+  });
+  $('#cs-input').addEventListener('input', () => {
+    clearTimeout(search.timer);
+    search.timer = setTimeout(runSearch, 180);
+  });
+  $('#cs-input').addEventListener('keydown', (e) => e.key === 'Escape' && closeSearch());
   $('#calm-new').addEventListener('click', () => {
     $('#dlg-calendars').close();
     ctx.startManual(cal.selected);
@@ -75,7 +86,10 @@ export function initHub(c) {
 }
 
 export function onShow(view) {
-  if (view === 'calendar') renderCalendar();
+  if (view === 'calendar') {
+    setSearch(false);
+    renderCalendar();
+  }
   if (view === 'tasks') renderTasks();
   if (view === 'family') renderFamily();
   if (view === 'migrate') renderMigrate();
@@ -136,6 +150,122 @@ function schoolHolidayOn(iso) {
   return st ? schoolHolidays(st).find((p) => iso >= p.start && iso <= p.end)?.name : null;
 }
 
+/* ---------- Startseite: Als Nächstes ---------- */
+
+// Heute (noch nicht vorbei) und morgen, dazu offene Fristen der nächsten 7 Tage
+export async function upNext(max = 5) {
+  const now = new Date();
+  const today = toISO(now);
+  const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const items = await loadItems(today, addDays(today, 7));
+  const soon = items.filter((i) => {
+    if (i.frist) return !i.done;
+    if (i.date > addDays(today, 1) || (i.endDate || i.date) < today) return false;
+    return !(i.date === today && i.start && (i.end || i.start) < hhmm);
+  });
+  const rank = (i) => (i.frist ? 2 : i.date === today ? 0 : 1);
+  return soon.sort((a, b) => rank(a) - rank(b) || a.date.localeCompare(b.date) || Number(!a.allDay) - Number(!b.allDay) || (a.start || '').localeCompare(b.start || '')).slice(0, max);
+}
+
+export const openItem = (item) => openEvent(item);
+
+/* ---------- Suche ---------- */
+
+// Ein Jahr zurück und ein Jahr voraus; Serien erscheinen einmal (nächstes Vorkommen)
+const search = { items: null, loading: null, timer: 0 };
+
+function openSearch() {
+  setSearch(true);
+  ctx.navTo({ view: 'calendar', hub: 'suche' });
+}
+
+function closeSearch() {
+  if (ctx.currentNav()?.hub === 'suche') history.back();
+  else setSearch(false);
+}
+
+// Anzeige ohne Verlauf (auch für „Zurück“)
+export function setSearch(on) {
+  const box = $('#cal-search-box');
+  if (on === !box.hidden) return;
+  box.hidden = !on;
+  $('#view-calendar').classList.toggle('searching', on);
+  if (!on) {
+    search.items = null;
+    $('#cs-input').value = '';
+    $('#cs-results').replaceChildren();
+    $('#cs-status').textContent = '';
+    return;
+  }
+  setTimeout(() => $('#cs-input').focus(), 30);
+  const today = toISO(new Date());
+  search.loading = Promise.all([loadItems(today, addDays(today, 365)), loadItems(addDays(today, -365), addDays(today, -1))])
+    .then(([a, b]) => (search.items = [...a, ...b]))
+    .catch(() => (search.items = []));
+}
+
+async function runSearch() {
+  const q = $('#cs-input').value.trim();
+  const status = $('#cs-status');
+  const ul = $('#cs-results');
+  if (!q) {
+    ul.replaceChildren();
+    status.textContent = '';
+    return;
+  }
+  if (!search.items) {
+    status.textContent = 'Suche …';
+    await search.loading;
+  }
+  const today = toISO(new Date());
+  const { upcoming, past, words } = searchItems(search.items || [], q, today);
+  const n = upcoming.length + past.length;
+  status.textContent = n ? `${n} ${n === 1 ? 'Treffer' : 'Treffer'}` : `Nichts gefunden für „${q}“ (ein Jahr zurück und voraus).`;
+  const row = (it, past) => {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button';
+    if (past) b.className = 'past';
+    const d = fromISO(it.date);
+    b.innerHTML = '<span class="when"></span><span class="what"><strong></strong><small></small></span>';
+    $('.when', b).textContent = `${WD_SHORT[d.getDay()]} ${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear() !== new Date().getFullYear() ? String(d.getFullYear()).slice(2) : ''}\n${it.allDay || !it.start ? 'ganztägig' : it.start}`;
+    $('.when', b).style.whiteSpace = 'pre-line';
+    mark($('strong', b), it.title, words);
+    mark($('small', b), [it.location, it.calendar].filter(Boolean).join(' · '), words);
+    b.addEventListener('click', () => openEvent(it));
+    li.append(b);
+    return li;
+  };
+  const head = (t) => Object.assign(document.createElement('li'), { innerHTML: `<h2>${t}</h2>` });
+  ul.replaceChildren(
+    ...(upcoming.length ? [head('Kommend'), ...upcoming.map((i) => row(i, false))] : []),
+    ...(past.length ? [head('Vergangen'), ...past.map((i) => row(i, true))] : []),
+  );
+}
+
+// Suchwörter im Text hervorheben (ohne innerHTML für fremde Texte)
+function mark(el, text, words) {
+  el.replaceChildren();
+  const f = fold(text);
+  if (f.length !== text.length) return el.append(text); // z. B. „ß“ → „ss“: Positionen stimmen nicht mehr
+  let i = 0;
+  const spans = [];
+  for (const w of words) {
+    let at = f.indexOf(w);
+    while (at >= 0) {
+      spans.push([at, at + w.length]);
+      at = f.indexOf(w, at + w.length);
+    }
+  }
+  spans.sort((a, b) => a[0] - b[0]);
+  for (const [a, b] of spans) {
+    if (a < i) continue;
+    el.append(text.slice(i, a), Object.assign(document.createElement('mark'), { textContent: text.slice(a, b) }));
+    i = b;
+  }
+  el.append(text.slice(i));
+}
+
 /* ---------- Kalenderansicht ---------- */
 
 function step(dir) {
@@ -181,9 +311,15 @@ async function renderCalendar() {
   const [from, to] = range();
   const d = fromISO(cal.selected);
   for (const b of document.querySelectorAll('.segmented [data-mode]')) b.setAttribute('aria-selected', String(b.dataset.mode === cal.mode));
-  $('#cal-title').textContent = cal.mode === 'month'
+  // Kurz genug für eine Zeile neben den Knöpfen; die volle Angabe für Vorlesehilfen
+  const narrow = window.innerWidth < 440;
+  const full = cal.mode === 'month'
     ? `${MONTHS[d.getMonth()]} ${d.getFullYear()}`
     : cal.mode === 'week' ? `KW ${isoWeek(from)} · ${fmtDate(from, false).slice(4)}–${fmtDate(to, false).slice(4)}` : fmtDate(cal.selected);
+  $('#cal-title').textContent = !narrow ? full : cal.mode === 'month'
+    ? `${MONTHS[d.getMonth()].length > 5 ? `${MONTHS[d.getMonth()].slice(0, 3)}.` : MONTHS[d.getMonth()]} ${d.getFullYear()}`
+    : cal.mode === 'week' ? `KW ${isoWeek(from)}` : fmtDate(cal.selected, false);
+  $('#cal-title').title = full;
   renderPeopleFilter($('#cal-people'), cal.person, (p) => {
     cal.person = p;
     renderCalendar();

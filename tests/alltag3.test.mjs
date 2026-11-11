@@ -144,3 +144,35 @@ test('Geschenkideen: nächster Geburtstag, jährliche Erinnerung eine Woche vorh
   const { rrule } = await import('../www/js/ics.js');
   assert.equal(rrule(ev), 'FREQ=YEARLY');
 });
+
+test('Suche: Wörter, Umlaute, Serien einmal, kommend und vergangen getrennt', async () => {
+  const { searchItems } = await import('../www/js/calendar.js');
+  const items = [
+    { source: 'device', id: '1', title: 'Zahnarzt Ben', date: '2026-10-02', start: '08:00', location: 'Praxis Dr. Müller' },
+    { source: 'device', id: '2', title: 'Zahnarzt Mia', date: '2026-12-01', start: '09:00' },
+    { source: 'device', id: '3', title: 'Schwimmen', date: '2026-11-17', start: '16:00', calendar: 'Familie' },
+    { source: 'device', id: '3', title: 'Schwimmen', date: '2026-11-24', start: '16:00', calendar: 'Familie' },
+    { source: 'device', id: '3', title: 'Schwimmen', date: '2026-11-03', start: '16:00', calendar: 'Familie' },
+    { source: 'device', id: '4', title: 'Straßenfest', date: '2027-06-12' },
+  ];
+  const r = searchItems(items, 'zahnarzt', '2026-11-11');
+  assert.deepEqual([r.upcoming.map((i) => i.id), r.past.map((i) => i.id)], [['2'], ['1']]);
+  assert.deepEqual(searchItems(items, 'mueller', '2026-11-11').upcoming, []);
+  assert.deepEqual(searchItems(items, 'muller', '2026-11-11').past.map((i) => i.id), ['1']);
+  assert.deepEqual(searchItems(items, 'schwimmen', '2026-11-11').upcoming.map((i) => i.date), ['2026-11-17']);
+  assert.deepEqual(searchItems(items, 'schwimmen', '2026-11-11').past, []);
+  assert.deepEqual(searchItems(items, 'STRASSEN', '2026-11-11').upcoming.map((i) => i.id), ['4']);
+  assert.deepEqual(searchItems(items, 'familie schwimmen', '2026-11-11').upcoming.length, 1);
+});
+
+test('Fotos: umgebrochene Zeilen und Ort nach der Uhrzeit', async () => {
+  const { parseText } = await import('../www/js/parse.js');
+  const t = new Date(2026, 10, 11);
+  const a = parseText('unser Laternenfest ist am Freitag, 20.11.2026 um 17\nUhr. Bitte Laterne mitbringen.', t)[0];
+  assert.deepEqual([a.title, a.start, a.bring], ['Laternenfest', '17:00', ['Laterne']]);
+  const b = parseText('Elternabend am Dienstag, 24.11.2026 um 19:30 Uhr in\nder Aula.', t)[0];
+  assert.deepEqual([b.title, b.start, b.location], ['Elternabend', '19:30', 'Aula']);
+  const c = parseText('Treffen am 3.12. um 18 Uhr im Gemeindehaus St. Paul', t)[0];
+  assert.deepEqual([c.title, c.location], ['Treffen', 'Gemeindehaus St. Paul']);
+  assert.equal(parseText('Sommerfest 4.7. 15 Uhr im Anschluss Grillen', t)[0].location, '');
+});

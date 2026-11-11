@@ -133,3 +133,34 @@ export function monthGrid(year, month) {
   const start = weekStart(first);
   return Array.from({ length: 42 }, (_, i) => addDays(start, i));
 }
+
+/* ---------- Suche ---------- */
+
+// Für den Vergleich: klein, ohne Akzente, ß = ss
+export const fold = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ß/g, 'ss');
+
+// Treffer in Titel, Ort, Notizen, Kalender. Serien nur einmal (nächstes bzw. letztes Vorkommen).
+// → { upcoming: [...aufsteigend], past: [...absteigend] }
+export function searchItems(items, query, todayIso, limit = 30) {
+  const words = fold(query).split(/\s+/).filter((w) => w.length > 0);
+  if (!words.length) return { upcoming: [], past: [], words };
+  const hits = items.filter((i) => {
+    const hay = fold([i.title, i.location, i.description, i.calendar].filter(Boolean).join(' '));
+    return words.every((w) => hay.includes(w));
+  });
+  const key = (i) => (i.birthday ? `b:${i.title}` : `${i.source}:${i.id}`);
+  const next = new Map(), last = new Map();
+  for (const i of hits) {
+    const end = i.endDate || i.date;
+    if (end >= todayIso) {
+      const cur = next.get(key(i));
+      if (!cur || i.date < cur.date || (i.date === cur.date && (i.start || '') < (cur.start || ''))) next.set(key(i), i);
+    } else {
+      const cur = last.get(key(i));
+      if (!cur || i.date > cur.date) last.set(key(i), i);
+    }
+  }
+  for (const k of next.keys()) last.delete(k);
+  const byDate = (a, b) => a.date.localeCompare(b.date) || (a.start || '').localeCompare(b.start || '');
+  return { upcoming: [...next.values()].sort(byDate).slice(0, limit), past: [...last.values()].sort((a, b) => byDate(b, a)).slice(0, limit), words };
+}

@@ -53,6 +53,15 @@ Du fotografierst einen Elternbrief, ein Plakat, eine Einladung oder einen Chat-S
 
 Alles ohne Server: Abstimmungen, Antworten, Zusagen, Listen und Kassen stecken im `#`-Teil des Links.
 
+## Finden und Rückgängig
+
+| Funktion | Was passiert |
+|---|---|
+| **Suche** | Kalender → Lupe: „Zahnarzt“, „Sommerfest“, „Mia“ – ein Jahr zurück und voraus, Treffer hervorgehoben, Serien nur einmal (nächster Termin) |
+| **Als Nächstes** | In der App zeigt die Startseite, was heute und morgen ansteht, dazu offene Fristen der Woche. Ein Tipp öffnet den Termin |
+| **Rückgängig** | Nach „In den Kalender“, beim Entfernen von Listeneinträgen, Ausgaben, Tickets, Karten u. a.: einige Sekunden lang „Rückgängig“ |
+| **Mehrere Seiten** | Zweiseitiger Elternbrief oder Abfuhrplan: mehrere Bilder auf einmal wählen oder teilen, Terminus liest alle Seiten zusammen |
+
 ## Gemeinsam: alles an einem Ort
 
 Der Bereich **Gemeinsam** (früher „Familie“) zeigt Kacheln statt langer Listen: Familie, Wann können alle?, Kasse, Ämtchen, Infokarte, Geschenkideen, Müll & Abos, Einrichtung. Im Einfach-Modus bleiben nur die wichtigsten. Beim ersten Start erklärt eine kurze Einführung in drei Schritten, was Terminus kann.
@@ -224,9 +233,15 @@ Damit auch die Android-App den Server nutzt, die Adresse in `www/js/config.js` b
 ```bash
 npm install
 npm test
-npm run android:build   # braucht Android SDK und Java 21
+npm start               # Entwicklung: www/ direkt, ohne Build
+npm run start:dist      # gebaute Fassung (wie in der App) unter http://localhost:8080
+npm run android:build   # baut dist/ und die APK; braucht Android SDK und Java 21
 # APK: android/app/build/outputs/apk/debug/app-debug.apk
 ```
+
+**Leichtgewicht:** `npm run build` bündelt und verkleinert den Code nach `dist/` (esbuild). Selten genutzte Bereiche (Kasse, Wallet, Abstimmungen, Assistent, Übersetzungen, QR-Codes, PDF-Leser …) laden erst beim ersten Gebrauch. Gemessen auf einem gedrosselten Handy (4× langsamere CPU, 1,6 Mbit/s): Start in rund 1 Sekunde, 92 KB statt 577 KB, 13 statt 57 Dateien. Der eigene Server liefert komprimiert (gzip) aus.
+
+**Bedienqualität:** Die Zurück-Taste schließt Fenster und geht Ansicht für Ansicht zurück. Löschen geht sofort, mit „Rückgängig“. Geprüft mit axe-core gegen WCAG 2.2 AA (inkl. Größe der Tippflächen) in hellem und dunklem Design: keine Verstöße.
 
 ## Aufbau
 
@@ -269,6 +284,9 @@ www/                      Web-App, wird auch in die Android-App gepackt
   js/wallet*.js           Wallet (IndexedDB auf dem Gerät)
   js/wochenbild.js        Woche als Bild
   js/hubui.js             Bereich „Gemeinsam“ mit Kacheln
+  js/nav.js               Zurück-Taste und Verlauf
+  js/ask.js               Rückfragen im App-Stil
+  js/qr.js                QR-Bibliothek bei Bedarf laden
   js/i18n.js              Übersetzungen (de, en, tr, ar, uk)
   js/muell.js             Abfuhrkalender lesen
   js/infokarte*.js        Infokarte und U-Untersuchungen
@@ -291,6 +309,7 @@ docs/ROADMAP.md           Merkzettel für spätere Ausbaustufen (Listen über VT
 proxy/server.mjs          Server: liefert die Web-App aus, reicht KI-Anfragen weiter, hostet Kalender-Abos
 proxy/abo.mjs             Speicher für Abo-Links (zufällige Adressen, Bearbeitungsschlüssel als Hash)
 scripts/ferien.mjs        lädt die Schulferien aller Bundesländer
+scripts/build.mjs         baut dist/ (gebündelt, verkleinert, Offline-Liste)
 .github/workflows/        APK bauen, Web-Version veröffentlichen
 ```
 
