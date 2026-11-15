@@ -79,9 +79,13 @@ export function quickParse(text, today = new Date(), { family = [] } = {}) {
     s = s.replace(RE_DAYPART, ' ');
     if (!times) times = { start: DAYPART[part[1].toLowerCase().replace(/s$/, '')] || null, end: null };
   }
-  const title = s.replace(/(?<![\p{L}])(um|am|ab|für)(?![\p{L}])/giu, ' ').replace(/\s+/g, ' ').replace(/^[\s,:;–-]+|[\s,:;–-]+$/g, '').trim();
+  // Füllwörter raus, auch ein übrig gebliebenes „bis“/„zum“ am Ende („unterschreiben bis Freitag“)
+  const title = s.replace(/(?<![\p{L}])(um|am|ab|für)(?![\p{L}])/giu, ' ').replace(/\s+/g, ' ').replace(/^[\s,:;–-]+|[\s,:;–-]+$/g, '').trim()
+    .replace(/\s+(bis|zum|zur|vom|von|den|spätestens)$/i, '').replace(/^(bis|spätestens)\s+/i, '').trim();
+  // „… bis Freitag“ ohne Uhrzeit ist eine Frist (bis zu diesem Tag erledigen)
+  const frist = !times?.start && /(?<![\p{L}])(bis|spätestens)(?![\p{L}])/iu.test(text);
   return normalizeEvent({
     title: title ? title[0].toUpperCase() + title.slice(1) : 'Termin',
-    date, start: times?.start || null, end: times?.end || null, location, forWhom,
+    date, start: times?.start || null, end: times?.end || null, location, forWhom, kind: frist ? 'frist' : 'termin',
   });
 }

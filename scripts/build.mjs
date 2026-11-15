@@ -25,7 +25,8 @@ const js = await build({
   legalComments: 'none',
   metafile: true,
 });
-await build({ entryPoints: [`${SRC}/css/app.css`], outdir: `${OUT}/css`, minify: true, bundle: true, target: ['chrome80'] });
+// Schriften bleiben eigene Dateien unter fonts/ (werden mitkopiert)
+await build({ entryPoints: [`${SRC}/css/app.css`], outdir: `${OUT}/css`, minify: true, bundle: true, target: ['chrome80'], external: ['../fonts/*'] });
 
 // HTML: nur Kommentare entfernen (gzip erledigt den Rest)
 const html = await readFile(`${OUT}/index.html`, 'utf8');

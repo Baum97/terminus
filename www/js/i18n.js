@@ -8,6 +8,7 @@ let T = {};
 
 // Deutsche Texte, die nur im JavaScript vorkommen
 const DE = {
+  'hello.morning': 'Guten Morgen', 'hello.day': 'Hallo', 'hello.evening': 'Guten Abend',
   'tour.next': 'Weiter', 'tour.go': 'Los geht’s',
   'rsvp.q': 'Kommst du?', 'rsvp.ja': 'Ich komme', 'rsvp.vielleicht': 'Vielleicht', 'rsvp.nein': 'Ich kann nicht', 'rsvp.name': 'Dein Name',
   'rsvp.needName': 'Schreib deinen Namen dazu.', 'rsvp.done': '✓ Antwort erstellt. Schick sie an die Person, die eingeladen hat.',
@@ -55,6 +56,12 @@ export async function applyLang(code, root = document) {
   for (const el of root.querySelectorAll('[data-i18n-html]')) {
     el.dataset.i18nDe ??= el.innerHTML;
     el.innerHTML = T[lang]?.[el.dataset.i18nHtml] ?? el.dataset.i18nDe;
+  }
+  for (const el of root.querySelectorAll('[data-i18n-aria]')) {
+    el.dataset.i18nAriaDe ??= el.getAttribute('aria-label') || '';
+    const v = T[lang]?.[el.dataset.i18nAria] ?? el.dataset.i18nAriaDe;
+    el.setAttribute('aria-label', v);
+    el.title = v;
   }
   for (const el of root.querySelectorAll('[data-i18n-ph]')) {
     el.dataset.i18nDe ??= el.placeholder;

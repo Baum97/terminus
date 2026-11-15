@@ -1,0 +1,1 @@
+Test-Version 0.4.0: neues Design (eigene Schrift, Symbole, Fenster von unten), Startseite mit Begrüßung, Erkanntes kann eine Aufgabe werden, Einkaufszettel werden zur Liste, Listen als Reiter.

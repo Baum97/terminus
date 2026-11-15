@@ -176,3 +176,14 @@ test('Fotos: umgebrochene Zeilen und Ort nach der Uhrzeit', async () => {
   assert.deepEqual([c.title, c.location], ['Treffen', 'Gemeindehaus St. Paul']);
   assert.equal(parseText('Sommerfest 4.7. 15 Uhr im Anschluss Grillen', t)[0].location, '');
 });
+
+test('Aufgaben: Art „aufgabe“ ohne Datum, Zettel ohne Datum als Liste', async () => {
+  const { normalizeEvent } = await import('../www/js/events.js');
+  const t = normalizeEvent({ kind: 'aufgabe', title: 'Formular unterschreiben', start: '10:00', repeat: 'weekly' });
+  assert.deepEqual([t.kind, t.date, t.start, t.repeat], ['aufgabe', '', null, null]);
+  assert.equal(normalizeEvent({ kind: 'termin', title: 'x' }), null);
+  assert.equal(normalizeEvent({ kind: 'aufgabe', title: 'Zahlen', date: '2026-11-20' }).date, '2026-11-20');
+  const { taskLines } = await import('../www/js/listen.js');
+  assert.deepEqual(taskLines('Einkaufsliste\n- Milch\n- 2 Eier\n☐ Brot\nMilch\n\nKäse'), ['Milch', '2 Eier', 'Brot', 'Käse']);
+  assert.deepEqual(taskLines('Liebe Eltern,\nwir freuen uns sehr, euch zu unserem Fest einzuladen, es wird schön.'), []);
+});

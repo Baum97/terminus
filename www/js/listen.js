@@ -41,3 +41,21 @@ export function mergeItem(items, text) {
   if (hit) return { items: items.map((i) => (i === hit ? { ...i, done: false } : i)), added: false };
   return { items: [...items, { id: `l${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, text, done: false }], added: true };
 }
+
+// Zettel ohne Datum (Einkaufszettel, To-do-Liste): jede kurze Zeile wird eine Aufgabe
+export function taskLines(text, max = 20) {
+  const seen = new Set();
+  const out = [];
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    const l = raw.replace(/^\s*(?:[-•*☐☑✓▪·]|\d{1,2}[.)]|\[\s?[xX]?\s?\])\s*/, '').replace(/\s+/g, ' ').trim();
+    if (l.length < 2 || l.length > 60 || !/\p{L}{2}/u.test(l)) continue;
+    if (l.split(' ').length > 8 || /[.!?]$/.test(l) && l.split(' ').length > 4) continue;
+    if (/^(liebe|lieber|hallo|hi|sehr geehrte|viele grüße|mit freundlichen|einkauf(sliste)?|to-?do|liste|aufgaben)\b[:,]?$/i.test(l)) continue;
+    const key = l.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(l);
+    if (out.length >= max) break;
+  }
+  return out.length >= 2 ? out : [];
+}

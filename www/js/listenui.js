@@ -8,7 +8,7 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const KEY = 'terminus.listen';
 const PREF = 'terminus.listen.auswahl';
 let ctx;
-const st = { device: [], app: '', provider: null, current: '', items: [], hideDone: false };
+const st = { device: [], app: '', provider: null, current: '', items: [], hideDone: false, tabs: [] };
 
 const loadLocal = () => {
   try {
@@ -35,9 +35,12 @@ export function initListen(c) {
   } catch {
     // ohne Speicher: erste Liste
   }
-  $('#ls-list').addEventListener('change', (e) => {
-    if (e.target.value === '+') return newLocalList();
-    select(e.target.value);
+  // Listen als Reiter; der letzte Reiter legt eine neue Liste an
+  $('#ls-tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-list]');
+    if (!b) return;
+    if (b.dataset.list === '+') return newLocalList();
+    select(b.dataset.list).then(renderTabs);
   });
   $('#ls-form').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -57,6 +60,8 @@ export function initListen(c) {
 }
 
 const isDevice = (id) => id.startsWith('d:');
+// Fälligkeit: ISO-Datum (lokale Listen) oder Millisekunden (Tasks.org/OpenTasks)
+const fmtShort = (d) => (typeof d === 'number' ? new Date(d) : new Date(`${d}T12:00:00`)).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric' });
 
 export async function renderListen() {
   if (ctx.isNative) {
@@ -69,14 +74,11 @@ export async function renderListen() {
     }
   }
   const local = loadLocal();
-  const sel = $('#ls-list');
-  const opts = [
-    ...st.device.map((l) => new Option(`${l.name} (${l.account || st.app})`, `d:${l.id}`)),
-    ...local.map((l) => new Option(st.device.length ? `${l.name} (nur hier)` : l.name, `l:${l.id}`)),
-    new Option('+ Neue Liste …', '+'),
+  st.tabs = [
+    ...st.device.map((l) => ({ id: `d:${l.id}`, name: l.name, shared: true })),
+    ...local.map((l) => ({ id: `l:${l.id}`, name: l.name, shared: false })),
   ];
-  sel.replaceChildren(...opts);
-  const ids = opts.map((o) => o.value).filter((v) => v !== '+');
+  const ids = st.tabs.map((t) => t.id);
   if (!ids.includes(st.current)) st.current = ids[0] || '';
   if (!st.current) {
     // Erste Benutzung: eine Einkaufsliste anlegen
@@ -84,9 +86,22 @@ export async function renderListen() {
     saveLocal([list]);
     return renderListen();
   }
-  sel.value = st.current;
+  renderTabs();
   renderConnect();
   await select(st.current);
+}
+
+function renderTabs() {
+  const box = $('#ls-tabs');
+  box.replaceChildren(...st.tabs.map((t) => {
+    const b = Object.assign(document.createElement('button'), { type: 'button', textContent: t.name });
+    b.dataset.list = t.id;
+    b.setAttribute('aria-pressed', String(t.id === st.current));
+    if (t.shared) b.title = `Geteilt über ${st.app || 'DAVx⁵'}`;
+    return b;
+  }), Object.assign(document.createElement('button'), { type: 'button', className: 'new', textContent: '+ Liste' }));
+  box.lastElementChild.dataset.list = '+';
+  box.lastElementChild.setAttribute('aria-label', 'Neue Liste');
 }
 
 function renderConnect() {
@@ -164,10 +179,11 @@ function renderItems() {
   ul.replaceChildren(...shown.map((item) => {
     const li = document.createElement('li');
     li.className = item.done ? 'done' : '';
-    li.innerHTML = '<label><input type="checkbox"><span></span></label><button class="btn ghost small icon" type="button" aria-label="Entfernen">✕</button>';
+    li.innerHTML = '<label><input type="checkbox"><span></span></label><button class="icon-btn small" type="button" aria-label="Entfernen"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>';
     const box = $('input', li);
     box.checked = item.done;
     $('span', li).textContent = item.text;
+    if (item.due) $('label', li).append(Object.assign(document.createElement('small'), { className: 'due', textContent: `bis ${fmtShort(item.due)}` }));
     box.addEventListener('change', () => toggle(item, box.checked));
     $('button', li).addEventListener('click', () => remove(item));
     return li;
@@ -232,7 +248,7 @@ function clearDone() {
 async function newLocalList(name = '', items = []) {
   const n = name || (await ask({ title: 'Neue Liste', label: 'Name', placeholder: 'Packliste Urlaub, Baumarkt …', ok: 'Anlegen' }));
   if (!n) {
-    $('#ls-list').value = st.current;
+    renderTabs();
     return null;
   }
   const list = { id: `e${Date.now().toString(36)}`, name: n.slice(0, 60), items: items.map((t) => mergeItem([], t).items[0]) };
@@ -260,6 +276,48 @@ async function sendList() {
   } catch {
     // abgebrochen
   }
+}
+
+// Aufgaben aus der Erkennung: in die zuletzt gewählte Liste (geteilt oder lokal), sonst „Aufgaben“.
+// items: [{ text, due (ISO oder null) }] → { name }
+export async function addTasks(items) {
+  if (!st.current) {
+    try {
+      st.current = localStorage.getItem(PREF) || '';
+    } catch {
+      // ohne Speicher
+    }
+  }
+  if (isDevice(st.current) && ctx.isNative) {
+    const listId = st.current.slice(2);
+    for (const it of items) {
+      const due = it.due ? new Date(`${it.due}T00:00:00Z`).getTime() : undefined;
+      await ctx.Native.addTask({ listId, text: it.text, ...(due ? { due } : {}) });
+    }
+    if (!$('#view-tasks').hidden) select(st.current);
+    return { name: st.device.find((l) => `d:${l.id}` === st.current)?.name || 'deine geteilte Liste' };
+  }
+  let lists = loadLocal();
+  let list = lists.find((l) => `l:${l.id}` === st.current) || lists[0];
+  if (!list) {
+    list = { id: `e${Date.now().toString(36)}`, name: 'Aufgaben', items: [] };
+    lists = [list];
+  }
+  let next = list.items;
+  for (const it of items) {
+    const r = mergeItem(next, it.text);
+    next = r.items;
+    if (it.due) next = next.map((x) => (x.text.toLowerCase() === it.text.toLowerCase() ? { ...x, due: it.due } : x));
+  }
+  saveLocal(lists.some((l) => l.id === list.id) ? lists.map((l) => (l.id === list.id ? { ...l, items: next } : l)) : [...lists, { ...list, items: next }]);
+  st.current = `l:${list.id}`;
+  try {
+    localStorage.setItem(PREF, st.current);
+  } catch {
+    // egal
+  }
+  if (!$('#view-tasks').hidden) select(st.current);
+  return { name: list.name };
 }
 
 // Empfangene Liste (#l=…) als lokale Kopie übernehmen

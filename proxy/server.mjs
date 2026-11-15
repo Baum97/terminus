@@ -33,9 +33,9 @@ const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'https://localhost,capacitor:/
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json',
-  '.webmanifest': 'application/manifest+json', '.wasm': 'application/wasm', '.gz': 'application/gzip', '.txt': 'text/plain; charset=utf-8',
+  '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2', '.wasm': 'application/wasm', '.gz': 'application/gzip', '.txt': 'text/plain; charset=utf-8',
 };
-const PUBLIC = /^\/(index\.html|sw\.js|manifest\.webmanifest|(css|js|icons|vendor|data)\/.+)?$/;
+const PUBLIC = /^\/(index\.html|datenschutz\.html|sw\.js|manifest\.webmanifest|(css|js|icons|vendor|data|fonts)\/.+)?$/;
 
 // Einfaches Tageslimit pro IP, nur im Speicher.
 const usage = new Map();

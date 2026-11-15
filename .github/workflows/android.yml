@@ -4,6 +4,9 @@ on:
   push:
     branches: ['**']
     tags: ['v*']
+  # Release über die GitHub-Oberfläche angelegt: APK automatisch anhängen
+  release:
+    types: [published]
   pull_request:
   workflow_dispatch:
 

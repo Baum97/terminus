@@ -10,68 +10,101 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preload" href="fonts/plus-jakarta-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/app.css">
   <script src="vendor/capacitor/capacitor.js"></script>
   <script type="module" src="js/app.js"></script>
 </head>
 <body>
+  <!-- Symbole: ein Satz, überall gleich (Strich 1,8, runde Enden) -->
+  <svg class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></symbol>
+    <symbol id="i-user-plus" viewBox="0 0 24 24"><circle cx="9.5" cy="8" r="3.5"/><path d="M3 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5M19 7.5v6M16 10.5h6"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8.5h3.2L9 6h6l1.8 2.5H20v10.5H4z"/><circle cx="12" cy="13.5" r="3.4"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="m4.5 16.5 4.5-4.5 4 4 2-2 4.5 4.5"/><circle cx="15.5" cy="9.5" r="1.4"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M7 3.5h7l5 5V20.5H7z"/><path d="M14 3.5v5h5M9.5 13h6M9.5 16.5h6"/></symbol>
+    <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 6.5V5h14v1.5M12 5v14M9 19h6"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><circle cx="17.5" cy="5.5" r="2.5"/><circle cx="6.5" cy="12" r="2.5"/><circle cx="17.5" cy="18.5" r="2.5"/><path d="m8.7 10.8 6.6-4M8.7 13.2l6.6 4"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/></symbol>
+    <symbol id="i-cal-check" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4m-6 9.5 2 2 4-4"/></symbol>
+    <symbol id="i-task" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="m8.5 12 2.5 2.5 4.5-5"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M6 21V4M6 4h11l-2 4 2 4H6"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="8.5" cy="8" r="3"/><circle cx="17" cy="9.5" r="2.4"/><path d="M3 19.5c.5-3.5 2.6-5.3 5.5-5.3s5 1.8 5.5 5.3M14 19.5c.4-2.5 1.6-3.9 3.5-3.9s3.1 1.4 3.5 3.9"/></symbol>
+    <symbol id="i-euro" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M15.2 8.6a4.2 4.2 0 1 0 0 6.8M7.5 11h5.5M7.5 13.4h5.5"/></symbol>
+    <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 0 1 12.9-5.2L19.5 9M19.5 4v5h-5M19.5 12a7.5 7.5 0 0 1-12.9 5.2L4.5 15M4.5 20v-5h5"/></symbol>
+    <symbol id="i-aid" viewBox="0 0 24 24"><rect x="3.5" y="6.5" width="17" height="13" rx="2.5"/><path d="M9 6.5v-2h6v2M12 10v6M9 13h6"/></symbol>
+    <symbol id="i-gift" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="9" rx="1.5"/><path d="M3 8h18v3H3zM12 8v12M12 8C10.5 4 6.5 4.2 7 6.5S12 8 12 8zM12 8c1.5-4 5.5-3.8 5-1.5S12 8 12 8z"/></symbol>
+    <symbol id="i-rss" viewBox="0 0 24 24"><circle cx="6" cy="18" r="1.6"/><path d="M5 11.5a7.5 7.5 0 0 1 7.5 7.5M5 5a14 14 0 0 1 14 14"/></symbol>
+    <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M15.5 3.8a5 5 0 0 0-5.3 6.6L4 16.6V20h3.4l6.2-6.2a5 5 0 0 0 6.6-5.3l-3 3-3-.9-.9-3z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.7-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 15.3 12 21 12 21z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3.5l1.8 5 5 1.8-5 1.8-1.8 5-1.8-5-5-1.8 5-1.8zM18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></symbol>
+  </svg>
+
   <header class="top">
     <a class="brand" href="./" aria-label="Terminus Startseite">Termin<span>us</span></a>
     <div class="top-actions">
-      <button class="btn ghost small icon invite" id="btn-invite-top" type="button" aria-label="Leute einladen" title="Leute einladen"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 1.5v6M9 4.5h6"/><circle cx="12" cy="12.4" r="3.4"/><path d="M5 22c.6-3.9 3.4-6 7-6s6.4 2.1 7 6"/></svg></button>
-      <button class="btn ghost small" id="btn-settings" type="button" data-i18n="top.settings">Einstellungen</button>
+      <button class="icon-btn" id="btn-invite-top" type="button" aria-label="Leute einladen" title="Leute einladen"><svg class="ic" aria-hidden="true"><use href="#i-user-plus"/></svg></button>
+      <button class="icon-btn" id="btn-settings" type="button" aria-label="Einstellungen" title="Einstellungen" data-i18n-aria="top.settings"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg></button>
     </div>
   </header>
 
   <main>
     <!-- Start: Foto, Bild oder Text -->
     <section id="view-home" class="view">
-      <div class="intro">
-        <h1 data-i18n-html="home.h1">Zettel knipsen.<br><mark>Termin steht.</mark></h1>
-        <p data-i18n="home.intro">Elternbrief, Plakat, Einladung oder Chat-Screenshot: Terminus findet Datum, Uhrzeit, Ort und Mitbringliste und legt daraus Kalendertermine an.</p>
+      <div class="hello">
+        <p class="eyebrow" id="hello-date"></p>
+        <h1 id="hello-title" data-i18n-html="home.h1">Zettel knipsen.<br><mark>Termin steht.</mark></h1>
+        <p class="hello-text" data-i18n="home.intro">Elternbrief, Plakat, Einladung oder Chat-Screenshot: Terminus findet Datum, Uhrzeit, Ort und Mitbringliste und legt daraus Kalendertermine an.</p>
       </div>
 
-      <div class="capture">
-        <label class="btn primary big" for="in-camera">
-          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      <div class="capture-card">
+        <label class="btn primary big capture-main" for="in-camera">
+          <svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg>
           <span data-i18n="home.camera">Foto aufnehmen</span>
         </label>
         <input id="in-camera" type="file" accept="image/*" capture="environment" hidden>
-        <label class="btn big" for="in-file">
-          <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="1"/><path d="m4 16 5-5 4 4 2-2 5 5"/></svg>
-          <span data-i18n="home.file">Bild oder Screenshot</span>
-        </label>
+        <div class="capture-alt">
+          <label class="tile" for="in-file"><svg class="ic" aria-hidden="true"><use href="#i-image"/></svg><span data-i18n="home.file">Galerie</span></label>
+          <label class="tile" for="in-doc"><svg class="ic" aria-hidden="true"><use href="#i-file"/></svg><span data-i18n="home.doc">PDF &amp; E-Mail</span></label>
+          <button class="tile" type="button" id="btn-paste-open" aria-expanded="false" aria-controls="paste-box"><svg class="ic" aria-hidden="true"><use href="#i-text"/></svg><span data-i18n="home.text">Text</span></button>
+        </div>
         <input id="in-file" type="file" accept="image/*" multiple hidden>
+        <input id="in-doc" type="file" accept=".pdf,application/pdf,.eml,message/rfc822,.ics,text/calendar" hidden>
+        <div class="paste" id="paste-box" hidden>
+          <label class="sr" for="in-text">Text mit Terminen</label>
+          <textarea id="in-text" rows="5" placeholder="Nachricht aus dem Eltern-Chat oder E-Mail-Text einfügen"></textarea>
+          <button class="btn primary" id="btn-text" type="button" data-i18n="paste.btn">Termine finden</button>
+        </div>
+        <form class="quick" data-quick>
+          <label class="sr" for="quick-home">Schnell eintragen</label>
+          <div class="quick-field">
+            <svg class="ic quick-ic" aria-hidden="true"><use href="#i-plus"/></svg>
+            <input id="quick-home" data-i18n-ph="quick.ph" type="text" autocomplete="off" enterkeyhint="done" placeholder="Mi 16 Uhr Zahnarzt Ben">
+            <button class="icon-btn mic" type="button" data-mic aria-label="Termin sprechen" title="Termin sprechen" hidden><svg class="ic" aria-hidden="true"><use href="#i-mic"/></svg></button>
+          </div>
+          <button class="btn primary small quick-go" type="submit" aria-label="Eintragen" data-i18n-aria="quick.submit"><svg class="ic" aria-hidden="true"><use href="#i-send"/></svg></button>
+        </form>
+        <p class="mode"><span class="dot" id="mode-dot"></span><span id="mode-line">Erkennung: …</span></p>
       </div>
-      <label class="btn ghost small doc-pick" for="in-doc" data-i18n="home.doc">PDF, E-Mail oder Ticket öffnen</label>
-      <input id="in-doc" type="file" accept=".pdf,application/pdf,.eml,message/rfc822,.ics,text/calendar" hidden>
-
-<form class="quick" data-quick>
-        <label class="sr" for="quick-home">Schnell eintragen</label>
-        <input id="quick-home" data-i18n-ph="quick.ph" type="text" autocomplete="off" enterkeyhint="done" placeholder="Mi 16 Uhr Zahnarzt Ben">
-        <button class="btn small icon mic" type="button" data-mic aria-label="Termin sprechen" title="Termin sprechen" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></button>
-        <button class="btn primary small" type="submit" data-i18n="quick.submit">Eintragen</button>
-      </form>
       <p class="hint quick-hint" data-i18n="quick.hint">Auch: „morgen 8:30 Elterngespräch @ Schule“, „dienstags 16 Uhr Schwimmen Mia“. Das Mikrofon der Tastatur funktioniert auch.</p>
 
+      <button class="setup-banner" type="button" id="home-setup" hidden></button>
+
       <section class="next native-only" id="home-next" aria-labelledby="next-h" hidden>
-        <div class="saved-head">
+        <div class="section-head">
           <h2 id="next-h">Als Nächstes</h2>
-          <button class="linkish" type="button" id="next-cal">Kalender ›</button>
+          <button class="text-btn" type="button" id="next-cal">Kalender<svg class="ic" aria-hidden="true"><use href="#i-chevron"/></svg></button>
         </div>
         <ul class="next-list" id="next-list"></ul>
       </section>
-
-      <details class="paste" id="paste-box">
-        <summary data-i18n="paste.summary">Text einfügen statt Foto</summary>
-        <label class="sr" for="in-text">Text mit Terminen</label>
-        <textarea id="in-text" rows="5" placeholder="z. B. Nachricht aus dem Eltern-Chat einfügen"></textarea>
-        <button class="btn" id="btn-text" type="button" data-i18n="paste.btn">Termine finden</button>
-      </details>
-
-      <p class="mode"><span class="dot" id="mode-dot"></span><span id="mode-line">Erkennung: …</span></p>
-      <button class="setup-banner" type="button" id="home-setup" hidden></button>
-      <button class="linkish" type="button" id="home-migrate" data-i18n="home.migrate">Unabhängig von Big Tech werden</button>
 
       <section class="saved" aria-labelledby="saved-h">
         <div class="saved-head">
@@ -109,6 +142,7 @@
         <button class="btn ghost small" id="btn-back" type="button">Neuer Zettel</button>
       </div>
       <p class="hint" id="review-hint">Prüfe die Angaben kurz. Antippen zum Bearbeiten.</p>
+      <p class="task-note" id="review-tasks" hidden></p>
       <button class="linkish" type="button" id="btn-check-calendar" hidden>Mit meinem Kalender abgleichen (Überschneidungen finden)</button>
       <button class="btn small" type="button" id="btn-wallet-add" hidden>Ticket in die Wallet legen</button>
       <button class="btn small" type="button" id="btn-explain" hidden>Brief verstehen: einfach erklärt oder übersetzt</button>
@@ -119,7 +153,7 @@
         <pre id="raw-text"></pre>
       </details>
       <div class="actionbar">
-        <button class="btn primary" id="btn-ics-all" type="button" data-i18n="review.ics">In den Kalender</button>
+        <button class="btn primary" id="btn-ics-all" type="button">Übernehmen</button>
         <button class="btn" id="btn-save" type="button" data-i18n="review.save">Merken</button>
       </div>
     </section>
@@ -151,9 +185,12 @@
       </div>
 <form class="quick" data-quick>
         <label class="sr" for="quick-cal">Schnell eintragen</label>
-        <input id="quick-cal" data-i18n-ph="quick.ph" type="text" autocomplete="off" enterkeyhint="done" placeholder="Mi 16 Uhr Zahnarzt Ben">
-        <button class="btn small icon mic" type="button" data-mic aria-label="Termin sprechen" title="Termin sprechen" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></button>
-        <button class="btn primary small" type="submit" data-i18n="quick.submit">Eintragen</button>
+        <div class="quick-field">
+          <svg class="ic quick-ic" aria-hidden="true"><use href="#i-plus"/></svg>
+          <input id="quick-cal" data-i18n-ph="quick.ph" type="text" autocomplete="off" enterkeyhint="done" placeholder="Mi 16 Uhr Zahnarzt Ben">
+          <button class="icon-btn mic" type="button" data-mic aria-label="Termin sprechen" title="Termin sprechen" hidden><svg class="ic" aria-hidden="true"><use href="#i-mic"/></svg></button>
+        </div>
+        <button class="btn primary small quick-go" type="submit" aria-label="Eintragen" data-i18n-aria="quick.submit"><svg class="ic" aria-hidden="true"><use href="#i-send"/></svg></button>
       </form>
       <ul class="person-filter" id="cal-people" aria-label="Nach Person filtern"></ul>
       <div class="cal-permission" id="cal-permission" hidden>
@@ -172,21 +209,23 @@
       </div>
       <section class="panel listen">
         <div class="ls-head">
-          <label class="sr" for="ls-list">Liste</label>
-          <select id="ls-list"></select>
-          <button class="btn small" type="button" id="ls-send">Schicken</button>
+          <div class="ls-tabs" id="ls-tabs" role="group" aria-label="Listen"></div>
+          <button class="icon-btn" type="button" id="ls-send" aria-label="Liste schicken" title="Liste schicken"><svg class="ic" aria-hidden="true"><use href="#i-share"/></svg></button>
         </div>
         <form class="quick" id="ls-form">
           <label class="sr" for="ls-input">Eintrag</label>
-          <input id="ls-input" autocomplete="off" enterkeyhint="done" placeholder="Milch, Eier, Brot">
+          <div class="quick-field">
+            <svg class="ic quick-ic" aria-hidden="true"><use href="#i-plus"/></svg>
+            <input id="ls-input" autocomplete="off" enterkeyhint="done" placeholder="Milch, Eier, Brot">
+          </div>
           <button class="btn small primary" type="submit">Dazu</button>
         </form>
         <ul class="checklist ls-items" id="ls-items"></ul>
-        <p class="hint" id="ls-count"></p>
-        <div class="row">
+        <div class="ls-foot">
+          <p class="hint" id="ls-count"></p>
           <label class="check"><input type="checkbox" id="ls-hide"> <span>Erledigte ausblenden</span></label>
-          <button class="btn ghost small" type="button" id="ls-clear" hidden>Erledigte löschen</button>
-          <button class="btn ghost small native-only" type="button" id="ls-widget">Als Widget auf den Startbildschirm</button>
+          <button class="text-btn" type="button" id="ls-clear" hidden>Erledigte löschen</button>
+          <button class="text-btn native-only" type="button" id="ls-widget">Als Widget auf den Startbildschirm</button>
         </div>
         <div id="ls-connect-box" class="sc-kanal" hidden>
           <p class="hint" id="ls-connect-hint"></p>
@@ -229,14 +268,14 @@
       </div>
       <button class="btn ghost small hub-back" type="button" id="hub-back" hidden>‹ Übersicht</button>
       <div class="hub-tiles" id="hub-tiles">
-        <button type="button" data-hub-open="familie"><span class="ic">👪</span><strong>Familie</strong><small>Wer gehört dazu, gemeinsamer Kalender</small></button>
-        <button type="button" data-hub-open="abstimmen"><span class="ic">🗳️</span><strong>Wann können alle?</strong><small>Termin abstimmen</small></button>
-        <button type="button" data-hub-open="kasse"><span class="ic">💶</span><strong>Kasse</strong><small>Wer schuldet wem?</small></button>
-        <button type="button" data-hub-open="aemtchen" class="adv"><span class="ic">🧹</span><strong>Ämtchen</strong><small>Aufgaben reihum</small></button>
-        <button type="button" data-hub-open="info"><span class="ic">🩺</span><strong>Infokarte</strong><small>Arzt, Allergien, Notfall</small></button>
-        <button type="button" data-hub-open="geschenke" class="adv"><span class="ic">🎁</span><strong>Geschenkideen</strong><small>Geburtstage nicht verpassen</small></button>
-        <button type="button" data-hub-open="abos"><span class="ic">🗑️</span><strong>Müll &amp; Abos</strong><small>Abfuhrplan, Schule, Verein</small></button>
-        <button type="button" data-hub-open="setup" class="adv"><span class="ic">⚙️</span><strong>Einrichtung</strong><small>Assistent, Umzug, Einladen</small></button>
+        <button type="button" data-hub-open="familie"><span class="tile-ic" data-tone="blue"><svg class="ic" aria-hidden="true"><use href="#i-users"/></svg></span><strong>Familie</strong><small>Wer gehört dazu, gemeinsamer Kalender</small></button>
+        <button type="button" data-hub-open="abstimmen"><span class="tile-ic" data-tone="blue"><svg class="ic" aria-hidden="true"><use href="#i-cal-check"/></svg></span><strong>Wann können alle?</strong><small>Termin abstimmen</small></button>
+        <button type="button" data-hub-open="kasse"><span class="tile-ic" data-tone="green"><svg class="ic" aria-hidden="true"><use href="#i-euro"/></svg></span><strong>Kasse</strong><small>Wer schuldet wem?</small></button>
+        <button type="button" data-hub-open="aemtchen" class="adv"><span class="tile-ic" data-tone="coral"><svg class="ic" aria-hidden="true"><use href="#i-rotate"/></svg></span><strong>Ämtchen</strong><small>Aufgaben reihum</small></button>
+        <button type="button" data-hub-open="info"><span class="tile-ic" data-tone="coral"><svg class="ic" aria-hidden="true"><use href="#i-aid"/></svg></span><strong>Infokarte</strong><small>Arzt, Allergien, Notfall</small></button>
+        <button type="button" data-hub-open="geschenke" class="adv"><span class="tile-ic" data-tone="coral"><svg class="ic" aria-hidden="true"><use href="#i-gift"/></svg></span><strong>Geschenkideen</strong><small>Geburtstage nicht verpassen</small></button>
+        <button type="button" data-hub-open="abos"><span class="tile-ic" data-tone="green"><svg class="ic" aria-hidden="true"><use href="#i-rss"/></svg></span><strong>Müll &amp; Abos</strong><small>Abfuhrplan, Schule, Verein</small></button>
+        <button type="button" data-hub-open="setup" class="adv"><span class="tile-ic" data-tone="blue"><svg class="ic" aria-hidden="true"><use href="#i-wrench"/></svg></span><strong>Einrichtung</strong><small>Assistent, Umzug, Einladen</small></button>
       </div>
       <section class="panel" data-hub="abstimmen">
         <h2>Wann können alle?</h2>
@@ -1110,16 +1149,23 @@
       <div class="leaf" aria-hidden="true"><span class="leaf-wd"></span><span class="leaf-day"></span><span class="leaf-mon"></span></div>
       <div class="card-body">
         <div class="card-top">
+          <div class="kind-switch" role="group" aria-label="Art">
+            <button type="button" data-kind="termin"><svg class="ic" aria-hidden="true"><use href="#i-calendar"/></svg>Termin</button>
+            <button type="button" data-kind="frist"><svg class="ic" aria-hidden="true"><use href="#i-flag"/></svg>Frist</button>
+            <button type="button" data-kind="aufgabe"><svg class="ic" aria-hidden="true"><use href="#i-task"/></svg>Aufgabe</button>
+          </div>
+          <label class="pick" title="Übernehmen"><input type="checkbox" checked><span class="sr">übernehmen</span></label>
+        </div>
+        <div class="card-flags">
           <span class="kw"></span>
           <span class="pill frist" hidden>Frist</span>
           <span class="pill warn" hidden>Bitte prüfen</span>
-          <label class="pick"><input type="checkbox" checked><span>übernehmen</span></label>
         </div>
         <h2 class="title"></h2>
         <p class="meta when"></p>
         <p class="meta repeat" hidden></p>
         <button class="meta loc linkish" type="button" data-act="map" hidden></button>
-        <p class="meta travel"><button class="btn ghost small" type="button" data-act="travel" hidden>Wann losfahren?</button><span class="travel-text"></span></p>
+        <p class="meta travel"><button class="text-btn" type="button" data-act="travel" hidden><svg class="ic" aria-hidden="true"><use href="#i-clock"/></svg>Wann losfahren?</button><span class="travel-text"></span></p>
         <p class="meta bring" hidden></p>
         <ul class="notes" hidden></ul>
         <details class="edit">
@@ -1129,7 +1175,7 @@
             <label class="field"><span>Datum</span><input type="date" data-f="date"></label>
             <label class="field"><span>Bis (mehrtägig)</span><input type="date" data-f="endDate"></label>
             <label class="field"><span>Art</span>
-              <select data-f="kind"><option value="termin">Termin</option><option value="frist">Frist (bis zu diesem Tag)</option></select>
+              <select data-f="kind"><option value="termin">Termin</option><option value="frist">Frist (bis zu diesem Tag)</option><option value="aufgabe">Aufgabe (in eine Liste)</option></select>
             </label>
             <label class="field"><span>Wiederholen</span>
               <select data-f="repeatFreq">
@@ -1157,11 +1203,11 @@
           <ul class="guest-chips"></ul>
           <button class="btn primary small" type="button" data-act="send-invite">Einladung senden</button>
         </div>
+        <p class="meta task-target" hidden></p>
         <div class="card-actions">
-          <button class="btn small icon invite" type="button" data-act="invite" aria-label="Personen einladen" title="Personen einladen"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 1.5v6M9 4.5h6"/><circle cx="12" cy="12.4" r="3.4"/><path d="M5 22c.6-3.9 3.4-6 7-6s6.4 2.1 7 6"/></svg></button>
-          <button class="btn primary small" type="button" data-act="share">Teilen</button>
-          <button class="btn small" type="button" data-act="ics">Kalender</button>
-          <a class="btn small web-only" data-act="google" target="_blank" rel="noopener">Google</a>
+          <button class="btn small invite" type="button" data-act="invite"><svg class="ic" aria-hidden="true"><use href="#i-user-plus"/></svg>Einladen</button>
+          <button class="btn small" type="button" data-act="share"><svg class="ic" aria-hidden="true"><use href="#i-share"/></svg>Teilen</button>
+          <a class="btn small ghost web-only" data-act="google" target="_blank" rel="noopener">Google</a>
         </div>
       </div>
     </li>

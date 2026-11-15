@@ -41,22 +41,26 @@ export function normalizeRepeat(raw, until, date) {
 
 export function normalizeEvent(raw) {
   if (!raw || typeof raw !== 'object') return null;
-  const date = str(raw.date, 10);
-  if (!isValidISO(date)) return null;
+  // Aufgabe: kommt in eine Liste statt in den Kalender, Datum (bis wann) ist freiwillig
+  const kind = raw.kind === 'frist' || raw.kind === 'deadline' ? 'frist' : raw.kind === 'aufgabe' || raw.kind === 'task' ? 'aufgabe' : 'termin';
+  let date = str(raw.date, 10);
+  if (!isValidISO(date)) {
+    if (kind !== 'aufgabe') return null;
+    date = '';
+  }
   let endDate = str(raw.endDate, 10);
   if (!isValidISO(endDate) || endDate <= date) endDate = null;
-  const kind = raw.kind === 'frist' || raw.kind === 'deadline' ? 'frist' : 'termin';
   // Fristen sind ganztägig: "bis 2.11." heißt bis zum Ende des Tages.
-  const start = kind === 'frist' ? null : normTime(raw.start ?? '');
+  const start = kind === 'termin' ? normTime(raw.start ?? '') : null;
   let end = start ? normTime(raw.end ?? '') : null;
   if (end && !endDate && end <= start) end = null;
-  if (kind === 'frist') endDate = null;
+  if (kind !== 'termin') endDate = null;
   let bring = raw.bring;
   if (typeof bring === 'string') bring = bring.split(/[,;]/);
   bring = Array.isArray(bring) ? bring.map((b) => str(b, 80)).filter(Boolean).slice(0, 12) : [];
   return {
     id: str(raw.id, 40) || newId(),
-    title: str(raw.title, 120) || 'Termin',
+    title: str(raw.title, 120) || (kind === 'aufgabe' ? 'Aufgabe' : 'Termin'),
     date,
     endDate,
     start,
@@ -72,7 +76,7 @@ export function normalizeEvent(raw) {
     kind,
     skipHolidays: raw.skipHolidays === true,
     exdates: (Array.isArray(raw.exdates) ? raw.exdates : []).filter((d) => isValidISO(d) && d > date).slice(0, 200),
-    repeat: kind === 'frist' || endDate ? null : normalizeRepeat(raw.repeat, raw.until, date),
+    repeat: kind !== 'termin' || endDate ? null : normalizeRepeat(raw.repeat, raw.until, date),
     unsure: raw.unsure === true || raw.confidence === 'niedrig' || raw.confidence === 'low',
     // Erinnerung am Vorabend um 19 Uhr (z. B. Mülltonne rausstellen)
     eveAlarm: raw.eveAlarm === true,

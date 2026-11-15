@@ -19,6 +19,7 @@ import { geocode, travelMinutes, leaveText, MODES } from './unterwegs.js';
 import { UI_LANGS, pickLang, applyLang, t } from './i18n.js';
 import { initGemeinsam, onShowFamily, openHub } from './hubui.js';
 import { rsvpSummary } from './umfrage.js';
+import { taskLines } from './listen.js';
 import { buildBackup, parseBackup, backupFileName } from './backup.js';
 import { loadQR } from './qr.js';
 import { initNav, navTo, canGoBackTo, currentNav } from './nav.js';
@@ -149,6 +150,7 @@ const TAB_OF = { infokarte: 'family', abo: 'calendar', kanal: 'calendar', umfrag
 // opts.tab: über die Tab-Leiste (Tabs ersetzen sich im Verlauf, „Zurück“ führt zum Start)
 function show(view, opts = {}) {
   navTo({ view }, opts);
+  document.documentElement.dataset.view = view;
   for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== `view-${view}`;
   document.documentElement.classList.toggle('tabbar-off', view === 'busy' || view === 'received');
   for (const b of document.querySelectorAll('#tabbar [data-tab]')) {
@@ -159,6 +161,7 @@ function show(view, opts = {}) {
   onShow(view);
   if (view === 'setup') F.setup().then((m) => m.renderSetup()).catch(fail);
   if (view === 'home') {
+    renderHello();
     renderSetupBanner();
     renderNext();
   }
@@ -171,6 +174,27 @@ function show(view, opts = {}) {
 }
 
 const openFamilyInvite = (id) => F.setup().then((m) => m.openInvite(id)).catch(fail);
+
+// Text einfügen: klappt unter den Kacheln auf
+function togglePaste(open = $('#paste-box').hidden) {
+  $('#paste-box').hidden = !open;
+  $('#btn-paste-open').setAttribute('aria-expanded', String(open));
+  if (open) setTimeout(() => $('#in-text').focus(), 30);
+}
+
+// Begrüßung: beim ersten Mal der Leitsatz, danach Datum und Name
+function renderHello() {
+  const now = new Date();
+  $('#hello-date').textContent = now.toLocaleDateString(document.documentElement.lang || 'de', { weekday: 'long', day: 'numeric', month: 'long' });
+  const returning = document.documentElement.classList.contains('returning');
+  if (!returning) return;
+  const h = now.getHours();
+  const name = (state.settings.ownerName || '').split(' ')[0];
+  const greet = t(h < 11 ? 'hello.morning' : h < 18 ? 'hello.day' : 'hello.evening');
+  const el = $('#hello-title');
+  delete el.dataset.i18nHtml;
+  el.textContent = name ? `${greet}, ${name}` : greet;
+}
 
 // Startseite der App: was heute und morgen ansteht (aus dem Handykalender)
 async function renderNext() {
@@ -405,6 +429,8 @@ async function run(forceLocal = false) {
       }
     }
     if (abort.signal.aborted) return;
+    // Kein Datum, aber eine Liste (Einkaufszettel, To-dos): jede Zeile wird eine Aufgabe
+    if (!events.length && rawText) events = taskLines(rawText).map((title) => normalizeEvent({ kind: 'aufgabe', title })).filter(Boolean);
     state.drafts = events.map((e) => applySkip({ ...e, picked: true, skipHolidays: !!(e.repeat && state.settings.state) }));
     renderReview(canvas || local ? rawText : '');
   } catch (e) {
@@ -422,15 +448,27 @@ async function run(forceLocal = false) {
 /* ---------- Ergebnis prüfen ---------- */
 
 function fillCard(li, ev) {
-  const d = fromISO(ev.date);
-  $('.leaf-wd', li).textContent = WD_SHORT[d.getDay()];
-  $('.leaf-day', li).textContent = d.getDate();
-  $('.leaf-mon', li).textContent = MONTHS_SHORT[d.getMonth()];
-  $('.kw', li).textContent = `KW ${isoWeek(ev.date)}`;
+  const task = ev.kind === 'aufgabe';
+  if (ev.date) {
+    const d = fromISO(ev.date);
+    $('.leaf-wd', li).textContent = WD_SHORT[d.getDay()];
+    $('.leaf-day', li).textContent = d.getDate();
+    $('.leaf-mon', li).textContent = MONTHS_SHORT[d.getMonth()];
+  } else {
+    $('.leaf-wd', li).textContent = '';
+    $('.leaf-day', li).textContent = '✓';
+    $('.leaf-mon', li).textContent = '';
+  }
+  $('.kw', li).textContent = ev.date ? `KW ${isoWeek(ev.date)}` : '';
   $('.title', li).textContent = ev.title;
   li.classList.toggle('is-frist', ev.kind === 'frist');
-  $('.pill.frist', li).hidden = ev.kind !== 'frist';
-  $('.when', li).textContent = ev.kind === 'frist' ? `bis ${fmtDate(ev.date)}` : fmtWhen(ev);
+  li.classList.toggle('is-aufgabe', task);
+  for (const b of li.querySelectorAll('.kind-switch [data-kind]')) b.setAttribute('aria-pressed', String(b.dataset.kind === ev.kind));
+  $('.pill.frist', li).hidden = true;
+  $('.when', li).textContent = task ? (ev.date ? `bis ${fmtDate(ev.date)}` : 'ohne Datum') : ev.kind === 'frist' ? `bis ${fmtDate(ev.date)}` : fmtWhen(ev);
+  $('.when', li).hidden = task && !ev.date;
+  const acts = $('.card-actions', li);
+  if (acts) acts.hidden = task;
   const rep = $('.repeat', li);
   rep.hidden = !ev.repeat;
   rep.textContent = ev.repeat
@@ -580,7 +618,8 @@ const localMs = (iso, time = '00:00') => {
 const hhmm = (ms) => new Date(ms).toTimeString().slice(0, 5);
 
 async function checkConflicts() {
-  const drafts = state.drafts;
+  // Aufgaben haben keinen Platz im Kalender und können sich nicht überschneiden
+  const drafts = state.drafts.filter((d) => d.kind !== 'aufgabe' && d.date);
   if (!drafts.length) return;
   const saved = store.getSaved();
   for (const ev of drafts) {
@@ -711,6 +750,20 @@ function cardFor(ev, { editable = true, onRemove } = {}) {
     $('.card-actions', li).remove();
     $('.guests', li).remove();
     return li;
+  }
+  for (const b of li.querySelectorAll('.kind-switch [data-kind]')) {
+    b.addEventListener('click', () => {
+      if (b.dataset.kind === ev.kind) return;
+      // Ein Termin braucht ein Datum: ohne Datum wird es heute
+      const next = normalizeEvent({ ...ev, kind: b.dataset.kind, date: ev.date || (b.dataset.kind === 'aufgabe' ? '' : toISO(new Date())), unsure: false });
+      if (!next) return;
+      Object.assign(ev, next);
+      applySkip(ev);
+      fillCard(li, ev);
+      const kindSel = $('[data-f="kind"]', li);
+      if (kindSel) kindSel.value = ev.kind;
+      updateActionbar();
+    });
   }
   const pick = $('.pick input', li);
   pick.checked = ev.picked !== false;
@@ -855,7 +908,22 @@ async function planTravel(ev, li) {
   }
 }
 
+// Name der Liste, in die Aufgaben kommen (zuletzt gewählte Liste im Bereich Aufgaben)
+function taskListName() {
+  let pref = '';
+  try {
+    pref = localStorage.getItem('terminus.listen.auswahl') || '';
+  } catch {
+    // ohne Speicher: Standard
+  }
+  const lists = readJSON('terminus.listen', {}).lists || [];
+  if (pref.startsWith('l:')) return lists.find((l) => `l:${l.id}` === pref)?.name || 'Aufgaben';
+  if (pref.startsWith('d:')) return state.taskList || 'deine geteilte Liste';
+  return lists[0]?.name || 'Aufgaben';
+}
+
 function renderReview(rawText) {
+  state.taskList = taskListName();
   const list = $('#cards');
   list.replaceChildren(...state.drafts.map((ev) => cardFor(ev, { onRemove: removeDraft })));
   $('#review-source').textContent = state.input?.label || 'Erkannt';
@@ -874,17 +942,50 @@ function removeDraft(ev, li) {
   updateActionbar();
 }
 
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
 function updateActionbar() {
   const n = state.drafts.length;
-  const picked = state.drafts.filter((d) => d.picked !== false).length;
-  $('#review-title').textContent = n === 0 ? 'Kein Termin gefunden' : n === 1 ? '1 Termin gefunden' : `${n} Termine gefunden`;
+  const picked = state.drafts.filter((d) => d.picked !== false);
+  const tasks = state.drafts.filter((d) => d.kind === 'aufgabe').length;
+  const dates = n - tasks;
+  const found = [dates && plural(dates, 'Termin', 'Termine'), tasks && plural(tasks, 'Aufgabe', 'Aufgaben')].filter(Boolean).join(' und ');
+  $('#review-title').textContent = n === 0 ? 'Nichts gefunden' : `${found} gefunden`;
   $('#review-hint').textContent = n === 0
-    ? 'Auf dem Bild wurde kein Datum erkannt. Lege den Termin von Hand an oder versuche ein schärferes Foto.'
-    : 'Prüfe die Angaben kurz. Unter „Bearbeiten“ kannst du alles ändern.';
-  $('#btn-ics-all').textContent = picked > 1 ? `${picked} Termine in den Kalender` : 'In den Kalender';
-  $('#btn-ics-all').disabled = picked === 0;
-  $('#btn-save').disabled = picked === 0;
+    ? 'Auf dem Bild wurde kein Datum und keine Liste erkannt. Lege den Termin von Hand an oder versuche ein schärferes Foto.'
+    : 'Kurz prüfen. Oben auf der Karte wählst du, ob es ein Termin, eine Frist oder eine Aufgabe ist.';
+  const pt = picked.filter((d) => d.kind === 'aufgabe').length, pd = picked.length - pt;
+  $('#btn-ics-all').textContent = !picked.length ? 'Übernehmen'
+    : pt && pd ? `${picked.length} übernehmen`
+    : pt ? (pt === 1 ? 'Aufgabe übernehmen' : `${pt} Aufgaben übernehmen`)
+    : pd === 1 ? 'In den Kalender' : `${pd} Termine in den Kalender`;
+  $('#btn-ics-all').disabled = picked.length === 0;
+  $('#btn-save').disabled = pd === 0;
+  $('#btn-save').hidden = tasks === n && n > 0;
+  const note = $('#review-tasks');
+  note.hidden = !tasks;
+  note.textContent = tasks ? `Aufgaben kommen in die Liste „${state.taskList || 'Aufgaben'}“. Andere Liste: im Bereich Aufgaben wählen.` : '';
   $('.actionbar').hidden = n === 0;
+}
+
+// Übernehmen: Termine und Fristen in den Kalender, Aufgaben in die Liste
+async function commitDrafts(list) {
+  const tasks = list.filter((d) => d.kind === 'aufgabe');
+  const dates = list.filter((d) => d.kind !== 'aufgabe');
+  let note = '';
+  if (tasks.length) {
+    try {
+      const { addTasks } = await F.listen();
+      const r = await addTasks(tasks.map((t) => ({ text: t.title, due: t.date || null })));
+      note = `${plural(tasks.length, 'Aufgabe', 'Aufgaben')} in „${r.name}“`;
+      state.taskList = r.name;
+    } catch (e) {
+      toast(e.message || 'Die Aufgaben konnten nicht gespeichert werden.');
+      return;
+    }
+  }
+  if (dates.length) return addToCalendar(dates, { note });
+  toast(`${note}.`, { undo: undefined });
 }
 
 /* ---------- Kalender ---------- */
@@ -911,12 +1012,12 @@ function nativeEvent(ev) {
 // mehrere werden nach einmaliger Erlaubnis direkt eingetragen.
 // In der App werden Termine direkt eingetragen (in den Familien- bzw. gewählten Kalender).
 // Ohne Kalender-Erlaubnis öffnet sich bei einem einzelnen Termin die Kalender-App ausgefüllt.
-async function addToCalendar(events) {
-  if (!isNative) return downloadICS(events);
+async function addToCalendar(events, { note = '' } = {}) {
+  if (!isNative) return downloadICS(events, note);
   try {
     const { count, calendarId, ids = [] } = await Native.insertEvents({ events: events.map(nativeEvent), calendarId: state.settings.calendarId || undefined });
     republishSoon(calendarId);
-    toast(count === 1 ? `Eingetragen${state.settings.calendarName ? ` in „${state.settings.calendarName}“` : ''}.` : `${count} Termine eingetragen.`, {
+    toast(`${count === 1 ? `Eingetragen${state.settings.calendarName ? ` in „${state.settings.calendarName}“` : ''}` : `${count} Termine eingetragen`}${note ? ` · ${note}` : ''}.`, {
       undo: ids.length ? async () => {
         for (const id of ids) await Native.deleteEvent({ id }).catch(() => {});
         republishSoon(calendarId);
@@ -932,7 +1033,7 @@ async function addToCalendar(events) {
   }
 }
 
-function downloadICS(events) {
+function downloadICS(events, note = '') {
   const blob = new Blob([icsFor(events)], { type: 'text/calendar;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = Object.assign(document.createElement('a'), { href: url, download: icsFileName(events) });
@@ -940,7 +1041,7 @@ function downloadICS(events) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30000);
-  toast(events.length > 1 ? `${events.length} Termine als Kalenderdatei erstellt. Öffne sie, um sie zu übernehmen.` : 'Kalenderdatei erstellt. Öffne sie, um den Termin zu übernehmen.');
+  toast(`${events.length > 1 ? `${events.length} Termine als Kalenderdatei erstellt. Öffne sie, um sie zu übernehmen` : 'Kalenderdatei erstellt. Öffne sie, um den Termin zu übernehmen'}${note ? ` · ${note}` : ''}.`);
 }
 
 /* ---------- Teilen ---------- */
@@ -1186,9 +1287,10 @@ function renderSaved() {
   $('#saved-list').replaceChildren(...saved.map((ev) => {
     const li = document.createElement('li');
     const d = fromISO(ev.date);
-    li.innerHTML = `<span class="d"><b>${pad(d.getDate())}.${pad(d.getMonth() + 1)}.</b>${WD_SHORT[d.getDay()]} · KW ${isoWeek(ev.date)}</span>
+    li.innerHTML = `<span class="d" aria-hidden="true"><i>${WD_SHORT[d.getDay()]}</i><b>${d.getDate()}</b><i>${MONTHS_SHORT[d.getMonth()]}</i></span>
       <span class="t"><strong></strong><small></small></span>
-      <span class="acts"><button class="btn ghost small" type="button" data-a="share">Teilen</button><button class="btn ghost small" type="button" data-a="del" aria-label="Entfernen">✕</button></span>`;
+      <span class="acts"><button class="icon-btn small" type="button" data-a="share" aria-label="Teilen" title="Teilen"><svg class="ic" aria-hidden="true"><use href="#i-share"/></svg></button><button class="icon-btn small" type="button" data-a="del" aria-label="Entfernen" title="Entfernen"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button></span>`;
+    li.classList.toggle('is-frist', ev.kind === 'frist');
     $('strong', li).textContent = ev.title;
     $('small', li).textContent = [ev.start ? `${ev.start} Uhr` : ev.endDate ? 'mehrtägig' : 'ganztägig', ev.location].filter(Boolean).join(' · ');
     li.addEventListener('click', (e) => {
@@ -1604,9 +1706,10 @@ function bind() {
     });
   }
   $('#btn-text').addEventListener('click', () => handleText($('#in-text').value));
+  $('#btn-paste-open').addEventListener('click', () => togglePaste());
   $('#btn-demo').addEventListener('click', () => {
     $('#in-text').value = DEMO_TEXT;
-    $('#paste-box').open = true;
+    togglePaste(true);
     state.input = { canvas: null, dataUrl: null, text: DEMO_TEXT, label: 'Beispiel: Elternbrief der Kita' };
     run(true);
   });
@@ -1647,9 +1750,9 @@ function bind() {
     $('[data-f="title"]', li).select();
     updateActionbar();
   });
-  $('#btn-ics-all').addEventListener('click', () => addToCalendar(state.drafts.filter((d) => d.picked !== false)));
+  $('#btn-ics-all').addEventListener('click', () => commitDrafts(state.drafts.filter((d) => d.picked !== false)));
   $('#btn-save').addEventListener('click', () => {
-    const picked = state.drafts.filter((d) => d.picked !== false);
+    const picked = state.drafts.filter((d) => d.picked !== false && d.kind !== 'aufgabe');
     republishSoon('local');
     if (store.addSaved(picked)) toast(picked.length > 1 ? `${picked.length} Termine gemerkt.` : 'Termin gemerkt.');
     else toast('Speichern ist in diesem Browser nicht möglich (privater Modus?).');
@@ -1679,7 +1782,7 @@ function bind() {
       else show(b.dataset.tab, { tab: true });
     });
   }
-  for (const id of ['#home-migrate', '#open-migrate']) $(id).addEventListener('click', () => show('migrate'));
+  $('#open-migrate').addEventListener('click', () => show('migrate'));
   for (const id of ['#home-setup', '#open-setup']) $(id).addEventListener('click', () => show('setup'));
   $('#s-open-setup').addEventListener('click', () => {
     $('#dlg-settings').close();
@@ -1782,6 +1885,11 @@ async function init() {
       }
     },
   });
+  try {
+    if (localStorage.getItem('terminus.tour')) document.documentElement.classList.add('returning');
+  } catch {
+    // ohne Speicher: wie beim ersten Mal
+  }
   const applyLangReady = applyLang(pickLang(state.settings.uiLang, undefined, { auto: /^#(t|k|u)=/.test(location.hash) }));
   applySimple();
   if (isNative && state.settings.lock) lock();
