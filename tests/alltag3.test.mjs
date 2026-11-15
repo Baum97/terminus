@@ -187,3 +187,42 @@ test('Aufgaben: Art „aufgabe“ ohne Datum, Zettel ohne Datum als Liste', asyn
   assert.deepEqual(taskLines('Einkaufsliste\n- Milch\n- 2 Eier\n☐ Brot\nMilch\n\nKäse'), ['Milch', '2 Eier', 'Brot', 'Käse']);
   assert.deepEqual(taskLines('Liebe Eltern,\nwir freuen uns sehr, euch zu unserem Fest einzuladen, es wird schön.'), []);
 });
+
+test('Aufgaben mit Unterpunkten: Einkaufszettel, Schnelleingabe, Tasks.org-Beschreibung, Link', async () => {
+  const l = await import('../www/js/listen.js');
+  const { quickParse } = await import('../www/js/quick.js');
+  const { normalizeEvent } = await import('../www/js/events.js');
+  // Zettel: Überschrift wird Titel, sonst „Einkauf“ bei Lebensmitteln, sonst „Zu erledigen“
+  assert.deepEqual(l.taskSheet('Einkaufsliste\n- Milch\n- 2 Eier\n☐ Brot\nMilch\n\nKäse'), { title: 'Einkaufsliste', items: ['Milch', '2 Eier', 'Brot', 'Käse'] });
+  assert.equal(l.taskSheet('Milch\nEier\nBrot\nWaschmittel').title, 'Einkauf');
+  assert.equal(l.taskSheet('Reifen wechseln\nSteuer machen\nOma anrufen').title, 'Zu erledigen');
+  assert.deepEqual(l.taskSheet('Rewe:\nÄpfel\nNudeln'), { title: 'Rewe', items: ['Äpfel', 'Nudeln'] });
+  assert.equal(l.taskSheet('Nur eine Zeile'), null);
+  // Schnelleingabe mit Doppelpunkt, auch mit „bis wann“; Uhrzeiten und Links sind keine Listen
+  const today = new Date(2026, 9, 26);
+  const e = quickParse('Einkauf: Milch, 2 Eier und Brot', today);
+  assert.deepEqual([e.kind, e.title, e.items], ['aufgabe', 'Einkauf', ['Milch', '2 Eier', 'Brot']]);
+  const f = quickParse('Einkauf: Milch, Eier bis Samstag', today);
+  assert.deepEqual([f.kind, f.date, f.items.length], ['aufgabe', '2026-10-31', 2]);
+  assert.equal(quickParse('Fr Elternabend: Raum 12', today).kind, 'termin');
+  assert.equal(l.splitTitled('Abholen um 12:30'), null);
+  assert.equal(l.splitTitled('https://example.org'), null);
+  // Unterpunkte nur bei Aufgaben, ohne Doppelte
+  assert.deepEqual(normalizeEvent({ kind: 'aufgabe', title: 'Einkauf', items: ['Milch', ' milch ', { text: 'Brot' }, ''] }).items, ['Milch', 'Brot']);
+  assert.equal('items' in normalizeEvent({ title: 'Arzt', date: '2026-11-02', items: ['x'] }), false);
+  // Tasks.org/OpenTasks: Checkliste in der Beschreibung, übriger Text bleibt erhalten
+  const p = l.parseChecklist('Bei Rewe\n- [ ] Milch\n- [x] Eier\n☐ Brot');
+  assert.deepEqual(p, { sub: [{ text: 'Milch', done: false }, { text: 'Eier', done: true }, { text: 'Brot', done: false }], rest: 'Bei Rewe' });
+  assert.equal(l.checklistNotes(p.sub, p.rest), 'Bei Rewe\n\n- [ ] Milch\n- [x] Eier\n- [ ] Brot');
+  assert.deepEqual(l.parseChecklist(l.checklistNotes(p.sub, p.rest)), p);
+  // Dazu: gleiche nicht doppelt, abgehakte wieder offen
+  assert.deepEqual(l.addSubs(p.sub, ['eier', 'Käse']).map((s) => [s.text, s.done]), [['Milch', false], ['Eier', false], ['Brot', false], ['Käse', false]]);
+  assert.equal(l.subProgress(p.sub), '1/3');
+  // Teilen: eingerückt als Text, im Link lesbar auch für ältere Versionen (Unterpunkte getrennt)
+  const items = [{ text: 'Einkauf', done: false, sub: p.sub }, { text: 'Post', done: false }];
+  assert.equal(l.listText('Aufgaben', items), '📝 Aufgaben\n☐ Einkauf\n    ☐ Milch\n    ☑ Eier\n    ☐ Brot\n☐ Post');
+  assert.deepEqual(l.decodeList(l.encodeList('Aufgaben', items)), { name: 'Aufgaben', items: ['Einkauf', 'Post'], sub: { 0: ['Milch', 'Brot'] } });
+  // „Einkaufsliste“ in die Liste „Einkauf“: Punkte direkt in die Liste
+  assert.equal(l.sameList('Einkaufsliste', 'Einkauf'), true);
+  assert.equal(l.sameList('Packliste', 'Einkauf'), false);
+});

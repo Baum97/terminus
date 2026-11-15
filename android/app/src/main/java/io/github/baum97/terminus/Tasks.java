@@ -73,11 +73,13 @@ final class Tasks {
         return out;
     }
 
-    static long add(Context ctx, String authority, long listId, String title, Long due) {
+    // Unterpunkte stehen als Markdown-Checkliste ("- [ ] Milch") in der Beschreibung
+    static long add(Context ctx, String authority, long listId, String title, Long due, String notes) {
         ContentValues v = new ContentValues();
         v.put("list_id", listId);
         v.put("title", title);
         v.put("status", STATUS_NEEDS_ACTION);
+        if (notes != null && !notes.isEmpty()) v.put("description", notes);
         if (due != null) {
             v.put("due", due);
             v.put("is_allday", 1);
@@ -93,6 +95,13 @@ final class Tasks {
         v.put("percent_complete", done ? 100 : 0);
         if (done) v.put("completed", System.currentTimeMillis());
         else v.putNull("completed");
+        ctx.getContentResolver().update(ContentUris.withAppendedId(tasks(authority), id), v, null, null);
+    }
+
+    static void setNotes(Context ctx, String authority, long id, String notes) {
+        ContentValues v = new ContentValues();
+        if (notes == null || notes.isEmpty()) v.putNull("description");
+        else v.put("description", notes);
         ctx.getContentResolver().update(ContentUris.withAppendedId(tasks(authority), id), v, null, null);
     }
 

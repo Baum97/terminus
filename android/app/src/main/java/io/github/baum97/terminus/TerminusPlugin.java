@@ -1364,7 +1364,7 @@ public class TerminusPlugin extends Plugin {
         if (p == null) return;
         try {
             Long due = call.getData().has("due") ? call.getLong("due") : null;
-            long id = Tasks.add(getContext(), p[0], Long.parseLong(call.getString("listId", "-1")), call.getString("text", ""), due);
+            long id = Tasks.add(getContext(), p[0], Long.parseLong(call.getString("listId", "-1")), call.getString("text", ""), due, call.getString("notes", null));
             JSObject r = new JSObject();
             r.put("id", String.valueOf(id));
             call.resolve(r);
@@ -1382,6 +1382,18 @@ public class TerminusPlugin extends Plugin {
             call.resolve();
         } catch (Exception e) {
             call.reject("Das Häkchen konnte nicht gespeichert werden.", e);
+        }
+    }
+
+    @PluginMethod
+    public void setTaskNotes(PluginCall call) {
+        String[] p = tasksReady(call);
+        if (p == null) return;
+        try {
+            Tasks.setNotes(getContext(), p[0], Long.parseLong(call.getString("id", "-1")), call.getString("notes", ""));
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Die Unterpunkte konnten nicht gespeichert werden.", e);
         }
     }
 

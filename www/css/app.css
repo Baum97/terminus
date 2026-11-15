@@ -522,7 +522,7 @@ pre.cmd::before { content: attr(data-label); position: absolute; top: 7px; left:
 .ls-head { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
 .ls-items li { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--line); }
 .ls-items li label { font-size: 1.05rem; }
-.ls-items li.done span { text-decoration: line-through; color: var(--ink-soft); }
+.ls-items li.done > .ls-row .ls-text { text-decoration: line-through; color: var(--ink-soft); }
 .check.off { opacity: 0.45; }
 .meta.travel { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .meta.travel:empty, .meta.travel:has(button[hidden]):has(.travel-text:empty) { display: none; }
@@ -824,7 +824,7 @@ html[data-view]:not([data-view="home"]):not([data-view="received"]):not([data-vi
 .checklist input[type="checkbox"], .ls-items input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 24px; height: 24px; min-height: 0; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--ink-soft) 60%, var(--line)); background: var(--surface); display: grid; place-items: center; cursor: pointer; flex: none; padding: 0; transition: background-color 0.15s ease, border-color 0.15s ease; }
 .checklist input[type="checkbox"]:checked, .ls-items input[type="checkbox"]:checked { background: var(--green); border-color: var(--green); }
 .checklist input[type="checkbox"]:checked::after, .ls-items input[type="checkbox"]:checked::after { content: ""; width: 6px; height: 11px; border: solid var(--surface); border-width: 0 2.5px 2.5px 0; transform: translateY(-1px) rotate(45deg); }
-.ls-items li.done span { color: var(--ink-soft); }
+
 .ls-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
 .ls-foot .hint { flex: 1 1 100%; }
 .ls-foot .check { font-size: var(--step--1); color: var(--ink-soft); }
@@ -847,3 +847,41 @@ html[data-view]:not([data-view="home"]):not([data-view="received"]):not([data-vi
 .agenda-list { gap: 8px; background: transparent; border-radius: 0; overflow: visible; }
 .agenda-list li > button { border: 1px solid var(--line); border-radius: var(--r-sm); box-shadow: var(--shadow); }
 .fab { box-shadow: 0 10px 24px -8px color-mix(in srgb, var(--pen) 70%, transparent); }
+
+/* Aufgaben mit Unterpunkten: Kreis hakt ab, Tippen auf den Text klappt auf */
+.ls-items > li { display: block; padding: 0; }
+.ls-row { display: flex; align-items: center; min-height: 48px; }
+.ls-items .ls-row .ck { display: grid; place-items: center; width: 44px; height: 44px; min-height: 0; margin-inline-start: -10px; flex: none; }
+.ls-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; border: 0; background: none; color: inherit; font: inherit; font-size: 1.02rem; text-align: start; padding: 8px 0; min-height: 44px; cursor: pointer; border-radius: var(--r-sm); }
+.ls-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ls-meta { display: flex; align-items: center; gap: 6px; flex: none; }
+.ls-items .ls-meta .due { margin: 0; }
+.prog { font-size: 0.76rem; font-weight: 700; line-height: 1; color: var(--green); background: var(--green-soft); padding: 4px 8px; border-radius: 99px; font-variant-numeric: tabular-nums; }
+.ls-open .ic { width: 18px; height: 18px; color: var(--ink-soft); flex: none; transition: transform 0.18s ease; }
+.ls-items li.open .ls-open .ic { transform: rotate(90deg); }
+[dir="rtl"] .ls-open .ic { transform: scaleX(-1); }
+.ls-sub { margin: 0 0 12px 22px; padding: 2px 0 2px 14px; border-inline-start: 2px solid var(--line); display: grid; gap: 4px; }
+@media (prefers-reduced-motion: no-preference) { .ls-sub { animation: view-in 0.18s ease both; } }
+[dir="rtl"] .ls-sub { margin: 0 22px 12px 0; padding: 2px 14px 2px 0; }
+.ls-subs { list-style: none; margin: 0; padding: 0; }
+.ls-items .ls-subs li { display: flex; align-items: center; gap: 4px; padding: 0; border: 0; }
+.ls-items .ls-subs label { flex: 1; min-width: 0; gap: 10px; min-height: 40px; font-size: 0.96rem; }
+.ls-items .ls-subs input[type="checkbox"] { width: 20px; height: 20px; }
+.ls-items .ls-subs input[type="checkbox"]:checked::after { width: 5px; height: 9px; }
+.ls-subs span { overflow-wrap: anywhere; }
+.ls-subadd { display: flex; align-items: center; gap: 6px; }
+.ls-subadd input { flex: 1; min-width: 0; min-height: 40px; font-size: 0.95rem; }
+.ls-subfoot { display: flex; justify-content: flex-end; }
+.text-btn.danger { color: var(--coral); }
+
+/* Prüf-Karte: Unterpunkte einer Aufgabe */
+.card .subs { display: grid; gap: 6px; margin-top: 4px; }
+.card .subs[hidden] { display: none; }
+.sub-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.sub-list li { display: flex; align-items: center; gap: 10px; min-height: 36px; border-bottom: 1px solid var(--line); }
+.sub-list li:last-child { border-bottom: 0; }
+.sub-list li::before { content: ""; width: 16px; height: 16px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--ink-soft) 55%, var(--line)); flex: none; }
+.sub-t { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.sub-add { display: flex; align-items: center; gap: 6px; }
+.sub-add input { flex: 1; min-width: 0; min-height: 40px; font-size: 0.95rem; }
+.sub-split { justify-self: start; }

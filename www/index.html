@@ -94,7 +94,7 @@
         </form>
         <p class="mode"><span class="dot" id="mode-dot"></span><span id="mode-line">Erkennung: …</span></p>
       </div>
-      <p class="hint quick-hint" data-i18n="quick.hint">Auch: „morgen 8:30 Elterngespräch @ Schule“, „dienstags 16 Uhr Schwimmen Mia“. Das Mikrofon der Tastatur funktioniert auch.</p>
+      <p class="hint quick-hint" data-i18n="quick.hint">Auch: „morgen 8:30 Elterngespräch @ Schule“, „dienstags 16 Uhr Schwimmen Mia“. Ohne Datum wird es eine Aufgabe, mit Doppelpunkt eine Liste zum Abhaken: „Einkauf: Milch, Eier, Brot“.</p>
 
       <button class="setup-banner" type="button" id="home-setup" hidden></button>
 
@@ -1168,6 +1168,14 @@
         <p class="meta travel"><button class="text-btn" type="button" data-act="travel" hidden><svg class="ic" aria-hidden="true"><use href="#i-clock"/></svg>Wann losfahren?</button><span class="travel-text"></span></p>
         <p class="meta bring" hidden></p>
         <ul class="notes" hidden></ul>
+        <div class="subs" hidden>
+          <ul class="sub-list"></ul>
+          <form class="sub-add">
+            <input autocomplete="off" enterkeyhint="done" placeholder="Unterpunkte, mehrere mit Komma" aria-label="Unterpunkt dazu">
+            <button class="icon-btn small" type="submit" aria-label="Unterpunkt dazu"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg></button>
+          </form>
+          <button class="text-btn sub-split" type="button" data-act="split" hidden>Als einzelne Aufgaben anlegen</button>
+        </div>
         <details class="edit">
           <summary>Bearbeiten</summary>
           <div class="grid2">

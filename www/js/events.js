@@ -84,7 +84,22 @@ export function normalizeEvent(raw) {
     travel: start && raw.travel && Number.isFinite(raw.travel.minutes) && raw.travel.minutes > 0
       ? { minutes: Math.min(600, Math.round(raw.travel.minutes)), mode: ['auto', 'rad', 'fuss', 'oepnv'].includes(raw.travel.mode) ? raw.travel.mode : 'auto' }
       : null,
+    // Aufgabe mit Unterpunkten (Einkaufszettel, Packliste)
+    ...(kind === 'aufgabe' ? { items: normItems(raw.items) } : {}),
   };
+}
+
+function normItems(list) {
+  const seen = new Set();
+  const out = [];
+  for (const x of Array.isArray(list) ? list : []) {
+    const t = str(typeof x === 'string' ? x : x?.text, 120);
+    if (!t || seen.has(t.toLowerCase())) continue;
+    seen.add(t.toLowerCase());
+    out.push(t);
+    if (out.length >= 100) break;
+  }
+  return out;
 }
 
 export function normalizeEvents(list) {

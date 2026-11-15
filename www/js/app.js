@@ -19,7 +19,7 @@ import { geocode, travelMinutes, leaveText, MODES } from './unterwegs.js';
 import { UI_LANGS, pickLang, applyLang, t } from './i18n.js';
 import { initGemeinsam, onShowFamily, openHub } from './hubui.js';
 import { rsvpSummary } from './umfrage.js';
-import { taskLines } from './listen.js';
+import { taskSheet, splitItems, sameList } from './listen.js';
 import { buildBackup, parseBackup, backupFileName } from './backup.js';
 import { loadQR } from './qr.js';
 import { initNav, navTo, canGoBackTo, currentNav } from './nav.js';
@@ -429,8 +429,9 @@ async function run(forceLocal = false) {
       }
     }
     if (abort.signal.aborted) return;
-    // Kein Datum, aber eine Liste (Einkaufszettel, To-dos): jede Zeile wird eine Aufgabe
-    if (!events.length && rawText) events = taskLines(rawText).map((title) => normalizeEvent({ kind: 'aufgabe', title })).filter(Boolean);
+    // Kein Datum, aber eine Liste (Einkaufszettel, To-dos): eine Aufgabe mit den Zeilen als Unterpunkten
+    const sheet = !events.length && rawText ? taskSheet(rawText) : null;
+    if (sheet) events = [normalizeEvent({ kind: 'aufgabe', title: sheet.title, items: sheet.items })];
     state.drafts = events.map((e) => applySkip({ ...e, picked: true, skipHolidays: !!(e.repeat && state.settings.state) }));
     renderReview(canvas || local ? rawText : '');
   } catch (e) {
@@ -459,7 +460,7 @@ function fillCard(li, ev) {
     $('.leaf-day', li).textContent = '✓';
     $('.leaf-mon', li).textContent = '';
   }
-  $('.kw', li).textContent = ev.date ? `KW ${isoWeek(ev.date)}` : '';
+  $('.kw', li).textContent = ev.date ? `KW ${isoWeek(ev.date)}` : task && ev.items?.length ? plural(ev.items.length, 'Punkt', 'Punkte') : '';
   $('.title', li).textContent = ev.title;
   li.classList.toggle('is-frist', ev.kind === 'frist');
   li.classList.toggle('is-aufgabe', task);
@@ -469,6 +470,7 @@ function fillCard(li, ev) {
   $('.when', li).hidden = task && !ev.date;
   const acts = $('.card-actions', li);
   if (acts) acts.hidden = task;
+  fillSubs(li, ev);
   const rep = $('.repeat', li);
   rep.hidden = !ev.repeat;
   rep.textContent = ev.repeat
@@ -507,6 +509,49 @@ function fillCard(li, ev) {
       fillCard(li, ev);
     })));
   }
+}
+
+// Unterpunkte einer Aufgabe (Einkaufszettel): auf der Prüf-Karte entfernen, ergänzen, aufteilen
+function fillSubs(li, ev) {
+  const box = $('.subs', li);
+  if (!box) return;
+  const items = ev.kind === 'aufgabe' ? ev.items || [] : [];
+  const editable = !!$('.sub-add', li);
+  box.hidden = ev.kind !== 'aufgabe' || (!editable && !items.length);
+  $('.sub-list', box).replaceChildren(...items.map((t, n) => {
+    const row = document.createElement('li');
+    row.append(Object.assign(document.createElement('span'), { className: 'sub-t', textContent: t }));
+    if (editable) {
+      const x = Object.assign(document.createElement('button'), { type: 'button', className: 'icon-btn small', innerHTML: '<svg class="ic" aria-hidden="true"><use href="#i-x"/></svg>' });
+      x.dataset.sub = n;
+      x.setAttribute('aria-label', `„${t}“ entfernen`);
+      row.append(x);
+    }
+    return row;
+  }));
+  const split = $('.sub-split', box);
+  if (split) split.hidden = items.length < 2;
+}
+
+// „Als einzelne Aufgaben“: aus einer Aufgabe mit Unterpunkten wird je Punkt eine Karte
+function splitTask(ev, li) {
+  const parts = (ev.items || []).map((title) => normalizeEvent({ kind: 'aufgabe', title, date: ev.date, forWhom: ev.forWhom })).filter(Boolean).map((d) => ({ ...d, picked: ev.picked }));
+  if (parts.length < 2) return;
+  state.drafts.splice(state.drafts.indexOf(ev), 1, ...parts);
+  const cards = parts.map((d) => cardFor(d, { onRemove: removeDraft }));
+  li.replaceWith(...cards);
+  updateActionbar();
+  toast(`${parts.length} einzelne Aufgaben.`, { undo: () => {
+    const at = state.drafts.indexOf(parts[0]);
+    if (at < 0) return;
+    state.drafts = state.drafts.filter((d) => !parts.includes(d));
+    state.drafts.splice(at, 0, ev);
+    const live = cards.filter((c) => c.isConnected);
+    if (!live.length) return;
+    live[0].replaceWith(cardFor(ev, { onRemove: removeDraft }));
+    live.slice(1).forEach((c) => c.remove());
+    updateActionbar();
+  } });
 }
 
 // Ausfälle einer Serie in Ferien und an Feiertagen neu berechnen
@@ -749,22 +794,52 @@ function cardFor(ev, { editable = true, onRemove } = {}) {
     $('.pick', li).remove();
     $('.card-actions', li).remove();
     $('.guests', li).remove();
+    $('.sub-add', li).remove();
+    $('.sub-split', li).remove();
+    fillSubs(li, ev);
     return li;
   }
-  for (const b of li.querySelectorAll('.kind-switch [data-kind]')) {
-    b.addEventListener('click', () => {
-      if (b.dataset.kind === ev.kind) return;
-      // Ein Termin braucht ein Datum: ohne Datum wird es heute
-      const next = normalizeEvent({ ...ev, kind: b.dataset.kind, date: ev.date || (b.dataset.kind === 'aufgabe' ? '' : toISO(new Date())), unsure: false });
-      if (!next) return;
-      Object.assign(ev, next);
-      applySkip(ev);
-      fillCard(li, ev);
-      const kindSel = $('[data-f="kind"]', li);
-      if (kindSel) kindSel.value = ev.kind;
-      updateActionbar();
-    });
-  }
+  const syncFields = (except) => {
+    for (const other of li.querySelectorAll('[data-f]')) {
+      if (other === except) continue;
+      if (other.type === 'checkbox') other.checked = !!ev[other.dataset.f];
+      else other.value = editValue(ev, other.dataset.f);
+    }
+  };
+  // Art wechseln. Ein Termin braucht ein Datum: ohne Datum wird es heute.
+  // Unterpunkte einer Aufgabe wandern in die Notiz, damit nichts verloren geht.
+  const switchKind = (kind, except) => {
+    if (kind === ev.kind) return;
+    const items = ev.kind === 'aufgabe' && kind !== 'aufgabe' ? ev.items || [] : [];
+    const notes = items.length ? [ev.notes, ...items.map((t) => `- ${t}`)].filter(Boolean).join('\n') : ev.notes;
+    const next = normalizeEvent({ ...ev, kind, notes, date: ev.date || (kind === 'aufgabe' ? '' : toISO(new Date())), unsure: false });
+    if (!next) return;
+    if (next.kind !== 'aufgabe') delete ev.items;
+    Object.assign(ev, next);
+    applySkip(ev);
+    fillCard(li, ev);
+    syncFields(except);
+    updateActionbar();
+  };
+  for (const b of li.querySelectorAll('.kind-switch [data-kind]')) b.addEventListener('click', () => switchKind(b.dataset.kind));
+  const subInput = $('.sub-add input', li);
+  $('.sub-add', li).addEventListener('submit', (e) => {
+    e.preventDefault();
+    const parts = splitItems(subInput.value);
+    if (!parts.length) return;
+    ev.items = normalizeEvent({ kind: 'aufgabe', items: [...(ev.items || []), ...parts] }).items;
+    subInput.value = '';
+    fillCard(li, ev);
+    updateActionbar();
+  });
+  $('.sub-list', li).addEventListener('click', (e) => {
+    const x = e.target.closest('[data-sub]');
+    if (!x) return;
+    ev.items = ev.items.filter((_, k) => k !== +x.dataset.sub);
+    fillCard(li, ev);
+    updateActionbar();
+    subInput.focus();
+  });
   const pick = $('.pick input', li);
   pick.checked = ev.picked !== false;
   li.classList.toggle('off', !pick.checked);
@@ -796,6 +871,7 @@ function cardFor(ev, { editable = true, onRemove } = {}) {
     if (input.type === 'checkbox') input.checked = !!ev[f];
     else input.value = editValue(ev, f);
     input.addEventListener('change', () => {
+      if (f === 'kind') return switchKind(input.value, input);
       const raw = { ...ev, unsure: false };
       if (f === 'repeatFreq') raw.repeat = input.value ? { ...normalizeRepeatInput(input.value), until: ev.repeat?.until || null } : null;
       else if (f === 'until') {
@@ -815,11 +891,7 @@ function cardFor(ev, { editable = true, onRemove } = {}) {
       Object.assign(ev, next);
       applySkip(ev);
       fillCard(li, ev);
-      for (const other of li.querySelectorAll('[data-f]')) {
-        if (other === input) continue;
-        if (other.type === 'checkbox') other.checked = !!ev[other.dataset.f];
-        else other.value = editValue(ev, other.dataset.f);
-      }
+      syncFields(input);
     });
   }
   li.addEventListener('click', (e) => {
@@ -831,6 +903,7 @@ function cardFor(ev, { editable = true, onRemove } = {}) {
     if (act === 'ics') addToCalendar([ev]);
     if (act === 'remove') onRemove?.(ev, li);
     if (act === 'travel') planTravel(ev, li);
+    if (act === 'split') splitTask(ev, li);
   });
   return li;
 }
@@ -942,7 +1015,9 @@ function removeDraft(ev, li) {
   updateActionbar();
 }
 
-const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+function plural(n, one, many) {
+  return `${n} ${n === 1 ? one : many}`;
+}
 
 function updateActionbar() {
   const n = state.drafts.length;
@@ -964,7 +1039,9 @@ function updateActionbar() {
   $('#btn-save').hidden = tasks === n && n > 0;
   const note = $('#review-tasks');
   note.hidden = !tasks;
-  note.textContent = tasks ? `Aufgaben kommen in die Liste „${state.taskList || 'Aufgaben'}“. Andere Liste: im Bereich Aufgaben wählen.` : '';
+  const target = state.taskList || 'Aufgaben';
+  const flat = state.drafts.some((d) => d.kind === 'aufgabe' && d.items?.length && sameList(d.title, target));
+  note.textContent = !tasks ? '' : `${flat ? `Die Punkte kommen direkt in die Liste „${target}“.` : `Aufgaben kommen in die Liste „${target}“.`} Andere Liste: im Bereich Aufgaben wählen.`;
   $('.actionbar').hidden = n === 0;
 }
 
@@ -976,16 +1053,22 @@ async function commitDrafts(list) {
   if (tasks.length) {
     try {
       const { addTasks } = await F.listen();
-      const r = await addTasks(tasks.map((t) => ({ text: t.title, due: t.date || null })));
-      note = `${plural(tasks.length, 'Aufgabe', 'Aufgaben')} in „${r.name}“`;
+      const r = await addTasks(tasks.map((t) => ({ text: t.title, due: t.date || null, sub: t.items || [] })));
+      const subs = tasks.reduce((n, t) => n + (t.items?.length || 0), 0);
+      note = r.flat ? `${plural(subs, 'Eintrag', 'Einträge')} in „${r.name}“`
+        : tasks.length === 1 && subs ? `„${tasks[0].title}“ mit ${plural(subs, 'Punkt', 'Punkten')} in „${r.name}“`
+        : `${plural(tasks.length, 'Aufgabe', 'Aufgaben')} in „${r.name}“`;
       state.taskList = r.name;
     } catch (e) {
       toast(e.message || 'Die Aufgaben konnten nicht gespeichert werden.');
       return;
     }
   }
-  if (dates.length) return addToCalendar(dates, { note });
-  toast(`${note}.`, { undo: undefined });
+  if (dates.length) await addToCalendar(dates, { note });
+  else toast(`${note}.`, { undo: undefined });
+  // Übernommen: der eingefügte Text muss beim nächsten Mal nicht mehr im Feld stehen
+  $('#in-text').value = '';
+  togglePaste(false);
 }
 
 /* ---------- Kalender ---------- */

@@ -45,6 +45,7 @@ Du fotografierst einen Elternbrief, ein Plakat, eine Einladung oder einen Chat-S
 | **Wann können alle?** | Familie → „Termin abstimmen“: Vorschläge eintragen, Link in die Gruppe. Alle kreuzen an (passt / wenn nötig / geht nicht) und schicken ihre Antwort als Link zurück. Terminus zeigt den besten Termin; ein Tipp, und er steht im Kalender und kann an alle verschickt werden |
 | **Zusagen** | Wer einen Termin-Link öffnet, kann „Ich komme / Vielleicht / Ich kann nicht“ zurückschicken. In der Termin-Ansicht steht dann „3 kommen, 1 vielleicht (Ben, Mia, …)“ |
 | **Listen** | Aufgaben → Einkauf, Packliste, To-dos. Mit Tasks.org oder OpenTasks auf dem Handy über DAVx⁵ mit dem Anbieter abgeglichen, also mit der Familie geteilt. Ohne: lokal in Terminus, als Nachricht verschickbar |
+| **Unterpunkte** | Eine Aufgabe kann eine Abhakliste haben, z. B. „Einkauf: Milch, Eier, Brot“. Tippen auf den Text klappt sie auf; sind alle Punkte abgehakt, ist die Aufgabe erledigt. Ein fotografierter Einkaufszettel wird eine Aufgabe mit Punkten (oder auf Wunsch einzelne Aufgaben). Bei Tasks.org/OpenTasks stehen die Punkte als Checkliste („- [ ] Milch“) in der Beschreibung, so zeigen auch Tasks.org und Nextcloud Tasks sie an |
 | **Nur „belegt“ teilen** | Beim Teilen eines Kalenders: andere sehen, wann du keine Zeit hast, aber nicht wofür |
 
 | **Gemeinsame Kasse** | Ausflug, WG, Kita-Kasse: Ausgaben eintragen, „Ben schuldet Mia 21,67 €“, Ausgleich mit wenigen Überweisungen. Mit IBAN gibt es einen **GiroCode**, den jede deutsche Banking-App scannt. Der Stand geht als Link in die Gruppe; wer ihn öffnet, trägt eigene Ausgaben ein und schickt zurück – Terminus führt alles zusammen |
@@ -272,7 +273,7 @@ www/                      Web-App, wird auch in die Android-App gepackt
   js/pdf.js               PDFs lesen (pdf.js, liegt in www/vendor/)
   js/umfrage.js           Terminfindung und Zusagen: Links kodieren, auszählen
   js/umfrageui.js         Abstimmen, Ergebnisse, Zusagen
-  js/listen.js            Listen: Schnelleingabe, Text, Link
+  js/listen.js            Listen: Schnelleingabe, Unterpunkte, Zettel, Text, Link
   js/listenui.js          Listen über Tasks.org/OpenTasks oder lokal
   js/ablauf.js            Ablauf-Wächter: Vorlauf, Kündigungsfristen
   js/ablaufui.js          Ablauf-Wächter im Aufgaben-Bereich

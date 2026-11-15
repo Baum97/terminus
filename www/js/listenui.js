@@ -2,13 +2,13 @@
 // Android mit Tasks.org/OpenTasks: echte, über DAVx⁵ geteilte Listen (VTODO beim Anbieter).
 // Sonst: lokale Listen in Terminus, verschickbar als Nachricht.
 import { ask } from './ask.js';
-import { splitItems, listText, encodeList, decodeList, mergeItem } from './listen.js';
+import { splitItems, splitTitled, listText, encodeList, decodeList, mergeItem, parseChecklist, checklistNotes, addSubs, subProgress, sameList } from './listen.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const KEY = 'terminus.listen';
 const PREF = 'terminus.listen.auswahl';
 let ctx;
-const st = { device: [], app: '', provider: null, current: '', items: [], hideDone: false, tabs: [] };
+const st = { device: [], app: '', provider: null, current: '', items: [], hideDone: false, tabs: [], open: new Set() };
 
 const loadLocal = () => {
   try {
@@ -137,7 +137,8 @@ async function select(id) {
   }
   if (isDevice(id)) {
     try {
-      st.items = (await ctx.Native.listTasks({ listId: id.slice(2) })).items || [];
+      // Unterpunkte stehen bei Tasks.org/OpenTasks als Checkliste in der Beschreibung
+      st.items = ((await ctx.Native.listTasks({ listId: id.slice(2) })).items || []).map((i) => ({ ...i, ...parseChecklist(i.notes) }));
     } catch (e) {
       st.items = [];
       ctx.toast(e.message || 'Die Liste konnte nicht gelesen werden.');
@@ -158,7 +159,7 @@ function pushWidget() {
   if (!ctx.isNative || !st.current) return;
   ctx.Native.setListWidget({
     name: currentName(), source: isDevice(st.current) ? 'd' : 'l', listId: st.current,
-    items: st.items.slice(0, 40).map((i) => ({ id: isDevice(st.current) ? String(i.id) : i.id, text: i.text, done: !!i.done })),
+    items: st.items.slice(0, 40).map((i) => ({ id: isDevice(st.current) ? String(i.id) : i.id, text: i.sub?.length ? `${i.text} · ${subProgress(i.sub)}` : i.text, done: !!i.done })),
   }).catch(() => {});
 }
 
@@ -173,42 +174,133 @@ function storeLocal(items) {
   st.items = items;
 }
 
-function renderItems() {
+const icon = (id) => `<svg class="ic" aria-hidden="true"><use href="#i-${id}"/></svg>`;
+
+// Ein Eintrag: Kreis zum Abhaken, Tippen auf den Text klappt Unterpunkte und Löschen auf
+function renderItems(focus) {
   const ul = $('#ls-items');
   const shown = st.items.filter((i) => !st.hideDone || !i.done).sort((a, b) => Number(a.done) - Number(b.done));
-  ul.replaceChildren(...shown.map((item) => {
-    const li = document.createElement('li');
-    li.className = item.done ? 'done' : '';
-    li.innerHTML = '<label><input type="checkbox"><span></span></label><button class="icon-btn small" type="button" aria-label="Entfernen"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>';
-    const box = $('input', li);
-    box.checked = item.done;
-    $('span', li).textContent = item.text;
-    if (item.due) $('label', li).append(Object.assign(document.createElement('small'), { className: 'due', textContent: `bis ${fmtShort(item.due)}` }));
-    box.addEventListener('change', () => toggle(item, box.checked));
-    $('button', li).addEventListener('click', () => remove(item));
-    return li;
-  }));
+  ul.replaceChildren(...shown.map(itemRow));
   const open = st.items.filter((i) => !i.done).length;
-  $('#ls-count').textContent = st.items.length ? `${open} offen${st.items.length - open ? `, ${st.items.length - open} erledigt` : ''}` : 'Noch leer. Tipp oben ein, mehrere mit Komma: „Milch, Eier, Brot“.';
-  $('#ls-clear').hidden = isDevice(st.current) || st.items.every((i) => !i.done);
+  $('#ls-count').textContent = st.items.length ? `${open} offen${st.items.length - open ? `, ${st.items.length - open} erledigt` : ''}` : 'Noch leer. Mehrere mit Komma: „Milch, Eier, Brot“. Mit Unterpunkten: „Einkauf: Milch, Eier“.';
+  $('#ls-clear').hidden = isDevice(st.current) || !st.items.some((i) => i.done || i.sub?.some((x) => x.done));
   pushWidget();
+  // Fokus bleibt beim selben Bedienelement, auch wenn die Liste neu gezeichnet wird
+  if (focus) ul.querySelector(`li[data-id="${CSS.escape(String(focus.id))}"] ${focus.sel}`)?.focus();
+}
+
+function itemRow(item) {
+  const id = String(item.id);
+  const sub = item.sub || [];
+  const open = st.open.has(id);
+  const li = document.createElement('li');
+  li.dataset.id = id;
+  li.className = [item.done && 'done', open && 'open'].filter(Boolean).join(' ');
+  li.innerHTML = `<div class="ls-row"><label class="ck"><input type="checkbox"></label><button class="ls-open" type="button"><span class="ls-text"></span><span class="ls-meta"></span>${icon('chevron')}</button></div>`;
+  const box = $('input', li);
+  box.checked = !!item.done;
+  box.setAttribute('aria-label', `${item.text} erledigt`);
+  box.addEventListener('change', () => toggle(item, box.checked));
+  $('.ls-text', li).textContent = item.text;
+  const meta = $('.ls-meta', li);
+  if (sub.length) meta.append(Object.assign(document.createElement('span'), { className: 'prog', textContent: subProgress(sub) }));
+  if (item.due) meta.append(Object.assign(document.createElement('small'), { className: 'due', textContent: `bis ${fmtShort(item.due)}` }));
+  const btn = $('.ls-open', li);
+  btn.setAttribute('aria-expanded', String(open));
+  btn.setAttribute('aria-label', `${item.text}${sub.length ? `, ${subProgress(sub)} Unterpunkte erledigt` : ''}: Details`);
+  btn.addEventListener('click', () => {
+    if (open) st.open.delete(id);
+    else st.open.add(id);
+    renderItems({ id, sel: open ? '.ls-open' : '.ls-subadd input' });
+  });
+  if (open) li.append(subPanel(item));
+  return li;
+}
+
+function subPanel(item) {
+  const id = String(item.id);
+  const sub = item.sub || [];
+  const box = document.createElement('div');
+  box.className = 'ls-sub';
+  box.innerHTML = `<ul class="ls-subs"></ul>
+    <form class="ls-subadd"><input autocomplete="off" enterkeyhint="done"><button class="icon-btn small" type="submit" aria-label="Unterpunkt dazu">${icon('plus')}</button></form>
+    <div class="ls-subfoot"><button class="text-btn danger" type="button">${icon('trash')}Löschen</button></div>`;
+  $('.ls-subs', box).replaceChildren(...sub.map((s, n) => {
+    const row = document.createElement('li');
+    row.className = s.done ? 'done' : '';
+    row.innerHTML = `<label><input type="checkbox"><span></span></label><button class="icon-btn small" type="button">${icon('x')}</button>`;
+    const c = $('input', row);
+    c.checked = s.done;
+    $('span', row).textContent = s.text;
+    c.addEventListener('change', () => saveSub(item, sub.map((x, k) => (k === n ? { ...x, done: c.checked } : x)), { id, sel: `.ls-subs li:nth-child(${n + 1}) input` }));
+    const x = $('button', row);
+    x.setAttribute('aria-label', `„${s.text}“ entfernen`);
+    x.addEventListener('click', () => saveSub(item, sub.filter((_, k) => k !== n), { id, sel: '.ls-subadd input' }));
+    return row;
+  }));
+  const input = $('.ls-subadd input', box);
+  input.placeholder = sub.length ? 'Noch etwas dazu' : 'Unterpunkte, mehrere mit Komma';
+  input.setAttribute('aria-label', `Unterpunkt zu „${item.text}“`);
+  $('.ls-subadd', box).addEventListener('submit', (e) => {
+    e.preventDefault();
+    const parts = splitItems(input.value);
+    if (parts.length) saveSub(item, addSubs(sub, parts), { id, sel: '.ls-subadd input' });
+  });
+  $('.ls-subfoot button', box).addEventListener('click', () => remove(item));
+  return box;
+}
+
+// Unterpunkte speichern. Sind alle abgehakt, ist die Aufgabe erledigt; ein offener Punkt öffnet sie wieder.
+async function saveSub(item, sub, focus) {
+  const before = (item.sub || []).filter((s) => !s.done).length;
+  const left = sub.filter((s) => !s.done).length;
+  const done = sub.length && !left ? true : left > before ? false : !!item.done;
+  const finished = done && !item.done;
+  if (isDevice(st.current)) {
+    try {
+      await ctx.Native.setTaskNotes({ id: item.id, notes: checklistNotes(sub, item.rest) });
+      if (done !== !!item.done) await ctx.Native.setTaskDone({ id: item.id, done });
+    } catch (e) {
+      ctx.toast(e.message || 'Die Unterpunkte konnten nicht gespeichert werden.');
+    }
+    await select(st.current);
+  } else storeLocal(st.items.map((i) => (i.id === item.id ? { ...i, sub, done } : i)));
+  renderItems(focus);
+  if (finished) ctx.toast(`„${item.text}“ ist komplett erledigt.`, { undo: () => toggle({ ...item, sub }, false) });
 }
 
 async function addItems(text) {
-  const parts = splitItems(text);
+  // „Einkauf: Milch, Eier“ → ein Eintrag mit Unterpunkten (gibt es ihn schon, kommen sie dazu)
+  const titled = splitTitled(text);
+  const parts = titled ? [titled.title] : splitItems(text);
   if (!parts.length) return;
   $('#ls-input').value = '';
   if (isDevice(st.current)) {
     for (const t of parts) {
       const hit = st.items.find((i) => i.text.toLowerCase() === t.toLowerCase());
-      if (hit) {
-        if (hit.done) await ctx.Native.setTaskDone({ id: hit.id, done: false }).catch(() => {});
-      } else await ctx.Native.addTask({ listId: st.current.slice(2), text: t }).catch((e) => ctx.toast(e.message));
+      try {
+        if (hit) {
+          if (titled) await ctx.Native.setTaskNotes({ id: hit.id, notes: checklistNotes(addSubs(hit.sub, titled.items), hit.rest) });
+          if (hit.done) await ctx.Native.setTaskDone({ id: hit.id, done: false });
+          if (titled) st.open.add(String(hit.id));
+        } else {
+          const r = await ctx.Native.addTask({ listId: st.current.slice(2), text: t, ...(titled ? { notes: checklistNotes(addSubs([], titled.items)) } : {}) });
+          if (titled && r?.id) st.open.add(String(r.id));
+        }
+      } catch (e) {
+        ctx.toast(e.message);
+      }
     }
     return select(st.current);
   }
   let items = st.items;
   for (const t of parts) items = mergeItem(items, t).items;
+  if (titled) {
+    const key = titled.title.toLowerCase();
+    items = items.map((i) => (i.text.toLowerCase() === key ? { ...i, sub: addSubs(i.sub, titled.items), done: false } : i));
+    const hit = items.find((i) => i.text.toLowerCase() === key);
+    if (hit) st.open.add(String(hit.id));
+  }
   storeLocal(items);
   renderItems();
 }
@@ -216,18 +308,21 @@ async function addItems(text) {
 async function toggle(item, done) {
   if (isDevice(st.current)) {
     await ctx.Native.setTaskDone({ id: item.id, done }).catch((e) => ctx.toast(e.message));
-    return select(st.current);
+    await select(st.current);
+  } else {
+    storeLocal(st.items.map((i) => (i.id === item.id ? { ...i, done } : i)));
+    renderItems();
   }
-  storeLocal(st.items.map((i) => (i.id === item.id ? { ...i, done } : i)));
-  renderItems();
+  $(`#ls-items li[data-id="${CSS.escape(String(item.id))}"] .ck input`)?.focus();
 }
 
 async function remove(item) {
+  st.open.delete(String(item.id));
   if (isDevice(st.current)) {
     const listId = st.current.slice(2);
     await ctx.Native.deleteTask({ id: item.id }).catch((e) => ctx.toast(e.message));
     ctx.toast(`„${item.text}“ entfernt.`, { undo: async () => {
-      await ctx.Native.addTask({ listId, text: item.text }).catch(() => {});
+      await ctx.Native.addTask({ listId, text: item.text, ...(item.notes ? { notes: item.notes } : {}) }).catch(() => {});
       select(st.current);
     } });
     return select(st.current);
@@ -238,20 +333,22 @@ async function remove(item) {
   ctx.toast(`„${item.text}“ entfernt.`, { undo: () => (storeLocal(before), renderItems()) });
 }
 
+// Erledigte löschen: abgehakte Einträge und abgehakte Unterpunkte
 function clearDone() {
   const before = st.items;
-  storeLocal(st.items.filter((i) => !i.done));
+  const count = before.reduce((n, i) => n + (i.done ? 1 : (i.sub || []).filter((x) => x.done).length), 0);
+  storeLocal(st.items.filter((i) => !i.done).map((i) => (i.sub ? { ...i, sub: i.sub.filter((x) => !x.done) } : i)));
   renderItems();
-  ctx.toast(`${before.length - st.items.length} erledigte gelöscht.`, { undo: () => (storeLocal(before), renderItems()) });
+  ctx.toast(`${count} erledigte gelöscht.`, { undo: () => (storeLocal(before), renderItems()) });
 }
 
-async function newLocalList(name = '', items = []) {
+async function newLocalList(name = '', items = [], sub = {}) {
   const n = name || (await ask({ title: 'Neue Liste', label: 'Name', placeholder: 'Packliste Urlaub, Baumarkt …', ok: 'Anlegen' }));
   if (!n) {
     renderTabs();
     return null;
   }
-  const list = { id: `e${Date.now().toString(36)}`, name: n.slice(0, 60), items: items.map((t) => mergeItem([], t).items[0]) };
+  const list = { id: `e${Date.now().toString(36)}`, name: n.slice(0, 60), items: items.map((t, k) => ({ ...mergeItem([], t).items[0], ...(sub[k]?.length ? { sub: addSubs([], sub[k]) } : {}) })) };
   saveLocal([...loadLocal(), list]);
   st.current = `l:${list.id}`;
   try {
@@ -279,7 +376,8 @@ async function sendList() {
 }
 
 // Aufgaben aus der Erkennung: in die zuletzt gewählte Liste (geteilt oder lokal), sonst „Aufgaben“.
-// items: [{ text, due (ISO oder null) }] → { name }
+// items: [{ text, due (ISO oder null), sub: [Texte] }] → { name, flat }
+// Heißt die Aufgabe wie die Liste („Einkauf“ in „Einkauf“), kommen die Unterpunkte direkt in die Liste (flat).
 export async function addTasks(items) {
   if (!st.current) {
     try {
@@ -288,14 +386,21 @@ export async function addTasks(items) {
       // ohne Speicher
     }
   }
+  let flat = false;
   if (isDevice(st.current) && ctx.isNative) {
     const listId = st.current.slice(2);
+    const name = st.device.find((l) => `d:${l.id}` === st.current)?.name || 'deine geteilte Liste';
     for (const it of items) {
       const due = it.due ? new Date(`${it.due}T00:00:00Z`).getTime() : undefined;
-      await ctx.Native.addTask({ listId, text: it.text, ...(due ? { due } : {}) });
+      if (it.sub?.length && sameList(it.text, name)) {
+        flat = true;
+        for (const t of it.sub) await ctx.Native.addTask({ listId, text: t, ...(due ? { due } : {}) });
+        continue;
+      }
+      await ctx.Native.addTask({ listId, text: it.text, ...(due ? { due } : {}), ...(it.sub?.length ? { notes: checklistNotes(addSubs([], it.sub)) } : {}) });
     }
     if (!$('#view-tasks').hidden) select(st.current);
-    return { name: st.device.find((l) => `d:${l.id}` === st.current)?.name || 'deine geteilte Liste' };
+    return { name, flat };
   }
   let lists = loadLocal();
   let list = lists.find((l) => `l:${l.id}` === st.current) || lists[0];
@@ -304,10 +409,16 @@ export async function addTasks(items) {
     lists = [list];
   }
   let next = list.items;
+  const put = (text, due, sub) => {
+    next = mergeItem(next, text).items;
+    const key = text.toLowerCase();
+    next = next.map((x) => (x.text.toLowerCase() === key ? { ...x, ...(due ? { due } : {}), ...(sub?.length ? { sub: addSubs(x.sub, sub) } : {}) } : x));
+  };
   for (const it of items) {
-    const r = mergeItem(next, it.text);
-    next = r.items;
-    if (it.due) next = next.map((x) => (x.text.toLowerCase() === it.text.toLowerCase() ? { ...x, due: it.due } : x));
+    if (it.sub?.length && sameList(it.text, list.name)) {
+      flat = true;
+      for (const t of it.sub) put(t, it.due);
+    } else put(it.text, it.due, it.sub);
   }
   saveLocal(lists.some((l) => l.id === list.id) ? lists.map((l) => (l.id === list.id ? { ...l, items: next } : l)) : [...lists, { ...list, items: next }]);
   st.current = `l:${list.id}`;
@@ -317,7 +428,7 @@ export async function addTasks(items) {
     // egal
   }
   if (!$('#view-tasks').hidden) select(st.current);
-  return { name: list.name };
+  return { name: list.name, flat };
 }
 
 // Empfangene Liste (#l=…) als lokale Kopie übernehmen
@@ -327,7 +438,7 @@ export function handleListCode(code) {
     ctx.toast('Dieser Listen-Link ist unvollständig.');
     return false;
   }
-  newLocalList(l.name, l.items);
+  newLocalList(l.name, l.items, l.sub);
   ctx.show('tasks');
   ctx.toast(`Liste „${l.name}“ übernommen (${l.items.length} Einträge).`);
   return true;

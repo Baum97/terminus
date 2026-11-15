@@ -1,8 +1,10 @@
-// Schnelleingabe: eine Zeile wird ein Termin.
+// Schnelleingabe: eine Zeile wird ein Termin, ohne Datum eine Aufgabe.
 //   "Mi 16 Uhr Zahnarzt Ben"  ·  "morgen 8:30 Elterngespräch @ Schule"  ·  "nächsten Freitag Kuchen backen für Mia"
+//   "Milch kaufen" (Aufgabe)  ·  "Einkauf: Milch, Eier, Brot" (Aufgabe mit Unterpunkten)
 import { toISO, addDays } from './dates.js';
 import { parseText, findTimes, findDates } from './parse.js';
 import { normalizeEvent } from './events.js';
+import { splitTitled } from './listen.js';
 
 const WD = { so: 0, sonntag: 0, mo: 1, montag: 1, di: 2, dienstag: 2, mi: 3, mittwoch: 3, do: 4, donnerstag: 4, fr: 5, freitag: 5, sa: 6, samstag: 6 };
 const RE_REL = /(?<![\p{L}])(heute|morgen|übermorgen|in\s+(\d+|zwei|drei|vier|fünf)\s+tagen|(?:(nächste[nrs]?|kommende[nrs]?|am)\s+)?(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|mo|di|mi|do|fr|sa|so)\.?)(?![\p{L}])/iu;
@@ -68,7 +70,7 @@ export function quickParse(text, today = new Date(), { family = [] } = {}) {
     // Wiederkehrend ("dienstags 16 Uhr Schwimmen") oder gar kein Datum: Regeln der Zettel-Erkennung
     const [ev] = parseText(s, today);
     if (ev) return normalizeEvent({ ...ev, forWhom, location: location || ev.location });
-    return null;
+    return quickTask(s, forWhom);
   }
 
   let times = findTimes(s);
@@ -84,8 +86,20 @@ export function quickParse(text, today = new Date(), { family = [] } = {}) {
     .replace(/\s+(bis|zum|zur|vom|von|den|spätestens)$/i, '').replace(/^(bis|spätestens)\s+/i, '').trim();
   // „… bis Freitag“ ohne Uhrzeit ist eine Frist (bis zu diesem Tag erledigen)
   const frist = !times?.start && /(?<![\p{L}])(bis|spätestens)(?![\p{L}])/iu.test(text);
+  // „Einkauf: Milch, Eier bis Samstag“: Aufgabe mit Unterpunkten, das Datum ist „bis wann“
+  const list = !times?.start && splitTitled(title);
+  if (list && list.items.length >= 2) return normalizeEvent({ kind: 'aufgabe', title: list.title, items: list.items, date, forWhom });
   return normalizeEvent({
     title: title ? title[0].toUpperCase() + title.slice(1) : 'Termin',
     date, start: times?.start || null, end: times?.end || null, location, forWhom, kind: frist ? 'frist' : 'termin',
   });
+}
+
+// Ohne Datum: eine Aufgabe. Mit Doppelpunkt („Einkauf: Milch, Eier“) mit Unterpunkten.
+function quickTask(text, forWhom) {
+  const s = String(text).replace(/\s+/g, ' ').replace(/^[\s,–-]+|[\s,–-]+$/g, '').trim();
+  if (!s) return null;
+  const list = splitTitled(s);
+  if (list) return normalizeEvent({ kind: 'aufgabe', title: list.title, items: list.items, forWhom });
+  return normalizeEvent({ kind: 'aufgabe', title: s[0].toUpperCase() + s.slice(1), forWhom });
 }

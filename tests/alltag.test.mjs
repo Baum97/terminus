@@ -18,7 +18,9 @@ test('Schnelleingabe mit Wochentag, Uhrzeit und Person', () => {
   assert.deepEqual(q('Do nachmittags Spielplatz mit Papa'), ['Spielplatz mit Papa', '2026-10-29', '15:00', null, '', '']);
   assert.deepEqual(q('in 3 Tagen Reifenwechsel'), ['Reifenwechsel', '2026-10-29', null, null, '', '']);
   assert.deepEqual(q('14.11. 15 Uhr Kindergeburtstag Mia'), ['Kindergeburtstag', '2026-11-14', '15:00', null, '', 'Mia']);
-  assert.equal(quickParse('Milch kaufen', today, { family }), null);
+  // ohne Datum: eine Aufgabe statt einer Fehlermeldung
+  const m = quickParse('Milch kaufen', today, { family });
+  assert.deepEqual([m.kind, m.title, m.date], ['aufgabe', 'Milch kaufen', '']);
 });
 
 test('Schnelleingabe für wiederkehrende Termine', () => {

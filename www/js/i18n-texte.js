@@ -2,7 +2,7 @@
 export default {
   en: {
     'home.text': 'Text', 'hello.morning': 'Good morning', 'hello.day': 'Hi', 'hello.evening': 'Good evening',
-    'quick.hint': 'Also: “tomorrow 8:30 parents’ meeting @ school”, “Tuesdays 4 pm swimming Mia”. The keyboard microphone works too.', 'home.migrate': 'Become independent of Big Tech', 'saved.h': 'Kept events',
+    'quick.hint': 'Also: “tomorrow 8:30 parents’ meeting @ school”. Without a date it becomes a task, with a colon a checklist: “Shopping: milk, eggs, bread”.', 'home.migrate': 'Become independent of Big Tech', 'saved.h': 'Kept events',
     'tab.home': 'Capture', 'tab.calendar': 'Calendar', 'tab.tasks': 'To-dos', 'tab.wallet': 'Wallet', 'tab.family': 'Together',
     'top.settings': 'Settings',
     'home.h1': 'Snap the note.<br><mark>Event saved.</mark>',
@@ -29,7 +29,7 @@ export default {
   },
   tr: {
     'home.text': 'Metin', 'hello.morning': 'Günaydın', 'hello.day': 'Merhaba', 'hello.evening': 'İyi akşamlar',
-    'quick.hint': 'Ayrıca: “yarın 8:30 veli görüşmesi @ okul”, “salıları 16:00 yüzme Mia”. Klavyenin mikrofonu da çalışır.', 'home.migrate': 'Big Tech’ten bağımsız ol', 'saved.h': 'Kaydedilen randevular',
+    'quick.hint': 'Ayrıca: “yarın 8:30 veli görüşmesi @ okul”. Tarih yoksa görev olur, iki nokta ile işaretlenecek bir liste: “Alışveriş: süt, yumurta, ekmek”.', 'home.migrate': 'Big Tech’ten bağımsız ol', 'saved.h': 'Kaydedilen randevular',
     'tab.home': 'Ekle', 'tab.calendar': 'Takvim', 'tab.tasks': 'Görevler', 'tab.wallet': 'Cüzdan', 'tab.family': 'Birlikte',
     'top.settings': 'Ayarlar',
     'home.h1': 'Kâğıdın fotoğrafını çek.<br><mark>Randevu hazır.</mark>',
@@ -56,7 +56,7 @@ export default {
   },
   ar: {
     'home.text': 'نص', 'hello.morning': 'صباح الخير', 'hello.day': 'مرحبًا', 'hello.evening': 'مساء الخير',
-    'quick.hint': 'مثلًا: «غدًا 8:30 لقاء أولياء الأمور @ المدرسة»، «كل ثلاثاء 16:00 سباحة». ميكروفون لوحة المفاتيح يعمل أيضًا.', 'home.migrate': 'كن مستقلًا عن الشركات الكبرى', 'saved.h': 'المواعيد المحفوظة',
+    'quick.hint': 'مثلًا: «غدًا 8:30 لقاء أولياء الأمور @ المدرسة». بدون تاريخ تصبح مهمة، ومع النقطتين قائمة للتأشير: «تسوق: حليب، بيض، خبز».', 'home.migrate': 'كن مستقلًا عن الشركات الكبرى', 'saved.h': 'المواعيد المحفوظة',
     'tab.home': 'إضافة', 'tab.calendar': 'التقويم', 'tab.tasks': 'المهام', 'tab.wallet': 'المحفظة', 'tab.family': 'معًا',
     'top.settings': 'الإعدادات',
     'home.h1': 'صوّر الورقة.<br><mark>الموعد جاهز.</mark>',
@@ -83,7 +83,7 @@ export default {
   },
   uk: {
     'home.text': 'Текст', 'hello.morning': 'Доброго ранку', 'hello.day': 'Привіт', 'hello.evening': 'Добрий вечір',
-    'quick.hint': 'Також: «завтра 8:30 батьківські збори @ школа», «щовівторка 16:00 плавання Міа». Мікрофон клавіатури теж працює.', 'home.migrate': 'Стати незалежним від Big Tech', 'saved.h': 'Збережені події',
+    'quick.hint': 'Також: «завтра 8:30 батьківські збори @ школа». Без дати це буде завдання, з двокрапкою — список для позначок: «Покупки: молоко, яйця, хліб».', 'home.migrate': 'Стати незалежним від Big Tech', 'saved.h': 'Збережені події',
     'tab.home': 'Додати', 'tab.calendar': 'Календар', 'tab.tasks': 'Справи', 'tab.wallet': 'Гаманець', 'tab.family': 'Разом',
     'top.settings': 'Налаштування',
     'home.h1': 'Сфотографуй записку.<br><mark>Подія збережена.</mark>',

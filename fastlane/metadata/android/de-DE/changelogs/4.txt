@@ -1,0 +1,1 @@
+Test-Version 0.4.1: Aufgaben mit Unterpunkten zum Abhaken (z. B. „Einkauf: Milch, Eier“), Einkaufszettel werden eine Aufgabe mit Punkten, Schnelleingabe ohne Datum wird eine Aufgabe. Behoben: Enter im Namensfeld hat eine neue Liste nicht angelegt, Enter in Fenstern hat sie geschlossen.

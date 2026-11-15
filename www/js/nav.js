@@ -13,6 +13,16 @@ const same = (a, b) => a && b && a.view === b.view && (a.hub || null) === (b.hub
 export function initNav(opts) {
   o = opts;
   window.addEventListener('popstate', onPop);
+  // Enter in einem Eingabefeld schließt kein Fenster: Der Browser drückt sonst den ersten Knopf des
+  // Formulars, und das ist oft „Schließen“ oder „Abbrechen“. Diese sind deshalb keine Absende-Knöpfe;
+  // Enter löst den Hauptknopf aus (OK, Speichern) oder tut nichts.
+  for (const b of document.querySelectorAll('dialog form[method="dialog"] button[value="close"], dialog form[method="dialog"] button[value="cancel"]')) {
+    b.type = 'button';
+    b.addEventListener('click', () => b.closest('dialog').close(b.value));
+  }
+  document.addEventListener('submit', (e) => {
+    if (e.target.method === 'dialog' && !e.submitter) e.preventDefault();
+  });
   // Jedes Fenster (<dialog>) lässt sich mit „Zurück“ schließen
   const showModal = HTMLDialogElement.prototype.showModal;
   HTMLDialogElement.prototype.showModal = function () {
