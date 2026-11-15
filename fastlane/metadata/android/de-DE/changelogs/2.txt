@@ -1,0 +1,1 @@
+Test-Version 0.3.0: schneller Start, Zurück-Taste, Rückgängig, Suche im Kalender, „Als Nächstes“ auf der Startseite, mehrseitige Zettel, Gemeinsam-Bereich mit Kasse, Infokarte, Geschenkideen, Abfuhrkalender, Listen-Widget, Sprachen.
