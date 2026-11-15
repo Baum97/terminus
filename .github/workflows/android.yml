@@ -72,8 +72,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ls terminus-v*.apk >/dev/null 2>&1; then
-            gh release create "$GITHUB_REF_NAME" terminus-v*.apk --title "Terminus $GITHUB_REF_NAME" --generate-notes
+          if ls terminus-v*.apk >/dev/null 2>&1; then APK=$(ls terminus-v*.apk); SIGNED=1; else cp terminus.apk "terminus-$GITHUB_REF_NAME-test.apk"; APK="terminus-$GITHUB_REF_NAME-test.apk"; SIGNED=; fi
+          # Release schon angelegt (z. B. über die GitHub-Oberfläche)? Dann nur die APK anhängen.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$APK" --clobber
+          elif [ -n "$SIGNED" ]; then
+            gh release create "$GITHUB_REF_NAME" "$APK" --title "Terminus $GITHUB_REF_NAME" --generate-notes
           else
-            gh release create "$GITHUB_REF_NAME" terminus.apk --title "Terminus $GITHUB_REF_NAME" --notes "Test-Version zum direkten Installieren (APK, Test-Schlüssel)." --prerelease
+            gh release create "$GITHUB_REF_NAME" "$APK" --title "Terminus $GITHUB_REF_NAME" --notes "Test-Version zum direkten Installieren (APK, Test-Schlüssel)." --prerelease
           fi
