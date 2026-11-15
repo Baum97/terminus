@@ -148,6 +148,9 @@ export async function renderSetup({ verify = false } = {}) {
   for (const b of document.querySelectorAll('#view-setup [data-goal]')) b.setAttribute('aria-pressed', String(b.dataset.goal === s.goal));
   $('#setup-web-note').hidden = ctx.isNative;
   const list = $('#setup-steps');
+  // Prüfen und Fortschritt erst, wenn ein Ziel gewählt ist
+  $('#setup-verify').hidden = !s.goal;
+  $('#setup-progress').hidden = !s.goal;
   if (!s.goal) {
     list.replaceChildren();
     $('#setup-progress-text').textContent = 'Wähle zuerst, was du vorhast. Du kannst es jederzeit ändern.';
