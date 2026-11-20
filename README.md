@@ -200,7 +200,7 @@ Die Texterkennung läuft immer auf dem Handy. Mit KI geht danach nur der erkannt
 
 ## Android-App installieren (Test-Version)
 
-1. Unter [Actions](https://github.com/baum97/terminus/actions/workflows/android.yml) den neuesten grünen Lauf öffnen und unten `terminus-apk` herunterladen (ZIP mit `terminus.apk`). Bei Versionen mit Tag (`v0.2.0` …) liegt die APK direkt unter [Releases](https://github.com/baum97/terminus/releases).
+1. Auf dem Handy <https://github.com/baum97/terminus/releases/latest> öffnen und unter „Assets“ `terminus.apk` antippen. Direkter Link zur neuesten Version: <https://github.com/baum97/terminus/releases/latest/download/terminus.apk>. Jede Version auf `main` wird automatisch ein Release (Text aus `fastlane/metadata/android/de-DE/changelogs/`).
 2. Die APK auf dem Handy öffnen und „Installation aus unbekannten Quellen“ für den Browser bzw. Dateimanager erlauben.
 3. Neue Test-Versionen lassen sich einfach darüber installieren.
 

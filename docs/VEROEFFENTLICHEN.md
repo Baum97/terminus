@@ -58,14 +58,13 @@ Nach etwa einer Minute läuft Terminus unter `https://baum97.github.io/terminus/
 
 1. In `android/app/build.gradle` `versionCode` um 1 erhöhen und `versionName` setzen (z. B. `1.0.0`). In `package.json` dieselbe `version`.
 2. Kurz in `fastlane/metadata/android/de-DE/changelogs/<versionCode>.txt` schreiben, was neu ist.
-3. Committen, dann ein Tag setzen und pushen:
+3. Committen und auf `main` pushen.
 
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
+GitHub baut jetzt die APK (mit eigenem Schlüssel aus Schritt 2 **signiert**, sonst mit dem Test-Schlüssel) und legt unter **Releases** die Version `v1.0.0` an, mit dem Text aus Schritt 2. Wird dieselbe Version noch einmal gepusht, ersetzt der Build die APK im Release. Den Link kann man direkt weitergeben, er zeigt immer auf die neueste Version (Installation aus „unbekannten Quellen“ erlauben):
 
-GitHub baut jetzt eine **signierte APK** und legt unter **Releases** eine Version an. Den Link zur APK kann man schon weitergeben (Installation aus „unbekannten Quellen“ erlauben).
+<https://github.com/baum97/terminus/releases/latest/download/terminus.apk>
+
+Ein Tag `v…` oder ein über die GitHub-Oberfläche angelegtes Release bekommt die APK ebenfalls automatisch angehängt.
 
 ## Schritt 5: In App-Stores bringen
 
